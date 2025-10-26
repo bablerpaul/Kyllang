@@ -1,2 +1,2 @@
-# zkbeweis
-A zero-knowledge proof based system for verifiable credentials.
+An advanced level secure data holder~ 
+Your security is our only concern~
