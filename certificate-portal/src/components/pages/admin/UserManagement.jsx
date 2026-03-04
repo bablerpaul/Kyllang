@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -32,9 +32,13 @@ import {
   Edit as EditIcon,
   VerifiedUser as VerifiedUserIcon,
   People as PeopleIcon,
-  ContentCopy as ContentCopyIcon
+  ContentCopy as ContentCopyIcon,
+  Download as DownloadIcon
 } from '@mui/icons-material';
 import { apiFetch } from '../../../utils/api';
+import { QRCodeCanvas as QRCode } from 'qrcode.react';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
@@ -45,7 +49,8 @@ const UserManagement = () => {
   const [newUserParams, setNewUserParams] = useState('');
 
   const [deleteDialog, setDeleteDialog] = useState({ open: false, type: '', id: null, name: '' });
-  const [privateKeyDialog, setPrivateKeyDialog] = useState({ open: false, key: '', email: '' });
+  const [privateKeyDialog, setPrivateKeyDialog] = useState({ open: false, key: '', email: '', name: '', role: '' });
+  const idCardRef = useRef(null);
 
   const fetchUsers = async () => {
     try {
@@ -81,7 +86,7 @@ const UserManagement = () => {
       });
 
       // Show the private key to the admin to give to the user
-      setPrivateKeyDialog({ open: true, key: res.privateKey, email: res.user.email });
+      setPrivateKeyDialog({ open: true, key: res.privateKey, email: res.user.email, name: res.user.name, role: res.user.role });
 
       // Reset form
       setNewUserName('');
@@ -104,33 +109,114 @@ const UserManagement = () => {
     setDeleteDialog({ open: false, type: '', id: null, name: '' });
   };
 
+  const handleDownloadIDCard = async () => {
+    if (!idCardRef.current || !privateKeyDialog.key) return;
+
+    try {
+      const canvas = await html2canvas(idCardRef.current, {
+        scale: 4, // High scale for clear print
+        backgroundColor: null
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+
+      // CR80 ID Card dimensions: 85.6mm x 53.98mm (standard ATM card)
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: [85.6, 54]
+      });
+
+      pdf.addImage(imgData, 'PNG', 0, 0, 85.6, 54);
+      pdf.save(`${privateKeyDialog.name.replace(/\s+/g, '_')}_ID_Card.pdf`);
+    } catch (err) {
+      console.error("Failed to generate ID Card", err);
+      alert("Failed to download ID card.");
+    }
+  };
+
   const patients = users.filter(u => u.role === 'general_user');
   const doctors = users.filter(u => u.role === 'doctor');
   const admins = []; // Hide admins for now in UI
 
   return (
     <Box>
-      <Dialog open={privateKeyDialog.open} onClose={() => setPrivateKeyDialog({ ...privateKeyDialog, open: false })}>
-        <DialogTitle>User Created - Important Private Key</DialogTitle>
+      <Dialog open={privateKeyDialog.open} onClose={() => setPrivateKeyDialog({ ...privateKeyDialog, open: false })} maxWidth="sm" fullWidth>
+        <DialogTitle>User Created - Access ID Card</DialogTitle>
         <DialogContent>
           <Alert severity="warning" sx={{ mb: 2 }}>
-            A new RSA Key Pair was generated for {privateKeyDialog.email}.
-            The Public Key is stored securely. **You must copy the Private Key below and give it to the user.**
-            It will NEVER be shown again!
+            A new key pair was generated for {privateKeyDialog.name} ({privateKeyDialog.email}).
+            **You must provide this ID card to the user.** It will NEVER be shown again!
           </Alert>
-          <TextField
-            multiline
-            rows={6}
-            fullWidth
-            value={privateKeyDialog.key}
-            InputProps={{ readOnly: true }}
-          />
+
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2, alignItems: 'center', flexDirection: 'column' }}>
+            <Typography variant="caption" sx={{ mb: 1, color: 'text.secondary' }}>
+              Preview (CR80 Standard Size)
+            </Typography>
+            {/* ID Card Display */}
+            <Box
+              ref={idCardRef}
+              sx={{
+                width: '3.375in', // 85.6mm
+                height: '2.125in', // 54mm
+                backgroundColor: '#ffffff',
+                border: '1px solid #ddd',
+                borderRadius: '8px', // ~3mm
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'center',
+                boxShadow: 3,
+                p: 2,
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+            >
+              {/* Background styling line */}
+              <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', bgcolor: 'primary.main' }} />
+
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', fontSize: '0.8rem', color: 'primary.main', mb: 0.5 }}>
+                  KYLLANG MEDICAL PORTAL
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '1rem', lineHeight: 1.1 }}>
+                  {privateKeyDialog.name}
+                </Typography>
+                <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', fontSize: '0.65rem' }}>
+                  {privateKeyDialog.email}
+                </Typography>
+                <Chip
+                  label={privateKeyDialog.role === 'doctor' ? 'Doctor' : 'Patient'}
+                  size="small"
+                  // color={privateKeyDialog.role === 'doctor' ? '#666' : '#666'}
+                  color="#666"
+                  sx={{ mt: 1, height: '20px', fontSize: '0.6rem' }}
+                />
+                <Box sx={{ mt: 1.5 }}>
+                  <Typography variant="caption" sx={{ fontSize: '0.5rem', color: '#666' }}>
+                    Access Key Embedded
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box sx={{ ml: 2, p: 0.5, bgcolor: '#fff' }}>
+                {privateKeyDialog.key && (
+                  <QRCode
+                    value={privateKeyDialog.key}
+                    size={80} // fits well within 54mm height
+                    level={"L"}
+                    includeMargin={false}
+                  />
+                )}
+              </Box>
+            </Box>
+          </Box>
+
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => navigator.clipboard.writeText(privateKeyDialog.key)} startIcon={<ContentCopyIcon />}>
-            Copy
+          <Button onClick={handleDownloadIDCard} startIcon={<DownloadIcon />} variant="contained" color="primary">
+            Download ID Card
           </Button>
-          <Button onClick={() => setPrivateKeyDialog({ ...privateKeyDialog, open: false })} variant="contained">
+          <Button onClick={() => setPrivateKeyDialog({ ...privateKeyDialog, open: false })} variant="outlined">
             Done
           </Button>
         </DialogActions>

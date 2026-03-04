@@ -29,14 +29,18 @@ import {
   Visibility,
   History
 } from '@mui/icons-material';
+import { decryptKeyWithX25519, encryptKeyWithX25519 } from '../../../utils/cryptoUtils';
 import forge from 'node-forge';
 import { apiFetch } from '../../../utils/api';
+import PrivateKeyDialog from '../../shared/PrivateKeyDialog';
 
 const ApproveRequests = () => {
   const [requests, setRequests] = useState([]);
   const [approvedRequests, setApprovedRequests] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [privateKeyDialogOpen, setPrivateKeyDialogOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
 
   const fetchDocuments = async () => {
     try {
@@ -96,30 +100,18 @@ const ApproveRequests = () => {
   }, []);
 
   const handleApprove = async (requestId) => {
+    setPendingAction({ type: 'single', requestId });
+    setPrivateKeyDialogOpen(true);
+  };
+
+  const executeApproveSingle = async (requestId, privateKeyStr) => {
     const request = requests.find(r => r.id === requestId);
     if (!request) return;
 
     try {
-      const privateKeyStr = window.prompt("To authorize this request securely, please paste your RSA Private Key:");
-      if (!privateKeyStr) return;
 
-      const privateKey = forge.pki.privateKeyFromPem(privateKeyStr);
-      const decodedPatientEncryptedKey = forge.util.decode64(request.patientEncryptedKey);
-      const aesKey = privateKey.decrypt(decodedPatientEncryptedKey, 'RSA-OAEP', {
-        md: forge.md.sha256.create(),
-        mgf1: {
-          md: forge.md.sha256.create()
-        }
-      });
-
-      const doctorPublicKey = forge.pki.publicKeyFromPem(request.doctorPublicKey);
-      const doctorEncryptedKey = doctorPublicKey.encrypt(aesKey, 'RSA-OAEP', {
-        md: forge.md.sha256.create(),
-        mgf1: {
-          md: forge.md.sha256.create()
-        }
-      });
-      const encodedDoctorEncryptedKey = forge.util.encode64(doctorEncryptedKey);
+      const aesKeyBinaryStr = decryptKeyWithX25519(request.patientEncryptedKey, privateKeyStr);
+      const encodedDoctorEncryptedKey = encryptKeyWithX25519(aesKeyBinaryStr, request.doctorPublicKey);
 
       await apiFetch(`/api/patient/documents/${request.docId}/approve`, {
         method: 'POST',
@@ -172,26 +164,16 @@ const ApproveRequests = () => {
 
   const handleApproveAll = async () => {
     if (requests.length === 0) return;
+    setPendingAction({ type: 'all' });
+    setPrivateKeyDialogOpen(true);
+  };
 
+  const executeApproveAll = async (privateKeyStr) => {
     try {
-      const privateKeyStr = window.prompt(`To approve all ${requests.length} requests, please paste your RSA Private Key:`);
-      if (!privateKeyStr) return;
-
-      const privateKey = forge.pki.privateKeyFromPem(privateKeyStr);
 
       for (const request of requests) {
-        const decodedPatientEncryptedKey = forge.util.decode64(request.patientEncryptedKey);
-        const aesKey = privateKey.decrypt(decodedPatientEncryptedKey, 'RSA-OAEP', {
-          md: forge.md.sha256.create(),
-          mgf1: { md: forge.md.sha256.create() }
-        });
-
-        const doctorPublicKey = forge.pki.publicKeyFromPem(request.doctorPublicKey);
-        const doctorEncryptedKey = doctorPublicKey.encrypt(aesKey, 'RSA-OAEP', {
-          md: forge.md.sha256.create(),
-          mgf1: { md: forge.md.sha256.create() }
-        });
-        const encodedDoctorEncryptedKey = forge.util.encode64(doctorEncryptedKey);
+        const aesKeyBinaryStr = decryptKeyWithX25519(request.patientEncryptedKey, privateKeyStr);
+        const encodedDoctorEncryptedKey = encryptKeyWithX25519(aesKeyBinaryStr, request.doctorPublicKey);
 
         await apiFetch(`/api/patient/documents/${request.docId}/approve`, {
           method: 'POST',
@@ -208,6 +190,16 @@ const ApproveRequests = () => {
       console.error(err);
       alert('Failed to approve requests. Please ensure you entered the correct private key.');
     }
+  };
+
+  const handlePrivateKeySubmit = (privateKeyStr) => {
+    setPrivateKeyDialogOpen(false);
+    if (pendingAction?.type === 'single') {
+      executeApproveSingle(pendingAction.requestId, privateKeyStr);
+    } else if (pendingAction?.type === 'all') {
+      executeApproveAll(privateKeyStr);
+    }
+    setPendingAction(null);
   };
 
   return (
@@ -457,8 +449,8 @@ const ApproveRequests = () => {
                 variant="contained"
                 color="success"
                 onClick={() => {
-                  handleApprove(selectedRequest.id);
                   setDetailDialogOpen(false);
+                  handleApprove(selectedRequest.id);
                 }}
               >
                 Approve Access
@@ -467,6 +459,13 @@ const ApproveRequests = () => {
           </>
         )}
       </Dialog>
+
+      <PrivateKeyDialog
+        open={privateKeyDialogOpen}
+        onClose={() => { setPrivateKeyDialogOpen(false); setPendingAction(null); }}
+        onSubmit={handlePrivateKeySubmit}
+        title="Authorize Access"
+      />
     </Box>
   );
 };

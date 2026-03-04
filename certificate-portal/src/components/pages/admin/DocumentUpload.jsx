@@ -31,6 +31,7 @@ import {
   CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
 import { apiFetch } from '../../../utils/api';
+import { encryptKeyWithX25519 } from '../../../utils/cryptoUtils';
 import forge from 'node-forge';
 
 const DocumentUpload = () => {
@@ -112,9 +113,12 @@ const DocumentUpload = () => {
       const documentStr = JSON.stringify(docData);
 
       // 2. Encrypt document with AES
-      const aesKey = forge.random.getBytesSync(32); // 256 bits
+      // Get AES key as binary string directly from forge or just use random bytes directly.
+      // Since encryptKeyWithX25519 expects a string Payload and AES key needs to be used by forge cipher,
+      // it's best to get it as a binary string as before.
+      const aesKeyBinaryStr = forge.random.getBytesSync(32); // 256 bits
       const iv = forge.random.getBytesSync(12); // Standard for GCM
-      const cipher = forge.cipher.createCipher('AES-GCM', aesKey);
+      const cipher = forge.cipher.createCipher('AES-GCM', aesKeyBinaryStr);
       cipher.start({ iv: iv });
       cipher.update(forge.util.createBuffer(documentStr, 'utf8'));
       cipher.finish();
@@ -124,15 +128,8 @@ const DocumentUpload = () => {
       // Combine IV + TAG + DATA and base64 encode
       const combinedEncryptedDocument = forge.util.encode64(iv + tag + encryptedData);
 
-      // 3. Encrypt AES key with Patient's Public RSA Key
-      const publicKey = forge.pki.publicKeyFromPem(patient.publicKey);
-      const encryptedAesKey = publicKey.encrypt(aesKey, 'RSA-OAEP', {
-        md: forge.md.sha256.create(),
-        mgf1: {
-          md: forge.md.sha256.create()
-        }
-      });
-      const encodedEncryptedAesKey = forge.util.encode64(encryptedAesKey);
+      // 3. Encrypt AES key with Patient's Public X25519 Key
+      const encodedEncryptedAesKey = encryptKeyWithX25519(aesKeyBinaryStr, patient.publicKey);
 
       // 4. Send to backend
       await apiFetch('/api/admin/documents', {
@@ -287,7 +284,7 @@ const DocumentUpload = () => {
 
               <Alert severity="info" sx={{ mt: 2 }}>
                 <Typography variant="body2">
-                  Document data will be encrypted locally using AES-256-GCM. The decryption key is encrypted using the patient's RSAPublicKey.
+                  Document data will be encrypted locally using AES-256-GCM. The decryption key is encrypted using the patient's X25519 Public Key.
                 </Typography>
               </Alert>
             </CardContent>

@@ -17,7 +17,9 @@ import {
 } from '@mui/material';
 import { LocalHospital, VerifiedUser, AddCircle } from '@mui/icons-material';
 import { apiFetch } from '../../../utils/api';
+import { decryptKeyWithX25519, encryptKeyWithX25519 } from '../../../utils/cryptoUtils';
 import forge from 'node-forge';
+import PrivateKeyDialog from '../../shared/PrivateKeyDialog';
 
 const GenerateCertificate = () => {
   const [loading, setLoading] = useState(false);
@@ -25,6 +27,9 @@ const GenerateCertificate = () => {
   const [documents, setDocuments] = useState([]);
   const [selectedDoctor, setSelectedDoctor] = useState('');
   const [reason, setReason] = useState('');
+
+  const [privateKeyDialogOpen, setPrivateKeyDialogOpen] = useState(false);
+  const [pendingRequestType, setPendingRequestType] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -60,9 +65,6 @@ const GenerateCertificate = () => {
       return;
     }
 
-    let doctorEncryptedKeyToSend = null;
-    let docIdToApprove = null;
-
     if (type === 'vaccine') {
       const vaccineDoc = documents.find(d => d.type === 'vaccine_certificate');
       if (!vaccineDoc) {
@@ -76,24 +78,32 @@ const GenerateCertificate = () => {
         return;
       }
 
-      const privateKeyStr = window.prompt("To securely give the doctor access to your vaccine document and request a certificate, please paste your RSA Private Key:");
-      if (!privateKeyStr) return;
+      // Open dialog instead of prompt
+      setPendingRequestType(type);
+      setPrivateKeyDialogOpen(true);
+    } else {
+      // Proceed directly if no private key needed
+      executeRequest(type, null);
+    }
+  };
+
+  const handlePrivateKeySubmit = (privateKeyStr) => {
+    setPrivateKeyDialogOpen(false);
+    executeRequest(pendingRequestType, privateKeyStr);
+    setPendingRequestType(null);
+  };
+
+  const executeRequest = async (type, privateKeyStr) => {
+    let doctorEncryptedKeyToSend = null;
+    let docIdToApprove = null;
+
+    if (type === 'vaccine') {
+      const vaccineDoc = documents.find(d => d.type === 'vaccine_certificate');
+      const docDoctor = doctors.find(d => d._id === selectedDoctor);
 
       try {
-        const privateKey = forge.pki.privateKeyFromPem(privateKeyStr);
-        const decodedPatientEncryptedKey = forge.util.decode64(vaccineDoc.patientEncryptedKey);
-        const aesKey = privateKey.decrypt(decodedPatientEncryptedKey, 'RSA-OAEP', {
-          md: forge.md.sha256.create(),
-          mgf1: { md: forge.md.sha256.create() }
-        });
-
-        const doctorPublicKey = forge.pki.publicKeyFromPem(docDoctor.publicKey);
-        const docEncKey = doctorPublicKey.encrypt(aesKey, 'RSA-OAEP', {
-          md: forge.md.sha256.create(),
-          mgf1: { md: forge.md.sha256.create() }
-        });
-
-        doctorEncryptedKeyToSend = forge.util.encode64(docEncKey);
+        const aesKeyBinaryStr = decryptKeyWithX25519(vaccineDoc.patientEncryptedKey, privateKeyStr);
+        doctorEncryptedKeyToSend = encryptKeyWithX25519(aesKeyBinaryStr, docDoctor.publicKey);
         docIdToApprove = vaccineDoc._id;
       } catch (err) {
         alert("Failed to process security keys. Please check your private key.");
@@ -228,6 +238,14 @@ const GenerateCertificate = () => {
           </Typography>
         </Box>
       </CardContent>
+
+      {/* Private Key Dialog for Vaccine requests */}
+      <PrivateKeyDialog
+        open={privateKeyDialogOpen}
+        onClose={() => { setPrivateKeyDialogOpen(false); setPendingRequestType(null); }}
+        onSubmit={handlePrivateKeySubmit}
+        title="Authorize Certificate Request"
+      />
     </Card>
   );
 };

@@ -38,6 +38,8 @@ exports.getAllUsers = async (req, res) => {
 };
 
 const crypto = require('crypto');
+const nacl = require('tweetnacl');
+const util = require('tweetnacl-util');
 
 // @desc    Create a new user (Patient or Doctor) with RSA Key Pair
 // @route   POST /api/admin/users
@@ -55,18 +57,10 @@ exports.createUser = async (req, res) => {
             return res.status(400).json({ message: 'User already exists' });
         }
 
-        // Generate RSA Key Pair for the new user (for Proxy Re-Encryption PoC)
-        const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
-            modulusLength: 2048,
-            publicKeyEncoding: {
-                type: 'spki',
-                format: 'pem'
-            },
-            privateKeyEncoding: {
-                type: 'pkcs8',
-                format: 'pem'
-            }
-        });
+        // Generate Curve25519 (X25519) Key Pair for the new user
+        const keyPair = nacl.box.keyPair();
+        const publicKey = util.encodeBase64(keyPair.publicKey);
+        const privateKey = util.encodeBase64(keyPair.secretKey);
 
         const user = await User.create({
             name,

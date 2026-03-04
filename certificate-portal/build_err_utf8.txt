@@ -1,0 +1,56 @@
+﻿node.exe : [31mCould 
+not resolve "../shared/
+PrivateKeyDialog" from 
+"src/components/pages/d
+octor/DocumentViewer.js
+x"[39m
+At line:1 char:1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Program 
+Files\nodejs/node_mo 
+...
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: ([31mCould no   
+ t ...iewer.jsx"[3    
+9m:String) [], Rem    
+oteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+file: [36mD:/Codes/S6P
+roject/certificate-port
+al/src/components/pages
+/doctor/DocumentViewer.
+jsx[39m
+[31merror during 
+build:
+RollupError: Could not 
+resolve "../shared/Priv
+ateKeyDialog" from "src
+/components/pages/docto
+r/DocumentViewer.jsx"
+    at error (file:///D
+:/Codes/S6Project/certi
+ficate-portal/node_modu
+les/rollup/dist/es/shar
+ed/node-entry.js:2287:3
+0)
+    at ModuleLoader.han
+dleInvalidResolvedId (f
+ile:///D:/Codes/S6Proje
+ct/certificate-portal/n
+ode_modules/rollup/dist
+/es/shared/node-entry.j
+s:24860:24)
+    at file:///D:/Codes
+/S6Project/certificate-
+portal/node_modules/rol
+lup/dist/es/shared/node
+-entry.js:24822:26[39m

@@ -1,0 +1,82 @@
+=========================================================
+BLOCKCHAIN INTEGRATION SETUP GUIDE
+=========================================================
+
+Hello! This project is a Medical/Vaccine Certificate Portal built with the MERN stack (MongoDB, Express, React, Node.js). 
+Currently, it handles user authentication, document uploads, cryptographic encryption (RSA/AES), doctor assignments, and certificate issuance/verification.
+
+Your task will be to integrate the Blockchain layer. Specifically, you will be writing a smart contract to periodically store a cryptographic hash (a batch hash of our system's audit logs) on-chain to prove the integrity of our administrative actions. This "anchoring" is the ONLY blockchain feature required for this system.
+
+Below are the instructions to set up the project locally since `node_modules` and sensitive `.env` files are not included in the zip.
+
+---------------------------------------------------------
+1. SYSTEM REQUIREMENTS
+---------------------------------------------------------
+- Node.js (v18 or higher recommended)
+- MongoDB (running locally, or a MongoDB Atlas URI)
+- Git (optional, but good for version control)
+
+---------------------------------------------------------
+2. DATABASE SETUP (MongoDB)
+---------------------------------------------------------
+This project requires MongoDB to store users, documents, and audit logs.
+
+Option A: Local MongoDB (Recommended for Development)
+1. Download and install MongoDB Community Server: https://www.mongodb.com/try/download/community
+2. (Optional) Install MongoDB Compass to view your database visually.
+3. Make sure the MongoDB service is running (it defaults to mongodb://127.0.0.1:27017).
+4. Our ORM (Mongoose) will automatically create the `certificate-portal` database and its collections as soon as the backend runs and saves data. No manual DB setup is needed!
+
+Option B: MongoDB Atlas (Cloud)
+1. Set up a free cluster at https://www.mongodb.com/cloud/atlas
+2. Copy your connection URI and plug it into your backend `.env` file instead of the local one.
+
+---------------------------------------------------------
+3. BACKEND SETUP (Node.js/Express)
+---------------------------------------------------------
+1. Open your terminal and navigate to the backend folder:
+   cd backend
+
+2. Install dependencies:
+   npm install
+
+3. Create a `.env` file in the `backend` folder. You will need the following standard variables (ask the team lead for actual secret keys if needed, otherwise use local testing values):
+   PORT=5000
+   MONGO_URI=mongodb://127.0.0.1:27017/certificate-portal
+   JWT_SECRET=your_super_secret_jwt_key
+   # Add any blockchain specific variables you create here (e.g., RPC_URL, PRIVATE_KEY, CONTRACT_ADDRESS)
+
+4. Start the backend development server:
+   npm run dev
+   (The backend should now be running on http://localhost:5000)
+
+---------------------------------------------------------
+4. FRONTEND SETUP (React/Vite)
+---------------------------------------------------------
+1. Open a *new* terminal window and navigate to the frontend folder:
+   cd certificate-portal
+
+2. Install dependencies:
+   npm install
+
+3. Create a `.env` file in the `certificate-portal` folder. Add the following:
+   VITE_API_BASE_URL=http://localhost:5000/api
+   # Add any frontend blockchain variables here (e.g., VITE_CONTRACT_ADDRESS)
+
+4. Start the frontend development server:
+   npm run dev
+   (The frontend will usually run on http://localhost:5173)
+
+---------------------------------------------------------
+5. BLOCKCHAIN INTEGRATION POINTERS (Where to look)
+---------------------------------------------------------
+Here are the areas of the codebase you will most likely need to modify for blockchain integration:
+
+FRONTEND (`certificate-portal` folder):
+- `src/components/pages/admin/BlockchainAnchor.jsx`: We've created a dedicated **Blockchain Anchor** tab in the Hospital Admin Dashboard. This component manually triggers the anchoring process. You will find a `handleAnchorLogs` function here that currently makes an API call to the backend. You do not strictly need to change the frontend unless you decide to handle MetaMask signing here before the API call.
+
+BACKEND (`backend` folder):
+- `controllers/adminController.js`: Look for the `anchorLogs` export. This is where the backend batches unanchored `AuditLog` documents and generates a generic SHA-256 `batchHash`. **There are currently `console.log()` placeholders here where you need to integrate the actual Web3/Smart Contract call to write the `batchHash` to the blockchain.**
+- `models/AuditLog.js`: The `AuditLog` schema already has an `isAnchored` boolean and a `blockchainHash` string ready to be populated by your contract interaction.
+
+Good luck with the integration!

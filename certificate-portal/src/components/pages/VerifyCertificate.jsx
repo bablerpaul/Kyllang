@@ -98,6 +98,10 @@ const VerifyCertificate = () => {
     const file = event.target.files[0];
     if (!file) return;
 
+    // Clear previous results
+    setVerificationData(null);
+    setScanResult(null);
+
     // Check file type
     const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
     const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'application/pdf'];
@@ -345,50 +349,6 @@ const VerifyCertificate = () => {
                     </>
                   )}
 
-                  {verificationData && (
-                    <Alert
-                      severity={verificationData.valid ? "success" : "error"}
-                      icon={verificationData.valid ? <CheckIcon /> : <ErrorIcon />}
-                      action={
-                        <IconButton
-                          aria-label="close"
-                          color="inherit"
-                          size="small"
-                          onClick={() => { setScanResult(null); setVerificationData(null); }}
-                        >
-                          <ExpandMoreIcon fontSize="inherit" sx={{ transform: 'rotate(90deg)' }} />
-                        </IconButton>
-                      }
-                    >
-                      <Typography variant="subtitle2" gutterBottom>
-                        {verificationData.valid ? '✅ Certificate Verified!' : '❌ Verification Failed'}
-                      </Typography>
-                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                        {verificationData.message}
-                      </Typography>
-                      {verificationData.valid && verificationData.data && (
-                        <Box sx={{ mt: 2, p: 1, backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 1 }}>
-                          <Typography variant="caption" display="block"><strong>Patient ID:</strong> {verificationData.data.certificate?.patient?._id || verificationData.data.certificate?.patient || 'N/A'}</Typography>
-                          <Typography variant="caption" display="block"><strong>Diagnosis:</strong> {verificationData.data.certificate?.diagnosis || 'N/A'}</Typography>
-                          <Typography variant="caption" display="block"><strong>Valid From:</strong> {verificationData.data.certificate?.validFrom ? new Date(verificationData.data.certificate.validFrom).toLocaleDateString() : 'N/A'}</Typography>
-                          <Typography variant="caption" display="block"><strong>Valid Until:</strong> {verificationData.data.certificate?.validUntil ? new Date(verificationData.data.certificate.validUntil).toLocaleDateString() : 'N/A'}</Typography>
-                        </Box>
-                      )}
-
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        color={verificationData.valid ? "success" : "error"}
-                        sx={{ mt: 2 }}
-                        onClick={() => {
-                          console.log('Scan Result:', scanResult);
-                          alert(`Raw Scanned Data Payload:\n\n${scanResult}`);
-                        }}
-                      >
-                        View Raw Data
-                      </Button>
-                    </Alert>
-                  )}
                 </>
               ) : (
                 <>
@@ -451,6 +411,54 @@ const VerifyCertificate = () => {
                     </Alert>
                   )}
                 </>
+              )}
+
+              {/* Shared Verification Result Alert for both modes */}
+              {verificationData && (
+                <Box sx={{ mt: 3, width: '100%' }}>
+                  <Alert
+                    severity={verificationData.valid ? "success" : "error"}
+                    icon={verificationData.valid ? <CheckIcon /> : <ErrorIcon />}
+                    action={
+                      <IconButton
+                        aria-label="close"
+                        color="inherit"
+                        size="small"
+                        onClick={() => { setScanResult(null); setVerificationData(null); }}
+                      >
+                        <ExpandMoreIcon fontSize="inherit" sx={{ transform: 'rotate(90deg)' }} />
+                      </IconButton>
+                    }
+                  >
+                    <Typography variant="subtitle2" gutterBottom>
+                      {verificationData.valid ? '✅ Certificate Verified!' : '❌ Verification Failed'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                      {verificationData.message}
+                    </Typography>
+                    {verificationData.valid && verificationData.data && (
+                      <Box sx={{ mt: 2, p: 1, backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 1 }}>
+                        <Typography variant="caption" display="block"><strong>Patient ID:</strong> {verificationData.data.certificate?.patient?._id || verificationData.data.certificate?.patient || 'N/A'}</Typography>
+                        <Typography variant="caption" display="block"><strong>Diagnosis:</strong> {verificationData.data.certificate?.diagnosis || 'N/A'}</Typography>
+                        <Typography variant="caption" display="block"><strong>Valid From:</strong> {verificationData.data.certificate?.validFrom ? new Date(verificationData.data.certificate.validFrom).toLocaleDateString() : 'N/A'}</Typography>
+                        <Typography variant="caption" display="block"><strong>Valid Until:</strong> {verificationData.data.certificate?.validUntil ? new Date(verificationData.data.certificate.validUntil).toLocaleDateString() : 'N/A'}</Typography>
+                      </Box>
+                    )}
+
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color={verificationData.valid ? "success" : "error"}
+                      sx={{ mt: 2 }}
+                      onClick={() => {
+                        console.log('Scan Result:', scanResult);
+                        alert(`Raw Scanned Data Payload:\n\n${scanResult}`);
+                      }}
+                    >
+                      View Raw Data
+                    </Button>
+                  </Alert>
+                </Box>
               )}
             </CardContent>
           </Card>

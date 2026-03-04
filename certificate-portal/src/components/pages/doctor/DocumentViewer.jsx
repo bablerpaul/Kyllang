@@ -24,7 +24,9 @@ import {
 } from '@mui/icons-material';
 import forge from 'node-forge';
 import { apiFetch } from '../../../utils/api';
+import { decryptKeyWithX25519 } from '../../../utils/cryptoUtils';
 import DocumentRenderer from '../shared/DocumentRenderer';
+import PrivateKeyDialog from '../../shared/PrivateKeyDialog';
 
 const DocumentViewer = () => {
   const { docId } = useParams();
@@ -34,7 +36,10 @@ const DocumentViewer = () => {
   const [error, setError] = useState('');
   const [isDecrypting, setIsDecrypting] = useState(false);
   const printRef = useRef(null);
-  const hasPrompted = useRef(false);
+  const hasFetched = useRef(false);
+
+  const [privateKeyDialogOpen, setPrivateKeyDialogOpen] = useState(false);
+  const [pendingDocData, setPendingDocData] = useState(null);
 
   useEffect(() => {
     // Disable right-click, selection, print, etc...
@@ -66,73 +71,70 @@ const DocumentViewer = () => {
   }, [preventContextMenu]);
 
   useEffect(() => {
-    const fetchAndDecryptDocument = async () => {
+    const fetchDocument = async () => {
       try {
-        if (hasPrompted.current) return;
-        hasPrompted.current = true;
+        if (hasFetched.current) return;
+        hasFetched.current = true;
 
         const docRes = await apiFetch(`/api/doctor/documents/${docId}`);
-
-        const privateKeyStr = window.prompt("To view this secure document, please paste your RSA Private Key:");
-        if (!privateKeyStr) {
-          setError('Private key is required to view this document.');
-          hasPrompted.current = false; // allow retry if they cancelled but component stays mounted
-          return;
-        }
-
-        setIsDecrypting(true);
-
-        const privateKey = forge.pki.privateKeyFromPem(privateKeyStr);
-
-        // Decrypt AES key
-        const decodedDoctorEncryptedKey = forge.util.decode64(docRes.doctorEncryptedKey);
-        const aesKey = privateKey.decrypt(decodedDoctorEncryptedKey, 'RSA-OAEP', {
-          md: forge.md.sha256.create(),
-          mgf1: { md: forge.md.sha256.create() }
-        });
-
-        // Decrypt Document Data
-        const combinedData = forge.util.decode64(docRes.encryptedData);
-        const iv = combinedData.substring(0, 12);
-        const tag = combinedData.substring(12, 28);
-        const encryptedContent = combinedData.substring(28);
-
-        const decipher = forge.cipher.createDecipher('AES-GCM', aesKey);
-        decipher.start({
-          iv: iv,
-          tag: forge.util.createBuffer(tag)
-        });
-        decipher.update(forge.util.createBuffer(encryptedContent));
-        const pass = decipher.finish();
-
-        if (pass) {
-          const rawJson = decipher.output.toString('utf8');
-          let parsedContent = rawJson;
-          try {
-            const obj = JSON.parse(rawJson);
-            parsedContent = JSON.stringify(obj, null, 2);
-          } catch (e) { }
-
-          setDocumentData({
-            ...docRes,
-            issueDate: new Date(docRes.createdAt).toLocaleDateString(),
-            content: parsedContent,
-            doctorName: 'You' // Current mapped doctor
-          });
-        } else {
-          setError('Decryption failed. Document may be compromised or key is incorrect.');
-        }
-
+        setPendingDocData(docRes);
+        setPrivateKeyDialogOpen(true);
       } catch (err) {
         console.error(err);
-        setError('Failed to fetch or decrypt document. Ensure you have access and the correct key. ' + err.message);
-      } finally {
-        setIsDecrypting(false);
+        setError('Failed to fetch document.');
       }
     };
-
-    fetchAndDecryptDocument();
+    fetchDocument();
   }, [docId]);
+
+  const handlePrivateKeySubmit = (privateKeyStr) => {
+    setPrivateKeyDialogOpen(false);
+    if (!pendingDocData) return;
+    setIsDecrypting(true);
+
+    try {
+      // Decrypt AES key using X25519
+      const aesKey = decryptKeyWithX25519(pendingDocData.doctorEncryptedKey, privateKeyStr);
+
+      // Decrypt Document Data
+      const combinedData = forge.util.decode64(pendingDocData.encryptedData);
+      const iv = combinedData.substring(0, 12);
+      const tag = combinedData.substring(12, 28);
+      const encryptedContent = combinedData.substring(28);
+
+      const decipher = forge.cipher.createDecipher('AES-GCM', aesKey);
+      decipher.start({
+        iv: iv,
+        tag: forge.util.createBuffer(tag)
+      });
+      decipher.update(forge.util.createBuffer(encryptedContent));
+      const pass = decipher.finish();
+
+      if (pass) {
+        const rawJson = decipher.output.toString('utf8');
+        let parsedContent = rawJson;
+        try {
+          const obj = JSON.parse(rawJson);
+          parsedContent = JSON.stringify(obj, null, 2);
+        } catch (e) { }
+
+        setDocumentData({
+          ...pendingDocData,
+          issueDate: new Date(pendingDocData.createdAt).toLocaleDateString(),
+          content: parsedContent,
+          doctorName: 'You' // Current mapped doctor
+        });
+      } else {
+        setError('Decryption failed. Document may be compromised or key is incorrect.');
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Failed to decrypt document. Ensure you have access and the correct key. ' + err.message);
+    } finally {
+      setIsDecrypting(false);
+      setPendingDocData(null);
+    }
+  };
 
   if (error) {
     return (
@@ -290,6 +292,16 @@ const DocumentViewer = () => {
           All access is logged and monitored. Unauthorized sharing or duplication violates patient privacy laws.
         </Typography>
       </Alert>
+
+      <PrivateKeyDialog
+        open={privateKeyDialogOpen}
+        onClose={() => {
+          setPrivateKeyDialogOpen(false);
+          if (!documentData) setError('Private key is required to view this document.');
+        }}
+        onSubmit={handlePrivateKeySubmit}
+        title="View Secure Document"
+      />
     </Box>
   );
 };
