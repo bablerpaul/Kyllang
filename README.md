@@ -3,20 +3,20 @@
 </p>
 
 <p align="center">
-  <img src="https://readme-typing-svg.demolab.com?font=Inter&weight=300&size=14&duration=4000&pause=2000&color=888888&center=true&vCenter=true&width=450&height=30&lines=zero-knowledge+proof+platform" alt="zero-knowledge proof platform" />
+  <img src="https://readme-typing-svg.demolab.com?font=Inter&weight=300&size=14&duration=4000&pause=2000&color=888888&center=true&vCenter=true&width=450&height=30&lines=secure+medical+certificate+portal" alt="secure medical certificate portal" />
 </p>
 
 <p align="center">
-  <a href="#features"><img src="https://img.shields.io/badge/ZKP-Schnorr_Protocol-white?style=flat-square&labelColor=000000" alt="ZKP" /></a>
-  <a href="#tech-stack"><img src="https://img.shields.io/badge/Backend-FastAPI-white?style=flat-square&labelColor=000000" alt="FastAPI" /></a>
-  <a href="#tech-stack"><img src="https://img.shields.io/badge/Frontend-Next.js_14-white?style=flat-square&labelColor=000000" alt="Next.js" /></a>
+  <a href="#features"><img src="https://img.shields.io/badge/Encryption-Curve25519-white?style=flat-square&labelColor=000000" alt="Curve25519" /></a>
+  <a href="#tech-stack"><img src="https://img.shields.io/badge/Backend-Express.js-white?style=flat-square&labelColor=000000" alt="Express.js" /></a>
+  <a href="#tech-stack"><img src="https://img.shields.io/badge/Frontend-React_Vite-white?style=flat-square&labelColor=000000" alt="React" /></a>
   <a href="#license"><img src="https://img.shields.io/badge/License-MIT-white?style=flat-square&labelColor=000000" alt="MIT" /></a>
 </p>
 
 <br/>
 
 <p align="center">
-  <samp>Generate · Verify · Trust — without revealing the secret.</samp>
+  <samp>Generate · Verify · Trust — secure medical certificates.</samp>
 </p>
 
 ---
@@ -26,7 +26,7 @@
 ## `>` About
 
 <samp>
-Kyllang is a full-stack zero-knowledge proof platform that enables users to generate and verify cryptographic proofs without ever exposing the underlying secret. Built with a minimalist dark-themed UI featuring a stardust particle background, it delivers a premium experience for interacting with ZKP technology.
+Kyllang is a full-stack secure medical certificate portal that enables doctors to issue patient certificates and authorities to verify them seamlessly. Built with a modern UI and role-based access control, it delivers a secure and efficient experience for managing healthcare credentials using Curve25519 cryptography and QR code ID cards.
 </samp>
 
 <br/><br/>
@@ -36,22 +36,22 @@ Kyllang is a full-stack zero-knowledge proof platform that enables users to gene
 <table>
   <tr>
     <td width="50%">
-      <h3><samp>🔐 Proof Generation</samp></h3>
-      <samp>Generate ZKP proofs using Schnorr-like protocol with Fiat-Shamir heuristic. Export proofs as downloadable PDF certificates.</samp>
+      <h3><samp>🔐 Certificate Issuance</samp></h3>
+      <samp>Doctors can securely generate and issue certificates to patients. Export records as downloadable PDF certificates.</samp>
     </td>
     <td width="50%">
-      <h3><samp>✅ Proof Verification</samp></h3>
-      <samp>Verify proofs without revealing the secret. Upload Kyllang proof certificates or enter data manually.</samp>
+      <h3><samp>✅ Certificate Verification</samp></h3>
+      <samp>Verify certificates securely. Upload Kyllang generated certificates or scan QR code ID cards to ensure authenticity.</samp>
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <h3><samp>🌌 Immersive UI</samp></h3>
-      <samp>Clean black interface with animated stardust particles, shooting stars, and the Orbitron display font.</samp>
+      <h3><samp>🌌 Role-Based UI</samp></h3>
+      <samp>Clean, interactive dashboards designed specifically for Administrators, Doctors, and Patients.</samp>
     </td>
     <td width="50%">
       <h3><samp>⚡ REST API</samp></h3>
-      <samp>Full API with proof generation, verification, status tracking, and system info endpoints.</samp>
+      <samp>Robust Express.js API for secure document management, user authentication, and cryptographic operations.</samp>
     </td>
   </tr>
 </table>
@@ -60,16 +60,15 @@ Kyllang is a full-stack zero-knowledge proof platform that enables users to gene
 
 ## `>` Tech Stack
 
-```
+```text
 ╔══════════════════════════════════════════════════════════════╗
 ║                                                              ║
-║   BACKEND              FRONTEND            PROTOCOL          ║
-║   ───────              ────────            ────────          ║
-║   FastAPI              Next.js 14          Schnorr ZKP       ║
-║   Pydantic             TypeScript          Fiat-Shamir       ║
-║   Uvicorn              Tailwind CSS        Pedersen Commit   ║
-║   Python 3.9+          Orbitron Font       SHA-256 Hash      ║
-║                        jsPDF                                 ║
+║   BACKEND              FRONTEND            CRYPTOGRAPHY      ║
+║   ───────              ────────            ────────────      ║
+║   Express.js           React 18            Curve25519        ║
+║   Mongoose             Vite                TweetNaCl         ║
+║   Node.js              Tailwind CSS        QR Code Auth      ║
+║   JWT Authentication   jsPDF               node-forge        ║
 ║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝
 ```
@@ -84,9 +83,33 @@ Kyllang is a full-stack zero-knowledge proof platform that enables users to gene
 
 | Dependency | Version |
 |:-----------|:--------|
-| <samp>Python</samp> | `3.9+` |
 | <samp>Node.js</samp> | `18+` |
 | <samp>npm</samp> | `latest` |
+| <samp>MongoDB</samp> | `Running Instance`|
+
+</details>
+
+<br/>
+
+### <samp>Database Setup (MongoDB)</samp>
+
+<details>
+<summary><samp><b>🍃 Local Installation</b></samp></summary>
+
+1. <samp>Download and install <b>MongoDB Community Server</b> from the <a href="https://www.mongodb.com/try/download/community">official website</a>.</samp>
+2. <samp>Start the MongoDB service on your local machine.</samp>
+3. <samp>Your default connection string will typically be `mongodb://localhost:27017/kyllang`.</samp>
+4. <samp>Add this connection string to your backend `.env` file as `MONGO_URI`.</samp>
+
+</details>
+
+<details>
+<summary><samp><b>☁️ MongoDB Atlas (Cloud)</b></samp></summary>
+
+1. <samp>Create a free cluster on <a href="https://www.mongodb.com/cloud/atlas">MongoDB Atlas</a>.</samp>
+2. <samp>Retrieve your connection string (URI) from the dashboard.</samp>
+3. <samp>Replace `<password>` with your database user password.</samp>
+4. <samp>Add this connection string to your backend `.env` file as `MONGO_URI`.</samp>
 
 </details>
 
@@ -97,156 +120,81 @@ Kyllang is a full-stack zero-knowledge proof platform that enables users to gene
 ```bash
 cd backend
 
-# Create & activate virtual environment
-python -m venv venv
-venv\Scripts\activate          # Windows
-source venv/bin/activate       # macOS / Linux
+# Install dependencies
+npm install
 
-# Install dependencies & launch
-pip install -r requirements.txt
-python run.py
+# Setup environment variables 
+# Create a .env file locally and add your MONGO_URI
+
+# Launch development server
+npm run dev
 ```
 
-> <samp>API runs at</samp> **`http://localhost:8000`**
+> <samp>API runs at</samp> **`http://localhost:5000`**
 
 <br/>
 
 ### <samp>Frontend</samp>
 
 ```bash
-cd frontend
+cd certificate-portal
 
-# Install dependencies & launch
+# Install dependencies
 npm install
+
+# Launch development server
 npm run dev
 ```
 
-> <samp>App runs at</samp> **`http://localhost:3000`**
+> <samp>App runs at</samp> **`http://localhost:5173`**
 
 <br/>
 
-## `>` API Reference
+## `>` Key Workflows
 
 <details>
-<summary><samp><b>POST</b> /api/zkp/generate</samp></summary>
+<summary><samp><b>💳 QR Code ID Cards</b></samp></summary>
 
-```json
-{
-  "secret": "your-secret-value",
-  "public_inputs": ["optional", "public", "values"]
-}
-```
-
-<samp>Generates a zero-knowledge proof for the given secret.</samp>
+<samp>Patients access their securely encrypted records using ATM-sized ID cards containing dynamically generated QR codes, replacing raw cryptography keys for a better user experience.</samp>
 
 </details>
 
 <details>
-<summary><samp><b>POST</b> /api/zkp/verify</samp></summary>
+<summary><samp><b>📄 Document Uploads</b></samp></summary>
 
-```json
-{
-  "proof": {
-    "R": "0x...",
-    "s": "0x...",
-    "challenge": "0x..."
-  },
-  "public_signals": ["0x..."],
-  "commitment": "0x..."
-}
-```
-
-<samp>Verifies a proof without learning the secret.</samp>
+<samp>Doctors upload medical certificates that serve as cryptographic commitments to the patient's records, subsequently stored safely offline or immutably.</samp>
 
 </details>
 
 <details>
-<summary><samp><b>GET</b> /api/zkp/status/{proof_id}</samp></summary>
+<summary><samp><b>🔍 Verification Protocol</b></samp></summary>
 
-<samp>Returns the current status of a previously generated proof.</samp>
-
-</details>
-
-<details>
-<summary><samp><b>GET</b> /api/zkp/info</samp></summary>
-
-<samp>Returns system information and supported protocol details.</samp>
+<samp>Authorized entities can verify the authenticity of a Medical Certificate by uploading the digital document to the portal, ensuring data integrity.</samp>
 
 </details>
-
-<br/>
-
-## `>` How It Works
-
-```
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│             │    │             │    │             │    │             │
-│  COMMITMENT │───▶│  CHALLENGE  │───▶│  RESPONSE   │───▶│   VERIFY    │
-│             │    │             │    │             │    │             │
-│  Prover     │    │ Fiat-Shamir │    │  Prover     │    │  Verifier   │
-│  commits to │    │  heuristic  │    │  computes   │    │  checks the │
-│  secret     │    │  generates  │    │  proof of   │    │  math, not  │
-│  value      │    │  challenge  │    │  knowledge  │    │  the secret │
-│             │    │             │    │             │    │             │
-└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
-```
-
-<br/>
-
-### <samp>Security Guarantees</samp>
-
-| Property | Description |
-|:---------|:------------|
-| <samp>**Completeness**</samp> | <samp>An honest prover can always convince an honest verifier</samp> |
-| <samp>**Soundness**</samp> | <samp>A dishonest prover cannot convince the verifier (except with negligible probability)</samp> |
-| <samp>**Zero-Knowledge**</samp> | <samp>The verifier learns nothing about the secret beyond its existence</samp> |
 
 <br/>
 
 ## `>` Project Structure
 
-```
+```text
 kyllang/
 ├── backend/
-│   ├── app/
-│   │   ├── main.py               ← FastAPI application entry
-│   │   ├── models.py             ← Pydantic request/response models
-│   │   ├── routes/
-│   │   │   └── zkp_routes.py     ← API route handlers
-│   │   └── services/
-│   │       └── zkp_service.py    ← Core ZKP cryptographic logic
-│   ├── requirements.txt
-│   └── run.py                    ← Server launcher
+│   ├── index.js              ← Express application entry
+│   ├── models/               ← Mongoose schemas 
+│   ├── routes/               ← API route handlers
+│   ├── controllers/          ← Business logic and encryption
+│   └── package.json
 │
-└── frontend/
+└── certificate-portal/
     ├── src/
-    │   ├── app/
-    │   │   ├── globals.css        ← Stardust animations & theme
-    │   │   ├── layout.tsx         ← Root layout with navigation
-    │   │   ├── page.tsx           ← Proof generation page
-    │   │   └── verify/
-    │   │       └── page.tsx       ← Proof verification page
-    │   ├── components/
-    │   │   └── Stardust.tsx       ← Particle background effect
-    │   └── lib/
-    │       └── api.ts             ← Axios API client
+    │   ├── App.jsx            ← Root React component & routing
+    │   ├── components/        ← Shared UI & layouts
+    │   ├── pages/             ← Admin, Doctor, and Patient dashboards
+    │   └── contexts/          ← Auth and Data React contexts
     ├── package.json
-    └── tailwind.config.js
+    └── vite.config.js
 ```
-
-<br/>
-
-## `>` Disclaimer
-
-<samp>
-This is a demonstration implementation for educational purposes. For production use, consider established ZKP libraries:
-</samp>
-
-<samp>
-
-[`snarkjs`](https://github.com/iden3/snarkjs) · [`circom`](https://github.com/iden3/circom) · [`arkworks`](https://github.com/arkworks-rs) · [`bellman`](https://github.com/zkcrypto/bellman)
-
-</samp>
 
 <br/>
 
