@@ -2,6 +2,10 @@ const User = require('../models/User');
 const Certificate = require('../models/Certificate');
 const PatientDocument = require('../models/PatientDocument');
 const AuditLog = require('../models/AuditLog');
+const MedicalRecord = require('../models/MedicalRecord');
+const Doctor = require('../models/Doctor');
+const InsuranceClaim = require('../models/InsuranceClaim');
+const blockchainContract = require('../blockchain');
 
 // @desc    Get assigned patients
 // @route   GET /api/doctor/patients
@@ -108,7 +112,7 @@ const crypto = require('crypto');
 // @access  Private (Doctor only)
 exports.issueCertificate = async (req, res) => {
     try {
-        const { patientId, diagnosis, remarks, validFrom, validUntil } = req.body;
+        const { patientId, diagnosis, remarks, validFrom, validUntil, medicalRecordId, emrId, insuranceClaimId } = req.body;
 
         if (!patientId || !diagnosis || !validFrom || !validUntil) {
             return res.status(400).json({ message: 'Please provide all required fields' });
@@ -119,32 +123,93 @@ exports.issueCertificate = async (req, res) => {
             return res.status(404).json({ message: 'Patient not found' });
         }
 
+        // Connect certificate to an existing EMR
+        const targetEmrId = medicalRecordId || emrId;
+        let emrRecord = null;
+
+        if (targetEmrId) {
+            emrRecord = await MedicalRecord.findById(targetEmrId);
+        }
+
+        if (!emrRecord) {
+            emrRecord = await MedicalRecord.findOne({ patient: patientId }).sort({ createdAt: -1 });
+            if (!emrRecord) {
+                let doctorDoc = await Doctor.findOne({ user: req.user._id });
+                if (!doctorDoc) {
+                    doctorDoc = await Doctor.create({
+                        user: req.user._id,
+                        specialty: 'General Medicine',
+                        licenseNumber: `DOC-${req.user._id.toString().substring(18)}`,
+                    });
+                }
+                emrRecord = await MedicalRecord.create({
+                    patient: patientId,
+                    doctor: doctorDoc._id,
+                    diagnosis,
+                    chiefComplaint: 'Medical Certificate Evaluation',
+                    visitDate: new Date(validFrom),
+                });
+            }
+        }
+
+        let doctorProfile = await Doctor.findOne({ user: req.user._id });
+        if (!doctorProfile) {
+            doctorProfile = await Doctor.create({
+                user: req.user._id,
+                specialty: 'General Medicine',
+                licenseNumber: `DOC-${req.user._id.toString().substring(18)}`,
+            });
+        }
+
         // Generate a HMAC verification hash (Zero-Knowledge Proof concept)
         const hashString = `${patientId}|${diagnosis}|${validFrom}|${validUntil}`;
         const secret = process.env.JWT_SECRET || 'supersecretkey123';
         const verificationHash = crypto.createHmac('sha256', secret).update(hashString).digest('hex');
 
+        let transactionHash = null;
+        try {
+            const tx = await blockchainContract.storeEMRRecord(
+                patientId.toString(),
+                'MedicalCertificate',
+                verificationHash,
+                ''
+            );
+            await tx.wait();
+            transactionHash = tx.hash;
+        } catch (contractError) {
+            console.error('Blockchain storeEMRRecord failed:', contractError.message);
+        }
+
         const certificate = await Certificate.create({
             patient: patientId,
             issuedBy: req.user._id,
+            doctor: doctorProfile._id,
+            medicalRecord: emrRecord._id,
+            insuranceClaim: insuranceClaimId || undefined,
             diagnosis,
             remarks,
             validFrom,
             validUntil,
             verificationHash,
-            accessList: [req.user._id], // Doctor issuing it has access by default
+            blockchainHash: transactionHash || verificationHash,
+            transactionHash: transactionHash,
+            accessList: [req.user._id],
         });
 
         await AuditLog.create({
             actor: req.user._id,
             action: 'ISSUE_CERTIFICATE',
-            details: { certificateId: certificate._id, patientId }
+            details: { certificateId: certificate._id, patientId, emrId: emrRecord._id, transactionHash }
         });
 
         res.status(201).json({
             message: 'Certificate issued successfully',
             certificateId: certificate._id,
             verificationHash,
+            blockchainHash: transactionHash || verificationHash,
+            transactionHash,
+            medicalRecordId: emrRecord._id,
+            certificate,
         });
     } catch (error) {
         res.status(500).json({ message: error.message });

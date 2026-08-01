@@ -1,127 +1,37 @@
 const { ethers } = require("ethers");
 require("dotenv").config();
 
-// provider pointing to the JSON-RPC endpoint (e.g. local Ganache, Alchemy, etc.)
-const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+// Provider pointing to JSON-RPC node (e.g. local Ganache on http://127.0.0.1:7545)
+const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || "http://127.0.0.1:7545");
 
-// wallet that will pay for gas; private key should be set in .env
-const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
+// Wallet that signs & pays gas for on-chain anchoring
+const wallet = new ethers.Wallet(
+    process.env.PRIVATE_KEY || "0x712fac96b41c7df01136bad90dbd1ae957ecdfc169bf88c8a59f650bc9a9f388",
+    provider
+);
 
-// contract configuration
-const contractAddress = process.env.CONTRACT_ADDRESS;
-// full contract ABI (paste from deployment)
+// Smart contract address
+const contractAddress = process.env.CONTRACT_ADDRESS || "0x4cB06b7850239d5CcDCA04FddEc75772A5a573Ec";
+
+// Complete Smart Contract ABI for EMRRegistry.sol
 const abi = [
-	{
-		"inputs": [],
-		"stateMutability": "nonpayable",
-		"type": "constructor"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": false,
-				"internalType": "string",
-				"name": "batchHash",
-				"type": "string"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "timestamp",
-				"type": "uint256"
-			}
-		],
-		"name": "HashAnchored",
-		"type": "event"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "string",
-				"name": "_batchHash",
-				"type": "string"
-			}
-		],
-		"name": "storeHash",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"name": "anchors",
-		"outputs": [
-			{
-				"internalType": "string",
-				"name": "batchHash",
-				"type": "string"
-			},
-			{
-				"internalType": "uint256",
-				"name": "timestamp",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "index",
-				"type": "uint256"
-			}
-		],
-		"name": "getAnchor",
-		"outputs": [
-			{
-				"internalType": "string",
-				"name": "",
-				"type": "string"
-			},
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "getTotalAnchors",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "owner",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	}
+    // Legacy Constructor & Events
+    "constructor()",
+    "event HashAnchored(string batchHash, uint256 timestamp)",
+    "event RecordAnchored(string indexed patientId, string recordType, string dataHash, string ipfsCid, uint256 timestamp, address indexed recordOwner)",
+
+    // Legacy Functions (Preserved 100%)
+    "function storeHash(string memory _batchHash) public",
+    "function getAnchor(uint256 index) public view returns (string memory, uint256)",
+    "function getTotalAnchors() public view returns (uint256)",
+    "function owner() public view returns (address)",
+
+    // Extended EMR Anchoring Functions
+    "function storeEMRRecord(string memory _patientId, string memory _recordType, string memory _dataHash, string memory _ipfsCid) public",
+    "function getEMRRecord(uint256 index) public view returns (string memory patientId, string memory recordType, string memory dataHash, uint256 timestamp, string memory ipfsCid, address recordOwner)",
+    "function getTotalEMRRecords() public view returns (uint256)",
+    "function getPatientRecordIndices(string memory _patientId) public view returns (uint256[] memory)",
+    "function verifyRecordHash(string memory _dataHash) public view returns (bool exists, uint256 timestamp, string memory patientId, string memory recordType, string memory ipfsCid, address recordOwner)"
 ];
 
 const contract = new ethers.Contract(contractAddress, abi, wallet);

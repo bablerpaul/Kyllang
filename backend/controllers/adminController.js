@@ -1,7 +1,7 @@
 const User = require('../models/User');
 const Certificate = require('../models/Certificate');
 const AuditLog = require('../models/AuditLog');
-const saveHash = require('../app'); // custom ethers contract instance for anchoring
+const blockchainContract = require('../blockchain');
 
 // @desc    Get system analytics
 // @route   GET /api/admin/analytics
@@ -39,6 +39,8 @@ exports.getAllUsers = async (req, res) => {
 };
 
 const crypto = require('crypto');
+const nacl = require('tweetnacl');
+const util = require('tweetnacl-util');
 
 // @desc    Create a new user (Patient or Doctor) with RSA Key Pair
 // @route   POST /api/admin/users
@@ -56,18 +58,10 @@ exports.createUser = async (req, res) => {
             return res.status(400).json({ message: 'User already exists' });
         }
 
-        // Generate RSA Key Pair for the new user (for Proxy Re-Encryption PoC)
-        const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
-            modulusLength: 2048,
-            publicKeyEncoding: {
-                type: 'spki',
-                format: 'pem'
-            },
-            privateKeyEncoding: {
-                type: 'pkcs8',
-                format: 'pem'
-            }
-        });
+        // Generate Curve25519 (X25519) Key Pair for the new user
+        const keyPair = nacl.box.keyPair();
+        const publicKey = util.encodeBase64(keyPair.publicKey);
+        const privateKey = util.encodeBase64(keyPair.secretKey);
 
         const user = await User.create({
             name,
@@ -228,12 +222,18 @@ exports.anchorLogs = async (req, res) => {
         hashPayloads.sort();
         const batchHash = crypto.createHash('sha256').update(hashPayloads.join('')).digest('hex');
 
-        // 3. Anchor batch hash on blockchain
+        // 3. Web3 Placeholder
+        console.log(`[Web3 Placeholder] Smart Contract Call - Anchoring Batch Hash: ${batchHash}`);
+        console.log(`[Web3 Placeholder] Logs covered in this batch: ${unanchoredLogs.length}`);
+
+        // ACTUALLY SEND TO BLOCKCHAIN
         try {
-            await saveHash(batchHash);
-        } catch (chainErr) {
-            console.error('Blockchain anchoring failed', chainErr);
-            return res.status(500).json({ error: 'Blockchain anchoring failed' });
+            const tx = await blockchainContract.storeHash(batchHash);
+            await tx.wait();
+            console.log("Successfully anchored to blockchain! TX Hash:", tx.hash);
+        } catch (contractError) {
+            console.error("Blockchain contract call failed:", contractError.message);
+            return res.status(500).json({ message: 'Blockchain anchoring failed: ' + contractError.message });
         }
 
         // 4. Database Update: Performant Batch Update

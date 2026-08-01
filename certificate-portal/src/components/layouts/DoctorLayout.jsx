@@ -49,6 +49,10 @@ const DoctorLayout = () => {
   const menuItems = [
     { text: 'Dashboard', icon: <Dashboard />, path: '/doctor/dashboard' },
     { text: 'My Patients', icon: <People />, path: '/doctor/patients' },
+    { text: 'EHR Records', icon: <VerifiedUser />, path: '/doctor/health-records' },
+    { text: 'Appointments', icon: <CalendarToday />, path: '/doctor/appointments' },
+    { text: 'Prescriptions', icon: <MedicalServices />, path: '/doctor/prescriptions' },
+    { text: 'Lab Reports', icon: <History />, path: '/doctor/lab-reports' },
     { text: 'Issue Certificates', icon: <MedicalServices />, path: '/doctor/issue' },
     { text: 'Requests', icon: <CalendarToday />, path: '/doctor/requests' },
     { text: 'History', icon: <History />, path: '/doctor/history' }

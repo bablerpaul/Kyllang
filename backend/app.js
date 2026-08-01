@@ -1,26 +1,32 @@
+require("dotenv").config();
 const { ethers } = require("ethers");
 
-// connect ganache
-const provider = new ethers.JsonRpcProvider("HTTP://127.0.0.1:7545");
+// connect to ganache
+const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || "http://127.0.0.1:7545");
 
-// paste ganache private key
-const signer = new ethers.Wallet("0xca61d3d447a0a276f6e463cad3a5d3f1cd29063006e027da37bc94e189441a67", provider);
+// ganache private key
+const signer = new ethers.Wallet(
+    process.env.PRIVATE_KEY || "0x712fac96b41c7df01136bad90dbd1ae957ecdfc169bf88c8a59f650bc9a9f388",
+    provider
+);
 
-// paste from remix
-const contractAddress = "0xFBF817CB2727845D82C5385d39e6B1272680bC6c";
+// contract address from remix
+const contractAddress = process.env.CONTRACT_ADDRESS || "0x4cB06b7850239d5CcDCA04FddEc75772A5a573Ec";
 
-// paste ABI from remix
+// ABI from remix
 const abi = [
-    "function storeHash(string memory _hash) public"
+    "function storeHash(string memory _batchHash) public",
+    "function getAnchor(uint256 index) public view returns (string memory,uint256)",
+    "function getTotalAnchors() public view returns (uint256)"
 ];
 
 const contract = new ethers.Contract(contractAddress, abi, signer);
 
-// function to store hash
-async function saveHash(hashValue) {
-    const tx = await contract.storeHash(hashValue);
+// store hash
+async function storeHash(hash) {
+    const tx = await contract.storeHash(hash);
     await tx.wait();
-    console.log("Hash stored:", hashValue);
+    console.log("Hash stored:", hash);
 }
 
-module.exports = saveHash;
+module.exports = storeHash;

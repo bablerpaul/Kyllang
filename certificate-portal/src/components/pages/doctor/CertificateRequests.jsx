@@ -19,7 +19,9 @@ import {
 } from '@mui/material';
 import { Notifications as NotificationsIcon, Visibility } from '@mui/icons-material';
 import { apiFetch } from '../../../utils/api';
+import { decryptKeyWithX25519 } from '../../../utils/cryptoUtils';
 import forge from 'node-forge';
+import PrivateKeyDialog from '../../shared/PrivateKeyDialog';
 
 const CertificateRequests = () => {
     const [requests, setRequests] = useState([]);
@@ -34,6 +36,8 @@ const CertificateRequests = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [viewerOpen, setViewerOpen] = useState(false);
     const [decryptedContent, setDecryptedContent] = useState('');
+    const [privateKeyDialogOpen, setPrivateKeyDialogOpen] = useState(false);
+    const [pendingDocToView, setPendingDocToView] = useState(null);
 
     const fetchRequests = async () => {
         try {
@@ -94,18 +98,21 @@ const CertificateRequests = () => {
                 return;
             }
 
-            const privateKeyStr = window.prompt("To decrypt and view this document, please paste your RSA Private Key:");
-            if (!privateKeyStr) return;
+            setPendingDocToView(vaccineDoc);
+            setPrivateKeyDialogOpen(true);
+        } catch (err) {
+            alert('Error fetching document: ' + err.message);
+        }
+    };
 
-            const privateKey = forge.pki.privateKeyFromPem(privateKeyStr);
+    const handlePrivateKeySubmit = (privateKeyStr) => {
+        setPrivateKeyDialogOpen(false);
+        if (!pendingDocToView) return;
 
-            const decodedDoctorEncryptedKey = forge.util.decode64(vaccineDoc.doctorEncryptedKey);
-            const aesKey = privateKey.decrypt(decodedDoctorEncryptedKey, 'RSA-OAEP', {
-                md: forge.md.sha256.create(),
-                mgf1: { md: forge.md.sha256.create() }
-            });
+        try {
+            const aesKey = decryptKeyWithX25519(pendingDocToView.doctorEncryptedKey, privateKeyStr);
 
-            const combinedData = forge.util.decode64(vaccineDoc.encryptedData);
+            const combinedData = forge.util.decode64(pendingDocToView.encryptedData);
             const iv = combinedData.substring(0, 12);
             const tag = combinedData.substring(12, 28);
             const encryptedContent = combinedData.substring(28);
@@ -132,7 +139,9 @@ const CertificateRequests = () => {
                 alert('Decryption failed. Document may be compromised or key is incorrect.');
             }
         } catch (err) {
-            alert('Error fetching or decrypting document: ' + err.message);
+            alert('Error decrypting document: ' + err.message);
+        } finally {
+            setPendingDocToView(null);
         }
     };
 
@@ -270,6 +279,13 @@ const CertificateRequests = () => {
                     <Button onClick={() => setViewerOpen(false)}>Close</Button>
                 </DialogActions>
             </Dialog>
+
+            <PrivateKeyDialog
+                open={privateKeyDialogOpen}
+                onClose={() => { setPrivateKeyDialogOpen(false); setPendingDocToView(null); }}
+                onSubmit={handlePrivateKeySubmit}
+                title="View Patient Reference Document"
+            />
         </Card>
     );
 };

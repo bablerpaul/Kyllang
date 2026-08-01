@@ -21,6 +21,10 @@ const patientDocumentSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
+        // IPFS Content Identifier (CID)
+        ipfsCid: {
+            type: String,
+        },
         // K encrypted with the patient's public RSA key
         patientEncryptedKey: {
             type: String, // Base64 or Hex

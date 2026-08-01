@@ -12,6 +12,18 @@ const certificateSchema = new mongoose.Schema(
             ref: 'User',
             required: true,
         },
+        doctor: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Doctor',
+        },
+        medicalRecord: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'MedicalRecord',
+        },
+        insuranceClaim: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'InsuranceClaim',
+        },
         diagnosis: {
             type: String,
             required: [true, 'Diagnosis is required'],
@@ -31,6 +43,12 @@ const certificateSchema = new mongoose.Schema(
             type: String,
             required: true,
             unique: true,
+        },
+        blockchainHash: {
+            type: String,
+        },
+        transactionHash: {
+            type: String,
         },
         accessList: [
             {

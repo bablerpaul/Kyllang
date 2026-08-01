@@ -14,11 +14,13 @@ import {
     Alert
 } from '@mui/material';
 import { Description, Visibility, Download } from '@mui/icons-material';
+import { decryptKeyWithX25519 } from '../../../utils/cryptoUtils';
 import forge from 'node-forge';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { apiFetch } from '../../../utils/api';
 import DocumentRenderer from '../shared/DocumentRenderer';
+import PrivateKeyDialog from '../../shared/PrivateKeyDialog';
 
 const MyDocuments = () => {
     const [documents, setDocuments] = useState([]);
@@ -28,6 +30,8 @@ const MyDocuments = () => {
     const [selectedDoc, setSelectedDoc] = useState(null);
     const [decryptedContent, setDecryptedContent] = useState('');
     const printRef = useRef(null);
+    const [privateKeyDialogOpen, setPrivateKeyDialogOpen] = useState(false);
+    const [docToDecrypt, setDocToDecrypt] = useState(null);
 
     const fetchDocuments = async () => {
         try {
@@ -45,18 +49,18 @@ const MyDocuments = () => {
     }, []);
 
     const handleView = (doc) => {
-        const privateKeyStr = window.prompt("To decrypt and view this document, please paste your RSA Private Key:");
-        if (!privateKeyStr) return;
+        setDocToDecrypt(doc);
+        setPrivateKeyDialogOpen(true);
+    };
+
+    const handlePrivateKeySubmit = (privateKeyStr) => {
+        setPrivateKeyDialogOpen(false);
+        const doc = docToDecrypt;
+        if (!doc) return;
 
         try {
-            const privateKey = forge.pki.privateKeyFromPem(privateKeyStr);
-
-            // Decrypt AES key
-            const decodedPatientEncryptedKey = forge.util.decode64(doc.patientEncryptedKey);
-            const aesKey = privateKey.decrypt(decodedPatientEncryptedKey, 'RSA-OAEP', {
-                md: forge.md.sha256.create(),
-                mgf1: { md: forge.md.sha256.create() }
-            });
+            // Decrypt AES key using X25519
+            const aesKey = decryptKeyWithX25519(doc.patientEncryptedKey, privateKeyStr);
 
             // Decrypt Document Data
             const combinedData = forge.util.decode64(doc.encryptedData);
@@ -207,6 +211,14 @@ const MyDocuments = () => {
                     <Button onClick={() => setViewerOpen(false)}>Close</Button>
                 </DialogActions>
             </Dialog>
+
+            {/* Private Key Dialog */}
+            <PrivateKeyDialog
+                open={privateKeyDialogOpen}
+                onClose={() => setPrivateKeyDialogOpen(false)}
+                onSubmit={handlePrivateKeySubmit}
+                title="Decrypt Document"
+            />
         </Box>
     );
 };

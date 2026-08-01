@@ -1,0 +1,229 @@
+﻿
+> certificate-portal@0.0.0 lint
+> eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0
+
+
+D:\Codes\S6Project\certificate-portal\src\App.jsx
+  39:34  error  'Paper' is defined but never used                     no-unused-vars
+  42:11  error  'isAuthenticated' is assigned a value but never used  no-unused-vars
+  42:28  error  'role' is assigned a value but never used             no-unused-vars
+
+D:\Codes\S6Project\certificate-portal\src\components\layouts\UserLayout.jsx
+  8:3  error  'Container' is defined but never used  no-unused-vars
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\LoginPage.jsx
+  11:3  error  'Grid' is defined but never used  no-unused-vars
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\VerifyCertificate.jsx
+   14:3   error  'LinearProgress' is defined but never used  no-unused-vars
+   29:3   error  'LineStyle' is defined but never used       no-unused-vars
+  563:14  error  Unknown property 'jsx' found                react/no-unknown-property
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\admin\AdminDashboard.jsx
+   11:3   error  'Divider' is defined but never used                              no-unused-vars
+   31:8   error  'SystemAnalytics' is defined but never used                      no-unused-vars
+  134:54  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\admin\DoctorAssignment.jsx
+  80:35  error  'patientId' is defined but never used    no-unused-vars
+  80:46  error  'patientName' is defined but never used  no-unused-vars
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\admin\DocumentUpload.jsx
+    1:20   error  'useRef' is defined but never used                               no-unused-vars
+   20:3    error  'Divider' is defined but never used                              no-unused-vars
+   21:3    error  'LinearProgress' is defined but never used                       no-unused-vars
+   30:18   error  'CloudUploadIcon' is defined but never used                      no-unused-vars
+  159:33   error  'patientId' is defined but never used                            no-unused-vars
+  159:44   error  'documentId' is defined but never used                           no-unused-vars
+  159:56   error  'documentName' is defined but never used                         no-unused-vars
+  287:127  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\admin\SystemAnalytics.jsx
+  77:6  warning  React Hook useEffect has a missing dependency: 'analytics'. Either include it or remove the dependency array. You can also do a functional update 'setAnalytics(a => ...)' if you only need 'analytics' in the 'setAnalytics' call  react-hooks/exhaustive-deps
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\admin\UserManagement.jsx
+   15:3   error  'Divider' is defined but never used          no-unused-vars
+   32:11  error  'EditIcon' is defined but never used         no-unused-vars
+   35:18  error  'ContentCopyIcon' is defined but never used  no-unused-vars
+  103:25  error  'type' is defined but never used             no-unused-vars
+  103:31  error  'id' is defined but never used               no-unused-vars
+  103:35  error  'name' is defined but never used             no-unused-vars
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\doctor\CertificateRequests.jsx
+   20:46  error  'Visibility' is defined but never used  no-unused-vars
+  134:29  error  Empty block statement                   no-empty
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\doctor\DoctorDashboard.jsx
+    2:10  error  'Link' is defined but never used                                 no-unused-vars
+   27:8   error  'CertificateRequests' is defined but never used                  no-unused-vars
+   30:9   error  'navigate' is assigned a value but never used                    no-unused-vars
+   32:11  error  'patients' is assigned a value but never used                    no-unused-vars
+   34:10  error  'doctorPatients' is assigned a value but never used              no-unused-vars
+   35:10  error  'searchQuery' is assigned a value but never used                 no-unused-vars
+   35:23  error  'setSearchQuery' is assigned a value but never used              no-unused-vars
+   36:10  error  'filteredPatients' is assigned a value but never used            no-unused-vars
+   37:10  error  'pendingRequests' is assigned a value but never used             no-unused-vars
+  158:54  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\doctor\DoctorHistory.jsx
+  1:8  error  'React' is defined but never used  no-unused-vars
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\doctor\DoctorPatients.jsx
+  1:8  error  'React' is defined but never used  no-unused-vars
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\doctor\DoctorRequests.jsx
+   1:8   error  'React' is defined but never used                                no-unused-vars
+  77:70  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  77:85  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\doctor\DocumentViewer.jsx
+  100:48  error  'docRes' is not defined  no-undef
+  119:21  error  Empty block statement    no-empty
+  122:14  error  'docRes' is not defined  no-undef
+  123:31  error  'docRes' is not defined  no-undef
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\doctor\IssueCertificateForm.jsx
+  14:33  error  'open' is missing in props validation         react/prop-types
+  14:39  error  'onClose' is missing in props validation      react/prop-types
+  14:48  error  'patient' is missing in props validation      react/prop-types
+  35:41  error  'patient._id' is missing in props validation  react/prop-types
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\doctor\IssueCertificates.jsx
+  1:8  error  'React' is defined but never used  no-unused-vars
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\doctor\PatientDetail.jsx
+    2:21  error    'Link' is defined but never used                                                                                     no-unused-vars
+   29:19  error    'ContactIcon' is defined but never used                                                                              no-unused-vars
+   30:16  error    'BloodIcon' is defined but never used                                                                                no-unused-vars
+   31:20  error    'CalendarIcon' is defined but never used                                                                             no-unused-vars
+   32:17  error    'AccessTimeIcon' is defined but never used                                                                           no-unused-vars
+   74:6   warning  React Hook useEffect has a missing dependency: 'fetchPatientData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  106:9   error    'getStatusColor' is assigned a value but never used                                                                  no-unused-vars
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\doctor\RequestForm.jsx
+   21:18  error  'DescriptionIcon' is defined but never used     no-unused-vars
+   26:24  error  'open' is missing in props validation           react/prop-types
+   26:30  error  'onClose' is missing in props validation        react/prop-types
+   26:39  error  'patient' is missing in props validation        react/prop-types
+   26:48  error  'document' is missing in props validation       react/prop-types
+   45:57  error  'document._id' is missing in props validation   react/prop-types
+  103:77  error  'patient.name' is missing in props validation   react/prop-types
+  107:78  error  'document.name' is missing in props validation  react/prop-types
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\shared\DocumentRenderer.jsx
+   1:8    error  'React' is defined but never used                           no-unused-vars
+   4:29   error  'documentData' is missing in props validation               react/prop-types
+   4:43   error  'parsedContent' is missing in props validation              react/prop-types
+  70:36   error  'documentData.type' is missing in props validation          react/prop-types
+  70:56   error  'documentData.type' is missing in props validation          react/prop-types
+  70:61   error  'documentData.type.replace' is missing in props validation  react/prop-types
+  73:36   error  'documentData.title' is missing in props validation         react/prop-types
+  81:32   error  'documentData.patientName' is missing in props validation   react/prop-types
+  85:43   error  'documentData.patientName' is missing in props validation   react/prop-types
+  89:46   error  'documentData.patientName' is missing in props validation   react/prop-types
+  89:99   error  'documentData.patientName' is missing in props validation   react/prop-types
+  92:40   error  'documentData.createdAt' is missing in props validation     react/prop-types
+  92:74   error  'documentData.createdAt' is missing in props validation     react/prop-types
+  92:123  error  'documentData.issueDate' is missing in props validation     react/prop-types
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\user\ApproveRequests.jsx
+  33:8  error  'forge' is defined but never used  no-unused-vars
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\user\CertificateViewerDialog.jsx
+   19:36   error  'open' is missing in props validation                          react/prop-types
+   19:42   error  'onClose' is missing in props validation                       react/prop-types
+   19:51   error  'certificate' is missing in props validation                   react/prop-types
+   38:49   error  'certificate._id' is missing in props validation               react/prop-types
+   48:36   error  'certificate.patient' is missing in props validation           react/prop-types
+   48:71   error  'certificate.patient' is missing in props validation           react/prop-types
+   48:79   error  'certificate.patient._id' is missing in props validation       react/prop-types
+   48:97   error  'certificate.patient' is missing in props validation           react/prop-types
+   51:11   error  'formatDt' is assigned a value but never used                  no-unused-vars
+   61:36   error  'certificate.diagnosis' is missing in props validation         react/prop-types
+   62:36   error  'certificate.validFrom' is missing in props validation         react/prop-types
+   62:60   error  'certificate.validFrom' is missing in props validation         react/prop-types
+   62:70   error  'certificate.validFrom.split' is missing in props validation   react/prop-types
+   62:98   error  'certificate.validFrom' is missing in props validation         react/prop-types
+   63:37   error  'certificate.validUntil' is missing in props validation        react/prop-types
+   63:62   error  'certificate.validUntil' is missing in props validation        react/prop-types
+   63:73   error  'certificate.validUntil.split' is missing in props validation  react/prop-types
+   63:101  error  'certificate.validUntil' is missing in props validation        react/prop-types
+   65:27   error  'certificate.verificationHash' is missing in props validation  react/prop-types
+  102:98   error  'certificate.patient' is missing in props validation           react/prop-types
+  112:87   error  'certificate.diagnosis' is missing in props validation         react/prop-types
+  112:112  error  'certificate.type' is missing in props validation              react/prop-types
+  117:59   error  'certificate.validFrom' is missing in props validation         react/prop-types
+  117:84   error  'certificate.createdAt' is missing in props validation         react/prop-types
+  118:50   error  'certificate.validUntil' is missing in props validation        react/prop-types
+  118:84   error  'certificate.validUntil' is missing in props validation        react/prop-types
+  123:74   error  'certificate.remarks' is missing in props validation           react/prop-types
+  123:97   error  'certificate.treatment' is missing in props validation         react/prop-types
+  137:70   error  'certificate.issuedBy' is missing in props validation          react/prop-types
+  137:80   error  'certificate.issuedBy.name' is missing in props validation     react/prop-types
+  137:106  error  'certificate.issuedBy' is missing in props validation          react/prop-types
+  137:115  error  'certificate.issuedBy.name' is missing in props validation     react/prop-types
+  137:136  error  'certificate.issuedBy' is missing in props validation          react/prop-types
+  139:61   error  'certificate.createdAt' is missing in props validation         react/prop-types
+  142:52   error  'certificate.verificationHash' is missing in props validation  react/prop-types
+  156:58   error  'certificate._id' is missing in props validation               react/prop-types
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\user\GenerateCertificate.jsx
+   9:3   error  'Alert' is defined but never used         no-unused-vars
+  10:3   error  'TextField' is defined but never used     no-unused-vars
+  13:3   error  'FormControl' is defined but never used   no-unused-vars
+  14:3   error  'InputLabel' is defined but never used    no-unused-vars
+  15:3   error  'Select' is defined but never used        no-unused-vars
+  16:3   error  'MenuItem' is defined but never used      no-unused-vars
+  18:25  error  'VerifiedUser' is defined but never used  no-unused-vars
+  18:39  error  'AddCircle' is defined but never used     no-unused-vars
+  21:8   error  'forge' is defined but never used         no-unused-vars
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\user\MyCertificates.jsx
+  50:15  error  'formatDt' is assigned a value but never used  no-unused-vars
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\user\MyDocuments.jsx
+  85:29  error  Empty block statement  no-empty
+
+D:\Codes\S6Project\certificate-portal\src\components\pages\user\UserDashboard.jsx
+   12:3   error    'Divider' is defined but never used                                                                                                                                                                                                                               no-unused-vars
+   23:3   error    'History' is defined but never used                                                                                                                                                                                                                               no-unused-vars
+   54:6   warning  React Hook useEffect has an unnecessary dependency: 'window.location.search'. Either exclude it or remove the dependency array. Outer scope values like 'window.location.search' aren't valid dependencies because mutating them doesn't re-render the component  react-hooks/exhaustive-deps
+  333:32  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`                                                                                                                                                                                                   react/no-unescaped-entities
+
+D:\Codes\S6Project\certificate-portal\src\components\protected\ProtectedRoute.jsx
+   4:27  error  'allowedRoles' is missing in props validation           react/prop-types
+  13:37  error  'allowedRoles.includes' is missing in props validation  react/prop-types
+
+D:\Codes\S6Project\certificate-portal\src\components\shared\PrivateKeyDialog.jsx
+  30:29  error  'open' is missing in props validation      react/prop-types
+  30:35  error  'onClose' is missing in props validation   react/prop-types
+  30:44  error  'onSubmit' is missing in props validation  react/prop-types
+  30:54  error  'title' is missing in props validation     react/prop-types
+
+D:\Codes\S6Project\certificate-portal\src\contexts\AuthContext.jsx
+    6:32  error    'children' is missing in props validation                                                                                       react/prop-types
+  157:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\Codes\S6Project\certificate-portal\src\contexts\DataContext.jsx
+    7:32  error    'children' is missing in props validation                                                                                       react/prop-types
+   69:26  error    'id' is defined but never used                                                                                                  no-unused-vars
+   69:30  error    'patientData' is defined but never used                                                                                         no-unused-vars
+   73:26  error    'id' is defined but never used                                                                                                  no-unused-vars
+   89:25  error    'id' is defined but never used                                                                                                  no-unused-vars
+   89:29  error    'doctorData' is defined but never used                                                                                          no-unused-vars
+   93:25  error    'id' is defined but never used                                                                                                  no-unused-vars
+   97:34  error    'patientId' is defined but never used                                                                                           no-unused-vars
+   97:45  error    'doctorId' is defined but never used                                                                                            no-unused-vars
+  101:36  error    'patientId' is defined but never used                                                                                           no-unused-vars
+  101:47  error    'doctorId' is defined but never used                                                                                            no-unused-vars
+  124:38  error    'patientId' is defined but never used                                                                                           no-unused-vars
+  124:49  error    'documentId' is defined but never used                                                                                          no-unused-vars
+  128:32  error    'doctorId' is defined but never used                                                                                            no-unused-vars
+  152:24  error    'id' is defined but never used                                                                                                  no-unused-vars
+  197:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+D:\Codes\S6Project\certificate-portal\src\utils\cryptoUtils.js
+  23:11  error  'messageUint8' is assigned a value but never used  no-unused-vars
+
+Γ£û 160 problems (155 errors, 5 warnings)
+

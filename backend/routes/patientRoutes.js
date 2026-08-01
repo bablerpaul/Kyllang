@@ -7,11 +7,28 @@ const {
     getAssignedDoctors,
     getCertificates
 } = require('../controllers/patientController');
+const {
+    registerPatient,
+    loginPatient,
+    getPatientProfile,
+    updatePatientProfile,
+    getPatientMedicalHistory
+} = require('../src/modules/patients/patientController');
 const { protect, authorize } = require('../middlewares/authMiddleware');
 
+// Public Patient Routes
+router.post('/register', registerPatient);
+router.post('/login', loginPatient);
+
+// Protected Patient Routes
 router.use(protect);
 router.use(authorize('general_user'));
 
+router.get('/profile', getPatientProfile);
+router.put('/profile', updatePatientProfile);
+router.get('/history', getPatientMedicalHistory);
+
+// Legacy/Existing Patient Endpoints (Preserved 100%)
 router.get('/documents', getDocuments);
 router.get('/doctors', getAssignedDoctors);
 router.get('/certificates', getCertificates);

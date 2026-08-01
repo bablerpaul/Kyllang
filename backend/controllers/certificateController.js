@@ -1,42 +1,118 @@
 const crypto = require('crypto');
 const Certificate = require('../models/Certificate');
-const saveHash = require('../app'); // custom ethers contract instance for anchoring
+const MedicalRecord = require('../models/MedicalRecord');
+const Doctor = require('../models/Doctor');
+const InsuranceClaim = require('../models/InsuranceClaim');
+const AuditLog = require('../models/AuditLog');
+const blockchainContract = require('../blockchain');
 
-
-// @desc    Generate a new certificate
+// @desc    Generate a new certificate (connected to an existing EMR)
 // @route   POST /api/certificates
 // @access  Private (Doctor only)
 exports.createCertificate = async (req, res) => {
     try {
-        const { patientId, diagnosis, remarks, validFrom, validUntil } = req.body;
+        const { patientId, diagnosis, remarks, validFrom, validUntil, medicalRecordId, emrId, insuranceClaimId } = req.body;
 
-        // Generate unique hash
-        const hashData = `${patientId}-${req.user._id}-${Date.now()}`;
-        const verificationHash = crypto
-            .createHash('sha256')
-            .update(hashData)
-            .digest('hex');
+        if (!patientId || !diagnosis || !validFrom || !validUntil) {
+            return res.status(400).json({ message: 'patientId, diagnosis, validFrom, and validUntil are required' });
+        }
+
+        // Connect certificate to an existing EMR
+        const targetEmrId = medicalRecordId || emrId;
+        let emrRecord = null;
+
+        if (targetEmrId) {
+            emrRecord = await MedicalRecord.findById(targetEmrId);
+        }
+
+        // Auto-resolve or find existing MedicalRecord for this patient if not explicitly supplied
+        if (!emrRecord) {
+            emrRecord = await MedicalRecord.findOne({
+                $or: [{ patient: patientId }]
+            }).sort({ createdAt: -1 });
+
+            if (!emrRecord) {
+                let doctorDoc = await Doctor.findOne({ user: req.user._id });
+                if (!doctorDoc) {
+                    doctorDoc = await Doctor.create({
+                        user: req.user._id,
+                        specialty: 'General Medicine',
+                        licenseNumber: `DOC-${req.user._id.toString().substring(18)}`,
+                    });
+                }
+                emrRecord = await MedicalRecord.create({
+                    patient: patientId,
+                    doctor: doctorDoc._id,
+                    diagnosis,
+                    chiefComplaint: 'Medical Certificate Evaluation',
+                    visitDate: new Date(validFrom),
+                });
+            }
+        }
+
+        // Resolve Doctor profile
+        let doctorProfile = await Doctor.findOne({ user: req.user._id });
+        if (!doctorProfile) {
+            doctorProfile = await Doctor.create({
+                user: req.user._id,
+                specialty: 'General Medicine',
+                licenseNumber: `DOC-${req.user._id.toString().substring(18)}`,
+            });
+        }
+
+        // Generate HMAC verification hash
+        const hashString = `${patientId}|${diagnosis}|${validFrom}|${validUntil}`;
+        const secret = process.env.JWT_SECRET || 'supersecretkey123';
+        const verificationHash = crypto.createHmac('sha256', secret).update(hashString).digest('hex');
+
+        // Store hash on blockchain (calling storeEMRRecord on EMRRegistry.sol)
+        let transactionHash = null;
+        try {
+            const tx = await blockchainContract.storeEMRRecord(
+                patientId.toString(),
+                'MedicalCertificate',
+                verificationHash,
+                ''
+            );
+            await tx.wait();
+            transactionHash = tx.hash;
+            console.log("Certificate hash anchored to blockchain! TX Hash:", tx.hash);
+        } catch (contractError) {
+            console.error("Blockchain contract call failed:", contractError.message);
+        }
 
         const certificate = await Certificate.create({
             patient: patientId,
-            issuedBy: req.user._id, // Set by auth middleware
+            issuedBy: req.user._id,
+            doctor: doctorProfile._id,
+            medicalRecord: emrRecord._id,
+            insuranceClaim: insuranceClaimId || undefined,
             diagnosis,
             remarks,
             validFrom,
             validUntil,
             verificationHash,
+            blockchainHash: transactionHash || verificationHash,
+            transactionHash: transactionHash,
+            accessList: [req.user._id],
         });
 
-        // store hash on blockchain (anchor)
-        try {
-            await saveHash(verificationHash);
-            console.log('hash anchored on chain', verificationHash);
-        } catch (chainErr) {
-            console.error('failed to store hash on blockchain', chainErr);
-        }
+        await AuditLog.create({
+            actor: req.user._id,
+            action: 'ISSUE_CERTIFICATE',
+            details: { certificateId: certificate._id, patientId, emrId: emrRecord._id, transactionHash }
+        });
 
-        res.status(201).json(certificate);
+        const populatedCert = await Certificate.findById(certificate._id)
+            .populate('patient', 'name email')
+            .populate('issuedBy', 'name specialty')
+            .populate('doctor', 'specialty licenseNumber')
+            .populate('medicalRecord', 'diagnosis visitDate vitals clinicalNotes')
+            .populate('insuranceClaim', 'provider policyNumber claimAmount status');
+
+        res.status(201).json(populatedCert);
     } catch (error) {
+        console.error('Error in createCertificate:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -50,10 +126,19 @@ exports.getMyCertificates = async (req, res) => {
 
         if (req.user.role === 'doctor') {
             certificates = await Certificate.find({ issuedBy: req.user._id })
-                .populate('patient', 'name email');
+                .populate('patient', 'name email')
+                .populate('issuedBy', 'name specialty')
+                .populate('doctor', 'specialty licenseNumber')
+                .populate('medicalRecord', 'diagnosis visitDate vitals clinicalNotes')
+                .populate('insuranceClaim', 'provider policyNumber claimAmount status')
+                .sort({ createdAt: -1 });
         } else {
             certificates = await Certificate.find({ patient: req.user._id })
-                .populate('issuedBy', 'name specialty');
+                .populate('issuedBy', 'name specialty')
+                .populate('doctor', 'specialty licenseNumber')
+                .populate('medicalRecord', 'diagnosis visitDate vitals clinicalNotes')
+                .populate('insuranceClaim', 'provider policyNumber claimAmount status')
+                .sort({ createdAt: -1 });
         }
 
         res.status(200).json(certificates);
@@ -94,7 +179,10 @@ exports.verifyCertificate = async (req, res) => {
             verificationHash: hash,
         })
             .populate('patient', 'name email')
-            .populate('issuedBy', 'name specialty');
+            .populate('issuedBy', 'name specialty')
+            .populate('doctor', 'specialty licenseNumber')
+            .populate('medicalRecord', 'diagnosis visitDate vitals clinicalNotes')
+            .populate('insuranceClaim', 'provider policyNumber claimAmount status');
 
         if (!certificate) {
             return res.status(404).json({ message: 'Certificate matches hash but not found in the database. It may have been revoked.' });

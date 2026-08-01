@@ -4,11 +4,11 @@ async function checkTx() {
     console.log("Saving a test hash to Ganache...");
     const testDataHash = "0x" + "1234".repeat(16); // 64 char string
 
-    // We modify app.js slightly just for this test to print the TX hash
+    require("dotenv").config();
     const { ethers } = require("ethers");
-    const provider = new ethers.JsonRpcProvider("HTTP://127.0.0.1:7545");
-    const signer = new ethers.Wallet("0xca61d3d447a0a276f6e463cad3a5d3f1cd29063006e027da37bc94e189441a67", provider);
-    const contractAddress = "0xFBF817CB2727845D82C5385d39e6B1272680bC6c";
+    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || "HTTP://127.0.0.1:7545");
+    const signer = new ethers.Wallet(process.env.PRIVATE_KEY || "0x712fac96b41c7df01136bad90dbd1ae957ecdfc169bf88c8a59f650bc9a9f388", provider);
+    const contractAddress = process.env.CONTRACT_ADDRESS || "0x4cB06b7850239d5CcDCA04FddEc75772A5a573Ec";
     const abi = ["function storeHash(string memory _hash) public"];
     const contract = new ethers.Contract(contractAddress, abi, signer);
 

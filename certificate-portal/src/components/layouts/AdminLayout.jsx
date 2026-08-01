@@ -21,6 +21,9 @@ const AdminLayout = () => {
           <Button color="inherit" component={Link} to="/admin/users">
             User Management
           </Button>
+          <Button color="inherit" component={Link} to="/emr-dashboard">
+            EMR Dashboard
+          </Button>
 
           <Button color="inherit" onClick={logout}>
             Logout
