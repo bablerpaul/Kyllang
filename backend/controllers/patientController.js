@@ -2,36 +2,46 @@ const PatientDocument = require('../models/PatientDocument');
 const CertificateRequest = require('../models/CertificateRequest');
 const AuditLog = require('../models/AuditLog');
 
-// @desc    Get all documents for the logged in patient
-// @route   GET /api/patient/documents
-// @access  Private (General User only)
-exports.getDocuments = async (req, res) => {
+/**
+ * getDocuments
+ * @description Handles operations for getDocuments. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getDocuments = async (req, res, next) => {
     try {
         const documents = await PatientDocument.find({ patient: req.user._id })
             .populate('accessList.doctor', 'name email')
             .populate('accessRequests.doctor', 'name email publicKey');
 
-        res.status(200).json(documents);
+        res.status(200).json({ success: true, message: 'Operation successful', data: documents });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Approve a doctor's request to access a document (stores the RE-ENCRYPTED key)
-// @route   POST /api/patient/documents/:docId/approve
-// @access  Private (General User only)
-exports.approveDoctorAccess = async (req, res) => {
+/**
+ * approveDoctorAccess
+ * @description Handles operations for approveDoctorAccess. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.approveDoctorAccess = async (req, res, next) => {
     try {
         const { doctorId, doctorEncryptedKey } = req.body;
         const docId = req.params.docId;
 
         if (!doctorId || !doctorEncryptedKey) {
-            return res.status(400).json({ message: 'Please provide doctorId and doctorEncryptedKey' });
+            return res.status(400).json({ success: false, message: 'Please provide doctorId and doctorEncryptedKey' , error: 'Please provide doctorId and doctorEncryptedKey'  });
         }
 
         const doc = await PatientDocument.findOne({ _id: docId, patient: req.user._id });
         if (!doc) {
-            return res.status(404).json({ message: 'Document not found' });
+            return res.status(404).json({ success: false, message: 'Document not found' , error: 'Document not found'  });
         }
 
         // Add to accessList with 24 hours expiry
@@ -67,23 +77,28 @@ exports.approveDoctorAccess = async (req, res) => {
             details: { type: 'approve_doctor_access', documentId: docId, doctorId }
         });
 
-        res.status(200).json({ message: 'Access approved successfully' });
+        res.status(200).json({ success: true, message: 'Access approved successfully' , data: { } });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
 const User = require('../models/User');
 
-// @desc    Request a certificate
-// @route   POST /api/patient/certificates/request
-// @access  Private (General User only)
-exports.requestCertificate = async (req, res) => {
+/**
+ * requestCertificate
+ * @description Handles operations for requestCertificate. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.requestCertificate = async (req, res, next) => {
     try {
         const { doctorRequested, certificateType, reason } = req.body;
 
         if (!certificateType) {
-            return res.status(400).json({ message: 'certificateType is required' });
+            return res.status(400).json({ success: false, message: 'certificateType is required' , error: 'certificateType is required'  });
         }
 
         if (certificateType === 'vaccine') {
@@ -93,7 +108,7 @@ exports.requestCertificate = async (req, res) => {
             });
 
             if (!vaccineDoc) {
-                return res.status(400).json({ message: 'Cannot request a vaccine certificate without an uploaded vaccine document.' });
+                return res.status(400).json({ success: false, message: 'Cannot request a vaccine certificate without an uploaded vaccine document.' , error: 'Cannot request a vaccine certificate without an uploaded vaccine document.'  });
             }
 
             // Check if user has given access to this document to the requested doctor
@@ -102,7 +117,7 @@ exports.requestCertificate = async (req, res) => {
             );
 
             if (!hasAccess) {
-                return res.status(400).json({ message: 'You must grant the doctor access to your vaccine document before requesting this certificate.' });
+                return res.status(400).json({ success: false, message: 'You must grant the doctor access to your vaccine document before requesting this certificate.' , error: 'You must grant the doctor access to your vaccine document before requesting this certificate.'  });
             }
         }
 
@@ -119,42 +134,51 @@ exports.requestCertificate = async (req, res) => {
             details: { type: 'request_certificate', requestId: request._id, doctorRequested }
         });
 
-        res.status(201).json({
-            message: 'Certificate request submitted',
+        res.status(201).json({ success: true, message: 'Certificate request submitted', data: {
             request,
-        });
+        } });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
 const Certificate = require('../models/Certificate');
 
-// @desc    Get doctors assigned to the patient
-// @route   GET /api/patient/doctors
-// @access  Private (General User only)
-exports.getAssignedDoctors = async (req, res) => {
+/**
+ * getAssignedDoctors
+ * @description Handles operations for getAssignedDoctors. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getAssignedDoctors = async (req, res, next) => {
     try {
         const doctors = await User.find({
             role: 'doctor',
             assignedPatients: req.user._id
         }).select('name email specialty publicKey');
 
-        res.status(200).json(doctors);
+        res.status(200).json({ success: true, message: 'Operation successful', data: doctors });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Get certificates issued to the patient
-// @route   GET /api/patient/certificates
-// @access  Private (General User only)
-exports.getCertificates = async (req, res) => {
+/**
+ * getCertificates
+ * @description Handles operations for getCertificates. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getCertificates = async (req, res, next) => {
     try {
         const certificates = await Certificate.find({ patient: req.user._id })
             .populate('issuedBy', 'name email specialty');
-        res.status(200).json(certificates);
+        res.status(200).json({ success: true, message: 'Operation successful', data: certificates });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };

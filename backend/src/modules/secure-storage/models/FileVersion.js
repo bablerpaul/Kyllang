@@ -1,5 +1,10 @@
 const mongoose = require('mongoose');
 
+/**
+ * Mongoose schema and model for fileVersionSchema
+ * @module models/fileVersionSchema
+ * @description Explains the structure and types for the fileVersionSchema collection.
+ */
 const fileVersionSchema = new mongoose.Schema(
     {
         secureFile: {
@@ -35,6 +40,18 @@ const fileVersionSchema = new mongoose.Schema(
         isCurrent: {
             type: Boolean,
             default: true,
+        },
+        blockchainStatus: {
+            type: String,
+            enum: ['pending', 'processing', 'confirmed', 'failed'],
+            default: 'pending'
+        },
+        blockchainRetries: {
+            type: Number,
+            default: 0
+        },
+        recordTypeStr: {
+            type: String,
         }
     },
     { timestamps: true }

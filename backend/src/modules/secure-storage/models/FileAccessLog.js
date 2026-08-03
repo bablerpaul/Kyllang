@@ -1,5 +1,10 @@
 const mongoose = require('mongoose');
 
+/**
+ * Mongoose schema and model for fileAccessLogSchema
+ * @module models/fileAccessLogSchema
+ * @description Explains the structure and types for the fileAccessLogSchema collection.
+ */
 const fileAccessLogSchema = new mongoose.Schema(
     {
         secureFile: {

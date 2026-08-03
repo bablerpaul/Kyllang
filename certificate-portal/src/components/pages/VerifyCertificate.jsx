@@ -445,6 +445,52 @@ const VerifyCertificate = () => {
                       </Box>
                     )}
 
+                    {verificationData.valid && verificationData.data && verificationData.data.certificate?.secureFileId && (
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="primary"
+                        sx={{ mt: 2, mr: 1 }}
+                        onClick={async () => {
+                            try {
+                                const token = localStorage.getItem('certificate_portal_token');
+                                if (!token) {
+                                    alert('Authentication required. Please log in to view the attached secure medical document.');
+                                    return;
+                                }
+                                const fileId = verificationData.data.certificate.secureFileId;
+                                const verifyRes = await fetch(`/api/secure-storage/verify/${fileId}`, {
+                                    headers: { 'Authorization': `Bearer ${token}` }
+                                });
+                                const verifyResData = await verifyRes.json();
+                                const verifyData = verifyResData.data;
+                                if (!verifyRes.ok) throw new Error(verifyData?.message || 'File verification failed');
+                                
+                                if (verifyData?.verificationDetails?.verified || verifyData?.verified) {
+                                    alert('✅ Attached File Integrity Verified on Blockchain!\nDownloading original file...');
+                                    const dlRes = await fetch(`/api/secure-storage/download/${fileId}`, {
+                                        headers: { 'Authorization': `Bearer ${token}` }
+                                    });
+                                    if (!dlRes.ok) throw new Error('Download failed');
+                                    const blob = await dlRes.blob();
+                                    const url = window.URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = `Secure_File_${fileId}`;
+                                    a.click();
+                                    window.URL.revokeObjectURL(url);
+                                } else {
+                                    alert('❌ FILE TAMPERED OR INVALID!');
+                                }
+                            } catch (e) {
+                                alert(`Error: ${e.message}`);
+                            }
+                        }}
+                      >
+                        Verify & Download Attached File
+                      </Button>
+                    )}
+
                     <Button
                       size="small"
                       variant="outlined"

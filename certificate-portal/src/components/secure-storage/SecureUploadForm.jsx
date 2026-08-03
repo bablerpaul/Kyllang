@@ -42,7 +42,8 @@ const SecureUploadForm = () => {
                 }
             });
 
-            const data = await response.json();
+            const resData = await response.json();
+            const data = resData.data;
 
             if (!response.ok) {
                 throw new Error(data.message || 'Upload failed');

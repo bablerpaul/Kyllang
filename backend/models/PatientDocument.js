@@ -1,5 +1,10 @@
 const mongoose = require('mongoose');
 
+/**
+ * Mongoose schema and model for patientDocumentSchema
+ * @module models/patientDocumentSchema
+ * @description Explains the structure and types for the patientDocumentSchema collection.
+ */
 const patientDocumentSchema = new mongoose.Schema(
     {
         patient: {

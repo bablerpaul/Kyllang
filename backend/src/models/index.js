@@ -6,7 +6,7 @@ const Prescription = require('../../models/Prescription');
 const LabReport = require('../../models/LabReport');
 const Appointment = require('../../models/Appointment');
 const InsuranceClaim = require('../../models/InsuranceClaim');
-const MedicalCertificate = require('../../models/MedicalCertificate');
+const Certificate = require('../../models/Certificate');
 const AuditLog = require('../../models/AuditLog');
 const Consent = require('../../models/Consent');
 const PatientDocument = require('../../models/PatientDocument');
@@ -21,8 +21,8 @@ module.exports = {
     LabReport,
     Appointment,
     InsuranceClaim,
-    MedicalCertificate,
-    Certificate: MedicalCertificate, // Alias for legacy references
+    Certificate,
+    MedicalCertificate: Certificate, // Alias for legacy references
     AuditLog,
     Consent,
     PatientDocument,

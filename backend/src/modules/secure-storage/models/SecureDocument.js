@@ -1,5 +1,10 @@
 const mongoose = require('mongoose');
 
+/**
+ * Mongoose schema and model for secureDocumentSchema
+ * @module models/secureDocumentSchema
+ * @description Explains the structure and types for the secureDocumentSchema collection.
+ */
 const secureDocumentSchema = new mongoose.Schema(
     {
         patient: {

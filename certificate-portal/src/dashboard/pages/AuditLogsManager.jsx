@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Paper,
@@ -20,64 +20,106 @@ import VerifiedIcon from '@mui/icons-material/Verified';
 
 export default function AuditLogsManager() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  const [logs, setLogs] = useState([
-    {
-      _id: 'LOG-9901',
-      userName: 'Dr. Sarah Jenkins',
-      userRole: 'doctor',
-      action: 'CREATED',
-      resource: 'MedicalRecord',
-      ipAddress: '192.168.1.104',
-      hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-      transactionHash: '0x8f2a9d1b4c7e3f8a0b9c2d1e4f6a8b0c2d4e6f8a0b9c2d1e4f6a8b0c2d4e6f8a',
-      timestamp: '2026-07-27 12:45:10',
-    },
-    {
-      _id: 'LOG-9902',
-      userName: 'Dr. Marcus Vance',
-      userRole: 'doctor',
-      action: 'VIEWED',
-      resource: 'MedicalRecord',
-      ipAddress: '192.168.1.108',
-      hash: 'a7c9f8e0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8',
-      transactionHash: '0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b',
-      timestamp: '2026-07-27 12:50:33',
-    },
-    {
-      _id: 'LOG-9903',
-      userName: 'System Admin',
-      userRole: 'admin',
-      action: 'UPDATED',
-      resource: 'InsuranceClaim',
-      ipAddress: '10.0.0.12',
-      hash: 'b8d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0',
-      transactionHash: '0x9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c',
-      timestamp: '2026-07-27 13:01:22',
-    },
-    {
-      _id: 'LOG-9904',
-      userName: 'John Doe',
-      userRole: 'general_user',
-      action: 'VIEWED',
-      resource: 'LabReport',
-      ipAddress: '172.16.0.45',
-      hash: 'c9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0',
-      transactionHash: '0x1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d',
-      timestamp: '2026-07-27 13:04:15',
-    },
-  ]);
+  const [logs, setLogs] = useState([]);
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('http://localhost:5000/api/admin/audit-logs', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        const realLogs = [];
+        if (res.ok) {
+          const dataRes = await res.json();
+          const data = dataRes.data;
+          data.forEach(l => {
+            realLogs.push({
+              _id: l._id,
+              userName: l.user?.name || l.actor?.name || 'System',
+              userRole: l.user?.role || l.actor?.role || 'system',
+              action: l.action,
+              resource: l.details?.resource || l.resource || (l.details?.entityType) || 'Unknown',
+              ipAddress: l.ipAddress || '127.0.0.1',
+              hash: l.hash || l.blockchainHash || 'N/A',
+              transactionHash: l.blockchainTransaction || l.transactionHash || 'Pending',
+              timestamp: new Date(l.timestamp || l.createdAt).toLocaleString(),
+            });
+          });
+        }
+        
+        // Include existing mock logs as requested
+        const mockLogs = [
+          {
+            _id: 'LOG-9901',
+            userName: 'Dr. Sarah Jenkins',
+            userRole: 'doctor',
+            action: 'CREATED',
+            resource: 'MedicalRecord',
+            ipAddress: '192.168.1.104',
+            hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+            transactionHash: '0x8f2a9d1b4c7e3f8a0b9c2d1e4f6a8b0c2d4e6f8a0b9c2d1e4f6a8b0c2d4e6f8a',
+            timestamp: '2026-07-27 12:45:10',
+          },
+          {
+            _id: 'LOG-9902',
+            userName: 'Dr. Marcus Vance',
+            userRole: 'doctor',
+            action: 'VIEWED',
+            resource: 'MedicalRecord',
+            ipAddress: '192.168.1.108',
+            hash: 'a7c9f8e0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8',
+            transactionHash: '0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b',
+            timestamp: '2026-07-27 12:50:33',
+          },
+          {
+            _id: 'LOG-9903',
+            userName: 'System Admin',
+            userRole: 'admin',
+            action: 'UPDATED',
+            resource: 'InsuranceClaim',
+            ipAddress: '10.0.0.12',
+            hash: 'b8d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0',
+            transactionHash: '0x9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c',
+            timestamp: '2026-07-27 13:01:22',
+          },
+          {
+            _id: 'LOG-9904',
+            userName: 'John Doe',
+            userRole: 'general_user',
+            action: 'VIEWED',
+            resource: 'LabReport',
+            ipAddress: '172.16.0.45',
+            hash: 'c9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0',
+            transactionHash: '0x1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d',
+            timestamp: '2026-07-27 13:04:15',
+          }
+        ];
+        
+        setLogs([...realLogs, ...mockLogs]);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchLogs();
+  }, []);
 
   const filtered = logs.filter(l => l.userName.toLowerCase().includes(searchTerm.toLowerCase()) || l.action.toLowerCase().includes(searchTerm.toLowerCase()) || l.resource.toLowerCase().includes(searchTerm.toLowerCase()));
 
   const getActionColor = (action) => {
-    switch (action) {
-      case 'CREATED': return 'success';
-      case 'UPDATED': return 'primary';
-      case 'DELETED': return 'error';
-      case 'VIEWED': return 'info';
-      default: return 'default';
-    }
+    const act = action.toUpperCase();
+    if (act.includes('UPLOAD') || act === 'CREATED') return 'success';
+    if (act === 'UPDATED') return 'primary';
+    if (act === 'DELETE' || act === 'DELETED') return 'error';
+    if (act === 'VIEWED' || act === 'DOWNLOAD') return 'info';
+    if (act === 'VERIFICATION') return 'warning';
+    return 'default';
   };
 
   return (

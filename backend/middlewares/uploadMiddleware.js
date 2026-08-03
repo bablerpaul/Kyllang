@@ -21,7 +21,14 @@ const storage = multer.diskStorage({
     },
 });
 
-// File Filter for Medical Documents & Imaging (MRI, CT Scan, X-ray, Ultrasound, PDF)
+/**
+ * fileFilter
+ * @description Handles operations for fileFilter. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {*} file - file parameter
+ * @param {*} cb - cb parameter
+ * @returns {*} Return value
+ */
 const fileFilter = (req, file, cb) => {
     const allowedMimeTypes = [
         'application/pdf',

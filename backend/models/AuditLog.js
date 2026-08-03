@@ -1,5 +1,10 @@
 const mongoose = require('mongoose');
 
+/**
+ * Mongoose schema and model for auditLogSchema
+ * @module models/auditLogSchema
+ * @description Explains the structure and types for the auditLogSchema collection.
+ */
 const auditLogSchema = new mongoose.Schema(
     {
         user: {
@@ -53,7 +58,7 @@ const auditLogSchema = new mongoose.Schema(
 );
 
 // Pre-save middleware to synchronize user/actor and hash/blockchainHash
-auditLogSchema.pre('save', function (next) {
+auditLogSchema.pre('save', function () {
     if (!this.user && this.actor) {
         this.user = this.actor;
     }
@@ -72,7 +77,11 @@ auditLogSchema.pre('save', function (next) {
     if (!this.transactionHash && this.blockchainTransaction) {
         this.transactionHash = this.blockchainTransaction;
     }
-    next();
 });
+
+// Performance Indexes
+auditLogSchema.index({ user: 1, timestamp: -1 });
+auditLogSchema.index({ actor: 1, timestamp: -1 });
+auditLogSchema.index({ action: 1 });
 
 module.exports = mongoose.model('AuditLog', auditLogSchema);

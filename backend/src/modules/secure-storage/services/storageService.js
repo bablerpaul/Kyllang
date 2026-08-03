@@ -2,42 +2,59 @@ const crypto = require('crypto');
 const SecureFile = require('../models/SecureFile');
 const FileVersion = require('../models/FileVersion');
 const FileAccessLog = require('../models/FileAccessLog');
-const blockchainContract = require('../../../blockchain'); 
+const blockchainContract = require('../../../../blockchain');
 const { encryptFile, decryptFile } = require('../../../utils/encryptionService');
 const { uploadToIPFS, fetchFromIPFS } = require('../../../utils/ipfsService');
 
-exports.uploadSecurePayload = async ({ fileBuffer, fileName, mimeType, patientId, uploaderId, documentType, linkedEMR }) => {
-    // 1. Encrypt Payload using reusable service
-    const finalDataToUpload = encryptFile(fileBuffer);
+/**
+ * uploadSecurePayload
+ * @description Handles operations for uploadSecurePayload. Explains parameters, return values and usage.
+ * @param {*} param - param parameter
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.uploadSecurePayload = async ({ filePath, fileName, mimeType, patientId, uploaderId, documentType, linkedEMR, linkedCertificate, linkedInsurance }) => {
+    const fs = require('fs');
+    const path = require('path');
+    const { encryptFileStream } = require('../../../utils/encryptionService');
+    const { uploadStreamToIPFS } = require('../../../utils/ipfsService');
     
-    // Conceptually delete original unencrypted file from memory for security
-    fileBuffer.fill(0);
-
-    // 2. Hash Payload
-    const dataHash = crypto.createHash('sha256').update(finalDataToUpload).digest('hex');
-
-    // 2. Pin encrypted data to IPFS
-    const ipfsCid = await uploadToIPFS(finalDataToUpload, fileName);
-
-    // 4. Anchor on Blockchain
-    let transactionHash = null;
-    try {
-        if (blockchainContract && blockchainContract.storeEMRRecord) {
-            // Include EMR ID in the recordType field to store it on-chain
-            const recordTypeStr = linkedEMR ? `${documentType}:${linkedEMR.toString()}` : documentType;
-            
-            const tx = await blockchainContract.storeEMRRecord(
-                patientId.toString(),
-                recordTypeStr,
-                dataHash,
-                ipfsCid
-            );
-            await tx.wait(); // Wait for transaction to be mined
-            if (tx && tx.hash) transactionHash = tx.hash;
-        }
-    } catch (error) {
-        console.warn('Failed to anchor to blockchain:', error.message);
+    // Create temp encrypted file path
+    const tempDir = path.join(__dirname, '../../../../uploads/temp');
+    if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
     }
+    const encryptedFilePath = path.join(tempDir, `enc-${Date.now()}-${fileName}`);
+
+    // 1. Encrypt Payload using reusable stream service
+    await encryptFileStream(filePath, encryptedFilePath);
+
+    // 2. Hash Payload via Stream to avoid memory loading
+    const hashStream = crypto.createHash('sha256');
+    const readHashStream = fs.createReadStream(encryptedFilePath);
+    
+    const dataHash = await new Promise((resolve, reject) => {
+        readHashStream.pipe(hashStream)
+            .on('finish', () => resolve(hashStream.digest('hex')))
+            .on('error', reject);
+    });
+
+    // 3. Pin encrypted data stream to IPFS
+    const ipfsCid = await uploadStreamToIPFS(encryptedFilePath, fileName);
+
+    const fileSize = fs.statSync(filePath).size;
+
+    // Cleanup local files asynchronously to not block
+    fs.promises.unlink(filePath).catch(err => console.warn('Failed to delete original file:', err));
+    fs.promises.unlink(encryptedFilePath).catch(err => console.warn('Failed to delete temp encrypted file:', err));
+
+    // 4. Pass recordTypeStr to MongoDB for the background worker
+    let recordTypeStr = documentType;
+    if (linkedEMR) recordTypeStr = `${documentType}:${linkedEMR.toString()}`;
+    else if (linkedCertificate) recordTypeStr = `${documentType}:${linkedCertificate.toString()}`;
+    else if (linkedInsurance) recordTypeStr = `${documentType}:${linkedInsurance.toString()}`;
+
+    // Return transactionHash as null because it will be populated async
+    let transactionHash = null;
 
     // 5. Store Metadata in MongoDB
     // Create SecureFile entry
@@ -47,7 +64,9 @@ exports.uploadSecurePayload = async ({ fileBuffer, fileName, mimeType, patientId
         mimeType,
         patient: patientId,
         doctor: uploaderId, // Assuming uploader is the doctor for now
-        linkedEMR
+        linkedEMR,
+        linkedCertificate,
+        linkedInsurance
     });
 
     // Create FileVersion entry
@@ -58,7 +77,8 @@ exports.uploadSecurePayload = async ({ fileBuffer, fileName, mimeType, patientId
         dataHash,
         blockchainTransactionHash: transactionHash,
         uploadedBy: uploaderId,
-        fileSize: fileBuffer.length
+        fileSize: fileSize,
+        recordTypeStr: recordTypeStr
     });
 
     // Create FileAccessLog entry
@@ -72,15 +92,26 @@ exports.uploadSecurePayload = async ({ fileBuffer, fileName, mimeType, patientId
     return { secureFile, ipfsCid, transactionHash, dataHash }; 
 };
 
+/**
+ * retrieveSecurePayload
+ * @description Handles operations for retrieveSecurePayload. Explains parameters, return values and usage.
+ * @param {*} documentId - documentId parameter
+ * @param {*} symmetricKeyHex - symmetricKeyHex parameter
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
 exports.retrieveSecurePayload = async (documentId, symmetricKeyHex) => {
-    const secureDoc = await SecureDocument.findById(documentId);
+    const secureDoc = await SecureFile.findById(documentId);
     if (!secureDoc) throw new Error('Secure Document not found');
+
+    const FileVersion = require('../models/FileVersion');
+    const fileVersion = await FileVersion.findOne({ secureFile: documentId });
+    if (!fileVersion) throw new Error('File version not found');
 
     // 1. Verify Hash on Blockchain
     let onChainVerified = false;
     try {
         if (blockchainContract && blockchainContract.verifyRecordHash) {
-             const result = await blockchainContract.verifyRecordHash(secureDoc.dataHash);
+             const result = await blockchainContract.verifyRecordHash(fileVersion.dataHash);
              onChainVerified = result[0];
         }
     } catch(err) {
@@ -92,7 +123,7 @@ exports.retrieveSecurePayload = async (documentId, symmetricKeyHex) => {
     if (!onChainVerified) throw new Error('Blockchain verification failed: Data tampered or not found.');
 
     // 2. Fetch from IPFS
-    const encryptedData = await fetchFromIPFS(secureDoc.ipfsCid);
+    const encryptedData = await fetchFromIPFS(fileVersion.ipfsCid);
 
     // 3. Decrypt using reusable service
     const decryptedBuffer = decryptFile(encryptedData);
@@ -104,6 +135,12 @@ exports.retrieveSecurePayload = async (documentId, symmetricKeyHex) => {
     };
 };
 
+/**
+ * verifyIntegrity
+ * @description Handles operations for verifyIntegrity. Explains parameters, return values and usage.
+ * @param {*} documentId - documentId parameter
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
 exports.verifyIntegrity = async (documentId) => {
     // 1. Fetch File records
     const secureDoc = await SecureFile.findById(documentId);
@@ -144,4 +181,31 @@ exports.verifyIntegrity = async (documentId) => {
         expectedHash: fileVersion.dataHash,
         onChainDetails
     };
+};
+
+/**
+ * deleteSecurePayload
+ * @description Handles operations for deleteSecurePayload. Explains parameters, return values and usage.
+ * @param {*} documentId - documentId parameter
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.deleteSecurePayload = async (documentId) => {
+    // 1. Fetch file records
+    const secureDoc = await SecureFile.findById(documentId);
+    if (!secureDoc) throw new Error('Secure Document not found');
+
+    const fileVersion = await FileVersion.findOne({ secureFile: documentId, isCurrent: true });
+    if (!fileVersion) throw new Error('File version not found');
+
+    const dataHash = fileVersion.dataHash;
+
+    // 2. Perform deletion in MongoDB
+    // Note: IPFS cannot truly delete, you can unpin from your local node, but it's immutable
+    // So we just soft delete or hard delete the MongoDB reference.
+    await FileVersion.deleteMany({ secureFile: documentId });
+    await SecureFile.findByIdAndDelete(documentId);
+
+    // 3. (Optional) We could call a smart contract revoke if supported, but standard store hash doesn't delete
+
+    return dataHash;
 };

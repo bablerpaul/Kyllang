@@ -1,5 +1,10 @@
 const mongoose = require('mongoose');
 
+/**
+ * Mongoose schema and model for labReportSchema
+ * @module models/labReportSchema
+ * @description Explains the structure and types for the labReportSchema collection.
+ */
 const labReportSchema = new mongoose.Schema(
     {
         patient: {

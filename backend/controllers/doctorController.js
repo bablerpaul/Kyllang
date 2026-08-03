@@ -1,33 +1,45 @@
 const User = require('../models/User');
+const fs = require('fs');
 const Certificate = require('../models/Certificate');
 const PatientDocument = require('../models/PatientDocument');
 const AuditLog = require('../models/AuditLog');
 const MedicalRecord = require('../models/MedicalRecord');
 const Doctor = require('../models/Doctor');
-const InsuranceClaim = require('../models/InsuranceClaim');
-const blockchainContract = require('../blockchain');
 
-// @desc    Get assigned patients
-// @route   GET /api/doctor/patients
-// @access  Private (Doctor only)
-exports.getPatients = async (req, res) => {
+const blockchainContract = require('../blockchain');
+const storageService = require('../src/modules/secure-storage/services/storageService');
+
+/**
+ * getPatients
+ * @description Handles operations for getPatients. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getPatients = async (req, res, next) => {
     try {
-        const doctor = await User.findById(req.user._id).populate('assignedPatients', 'name email');
+        const doctor = await User.findById(req.user._id).populate('assignedPatients', 'name email').lean();
 
         if (!doctor) {
-            return res.status(404).json({ message: 'Doctor not found' });
+            return res.status(404).json({ success: false, message: 'Doctor not found' , error: 'Doctor not found'  });
         }
 
-        res.status(200).json(doctor.assignedPatients);
+        res.status(200).json({ success: true, message: 'Operation successful', data: doctor.assignedPatients });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Get documents for a specific patient
-// @route   GET /api/doctor/patients/:patientId/documents
-// @access  Private (Doctor only)
-exports.getPatientDocuments = async (req, res) => {
+/**
+ * getPatientDocuments
+ * @description Handles operations for getPatientDocuments. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getPatientDocuments = async (req, res, next) => {
     try {
         const { patientId } = req.params;
         const doctorId = req.user._id;
@@ -68,26 +80,31 @@ exports.getPatientDocuments = async (req, res) => {
             }
         });
 
-        res.status(200).json(mappedDocs);
+        res.status(200).json({ success: true, message: 'Operation successful', data: mappedDocs });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Request access to a document
-// @route   POST /api/doctor/documents/:docId/request
-// @access  Private (Doctor only)
-exports.requestDocumentAccess = async (req, res) => {
+/**
+ * requestDocumentAccess
+ * @description Handles operations for requestDocumentAccess. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.requestDocumentAccess = async (req, res, next) => {
     try {
         const doc = await PatientDocument.findById(req.params.docId);
-        if (!doc) return res.status(404).json({ message: 'Document not found' });
+        if (!doc) return res.status(404).json({ success: false, message: 'Document not found' , error: 'Document not found'  });
 
         const doctorId = req.user._id;
 
         // Check if already requested
         const alreadyRequested = doc.accessRequests.some(r => r.doctor.toString() === doctorId.toString());
         if (alreadyRequested) {
-            return res.status(400).json({ message: 'Already requested access' });
+            return res.status(400).json({ success: false, message: 'Already requested access' , error: 'Already requested access'  });
         }
 
         doc.accessRequests.push({ doctor: doctorId });
@@ -99,28 +116,33 @@ exports.requestDocumentAccess = async (req, res) => {
             details: { type: 'request_document_access', documentId: doc._id }
         });
 
-        res.status(200).json({ message: 'Access requested successfully' });
+        res.status(200).json({ success: true, message: 'Access requested successfully' , data: { } });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
 const crypto = require('crypto');
 
-// @desc    Issue a new certificate to a patient
-// @route   POST /api/doctor/certificates
-// @access  Private (Doctor only)
-exports.issueCertificate = async (req, res) => {
+/**
+ * issueCertificate
+ * @description Handles operations for issueCertificate. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.issueCertificate = async (req, res, next) => {
     try {
         const { patientId, diagnosis, remarks, validFrom, validUntil, medicalRecordId, emrId, insuranceClaimId } = req.body;
 
         if (!patientId || !diagnosis || !validFrom || !validUntil) {
-            return res.status(400).json({ message: 'Please provide all required fields' });
+            return res.status(400).json({ success: false, message: 'Please provide all required fields' , error: 'Please provide all required fields'  });
         }
 
         const patient = await User.findById(patientId);
         if (!patient || patient.role !== 'general_user') {
-            return res.status(404).json({ message: 'Patient not found' });
+            return res.status(404).json({ success: false, message: 'Patient not found' , error: 'Patient not found'  });
         }
 
         // Connect certificate to an existing EMR
@@ -202,26 +224,54 @@ exports.issueCertificate = async (req, res) => {
             details: { certificateId: certificate._id, patientId, emrId: emrRecord._id, transactionHash }
         });
 
-        res.status(201).json({
-            message: 'Certificate issued successfully',
+        // Handle physical file upload securely
+        if (req.file) {
+            try {
+                const filePath = req.file.path;
+                const { secureFile } = await storageService.uploadSecurePayload({
+                    filePath,
+                    fileName: req.file.originalname,
+                    mimeType: req.file.mimetype,
+                    patientId,
+                    uploaderId: req.user._id,
+                    documentType: 'MedicalCertificate',
+                    linkedCertificate: certificate._id
+                });
+                certificate.secureFileId = secureFile._id;
+                await certificate.save();
+            } catch (storageError) {
+                console.error('Secure storage error during certificate issuance:', storageError);
+                // Optionally handle failure, but for now we log it so certificate creation succeeds
+                if (req.file && req.file.path) {
+                    fs.promises.unlink(req.file.path).catch(err => console.error('Error deleting temp file:', err));
+                }
+            }
+        }
+
+        res.status(201).json({ success: true, message: 'Certificate issued successfully', data: {
             certificateId: certificate._id,
             verificationHash,
             blockchainHash: transactionHash || verificationHash,
             transactionHash,
             medicalRecordId: emrRecord._id,
             certificate,
-        });
+        } });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
-// @desc    Get a single document with its encrypted data
-// @route   GET /api/doctor/documents/:docId
-// @access  Private (Doctor only)
-exports.getDocument = async (req, res) => {
+/**
+ * getDocument
+ * @description Handles operations for getDocument. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getDocument = async (req, res, next) => {
     try {
-        const doc = await PatientDocument.findById(req.params.docId).populate('patient', 'name');
-        if (!doc) return res.status(404).json({ message: 'Document not found' });
+        const doc = await PatientDocument.findById(req.params.docId).populate('patient', 'name').lean();
+        if (!doc) return res.status(404).json({ success: false, message: 'Document not found' , error: 'Document not found'  });
 
         const doctorId = req.user._id;
 
@@ -231,12 +281,12 @@ exports.getDocument = async (req, res) => {
         });
 
         if (!hasAccess) {
-            return res.status(403).json({ message: 'No active access to this document' });
+            return res.status(403).json({ success: false, message: 'No active access to this document' , error: 'No active access to this document'  });
         }
 
         const accessDetail = doc.accessList.find(a => a.doctor.toString() === doctorId.toString());
 
-        res.status(200).json({
+        res.status(200).json({ success: true, message: 'Operation successful', data: {
             _id: doc._id,
             title: doc.title,
             type: doc.type,
@@ -246,34 +296,44 @@ exports.getDocument = async (req, res) => {
             doctorEncryptedKey: accessDetail.doctorEncryptedKey,
             expiresAt: accessDetail.expiresAt,
             status: 'Valid'
-        });
+        } });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
 const CertificateRequest = require('../models/CertificateRequest');
 
-// @desc    Get pending certificate requests for the doctor
-// @route   GET /api/doctor/certificate-requests
-// @access  Private (Doctor only)
-exports.getCertificateRequests = async (req, res) => {
+/**
+ * getCertificateRequests
+ * @description Handles operations for getCertificateRequests. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getCertificateRequests = async (req, res, next) => {
     try {
         const requests = await CertificateRequest.find({
             doctorRequested: req.user._id,
             status: 'pending'
-        }).populate('patient', 'name email');
+        }).populate('patient', 'name email').lean();
 
-        res.status(200).json(requests);
+        res.status(200).json({ success: true, message: 'Operation successful', data: requests });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Approve a certificate request
-// @route   POST /api/doctor/certificate-requests/:id/approve
-// @access  Private (Doctor only)
-exports.approveCertificateRequest = async (req, res) => {
+/**
+ * approveCertificateRequest
+ * @description Handles operations for approveCertificateRequest. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.approveCertificateRequest = async (req, res, next) => {
     try {
         const { diagnosis, remarks, validFrom, validUntil } = req.body;
 
@@ -284,11 +344,11 @@ exports.approveCertificateRequest = async (req, res) => {
         });
 
         if (!request) {
-            return res.status(404).json({ message: 'Request not found or already processed' });
+            return res.status(404).json({ success: false, message: 'Request not found or already processed' , error: 'Request not found or already processed'  });
         }
 
         if (!diagnosis || !validFrom || !validUntil) {
-            return res.status(400).json({ message: 'Please provide all required fields' });
+            return res.status(400).json({ success: false, message: 'Please provide all required fields' , error: 'Please provide all required fields'  });
         }
 
         if (request.certificateType === 'vaccine') {
@@ -298,7 +358,7 @@ exports.approveCertificateRequest = async (req, res) => {
             });
 
             if (!vaccineDoc) {
-                return res.status(400).json({ message: 'Patient does not have a vaccine document.' });
+                return res.status(400).json({ success: false, message: 'Patient does not have a vaccine document.' , error: 'Patient does not have a vaccine document.'  });
             }
 
             const hasAccess = vaccineDoc.accessList.some(
@@ -306,7 +366,7 @@ exports.approveCertificateRequest = async (req, res) => {
             );
 
             if (!hasAccess) {
-                return res.status(403).json({ message: 'You do not have active access to the patient\'s vaccine document to approve this certificate.' });
+                return res.status(403).json({ success: false, message: 'You do not have active access to the patient\'s vaccine document to approve this certificate.' , error: 'You do not have active access to the patient\'s vaccine document to approve this certificate.'  });
             }
         }
 
@@ -336,11 +396,10 @@ exports.approveCertificateRequest = async (req, res) => {
             details: { certificateId: certificate._id, requestId: request._id, patientId: request.patient }
         });
 
-        res.status(200).json({
-            message: 'Certificate request approved and issued',
+        res.status(200).json({ success: true, message: 'Certificate request approved and issued', data: {
             certificate
-        });
+        } });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };

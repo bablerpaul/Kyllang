@@ -6,7 +6,12 @@ const User = require('../../../models/User');
 const { logAudit } = require('../../../utils/auditLogger');
 const crypto = require('crypto');
 
-// Helper to resolve Patient Document ID
+/**
+ * resolvePatientId
+ * @description Handles operations for resolvePatientId. Explains parameters, return values and usage.
+ * @param {*} idInput - idInput parameter
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
 const resolvePatientId = async (idInput) => {
     let patient = await Patient.findOne({ $or: [{ _id: idInput }, { user: idInput }] });
     if (!patient) {
@@ -18,7 +23,12 @@ const resolvePatientId = async (idInput) => {
     return patient ? patient._id : idInput;
 };
 
-// Helper to resolve Doctor Document ID
+/**
+ * resolveDoctorId
+ * @description Handles operations for resolveDoctorId. Explains parameters, return values and usage.
+ * @param {*} idInput - idInput parameter
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
 const resolveDoctorId = async (idInput) => {
     let doctor = await Doctor.findOne({ $or: [{ _id: idInput }, { user: idInput }] });
     if (!doctor) {
@@ -31,10 +41,15 @@ const resolveDoctorId = async (idInput) => {
     return doctor ? doctor._id : idInput;
 };
 
-// @desc    Create a new Prescription belonging to an EMR
-// @route   POST /api/prescriptions
-// @access  Private (Doctor only)
-exports.createPrescription = async (req, res) => {
+/**
+ * createPrescription
+ * @description Handles operations for createPrescription. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.createPrescription = async (req, res, next) => {
     try {
         const { emrId, medicalRecord, patientId, patient, medications, instructions } = req.body;
 
@@ -42,12 +57,12 @@ exports.createPrescription = async (req, res) => {
         const targetPatientInput = patientId || patient;
 
         if (!medications || !Array.isArray(medications) || medications.length === 0) {
-            return res.status(400).json({ message: 'Medications array is required and must contain at least one item' });
+            return res.status(400).json({ success: false, message: 'Medications array is required and must contain at least one item' , error: 'Medications array is required and must contain at least one item'  });
         }
 
         for (const med of medications) {
             if (!med.name || !med.dosage || !med.frequency || !med.duration) {
-                return res.status(400).json({ message: 'Each medication must have name, dosage, frequency, and duration' });
+                return res.status(400).json({ success: false, message: 'Each medication must have name, dosage, frequency, and duration' , error: 'Each medication must have name, dosage, frequency, and duration'  });
             }
         }
 
@@ -66,7 +81,7 @@ exports.createPrescription = async (req, res) => {
         }
 
         if (!resolvedPatientId) {
-            return res.status(400).json({ message: 'Valid Patient or EMR reference is required' });
+            return res.status(400).json({ success: false, message: 'Valid Patient or EMR reference is required' , error: 'Valid Patient or EMR reference is required'  });
         }
 
         const resolvedDoctorId = await resolveDoctorId(req.user._id);
@@ -87,7 +102,8 @@ exports.createPrescription = async (req, res) => {
         const populatedPrescription = await Prescription.findById(prescription._id)
             .populate({ path: 'patient', populate: { path: 'user', select: 'name email' } })
             .populate({ path: 'doctor', populate: { path: 'user', select: 'name email' } })
-            .populate('medicalRecord', 'diagnosis visitDate');
+            .populate('medicalRecord', 'diagnosis visitDate')
+            .lean();
 
         // Store Audit Log for CREATED action
         await logAudit({
@@ -102,18 +118,26 @@ exports.createPrescription = async (req, res) => {
         res.status(201).json({
             success: true,
             message: 'Prescription created and digitally signed successfully',
-            prescription: populatedPrescription,
+
+            data: {
+                prescription: populatedPrescription
+            }
         });
     } catch (error) {
         console.error('Error in createPrescription:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Get all Prescriptions
-// @route   GET /api/prescriptions
-// @access  Private
-exports.getAllPrescriptions = async (req, res) => {
+/**
+ * getAllPrescriptions
+ * @description Handles operations for getAllPrescriptions. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getAllPrescriptions = async (req, res, next) => {
     try {
         let filter = {};
 
@@ -130,7 +154,8 @@ exports.getAllPrescriptions = async (req, res) => {
             .populate({ path: 'patient', populate: { path: 'user', select: 'name email' } })
             .populate({ path: 'doctor', populate: { path: 'user', select: 'name email' } })
             .populate('medicalRecord', 'diagnosis visitDate')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
 
         // Store Audit Log for VIEWED action
         await logAudit({
@@ -140,23 +165,29 @@ exports.getAllPrescriptions = async (req, res) => {
             details: { count: prescriptions.length }
         });
 
-        res.status(200).json(prescriptions);
+        res.status(200).json({ success: true, message: 'Operation successful', data: prescriptions });
     } catch (error) {
         console.error('Error in getAllPrescriptions:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Get Prescriptions by EMR ID
-// @route   GET /api/prescriptions/emr/:emrId
-// @access  Private
-exports.getPrescriptionsByEmr = async (req, res) => {
+/**
+ * getPrescriptionsByEmr
+ * @description Handles operations for getPrescriptionsByEmr. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getPrescriptionsByEmr = async (req, res, next) => {
     try {
         const prescriptions = await Prescription.find({ medicalRecord: req.params.emrId })
             .populate({ path: 'patient', populate: { path: 'user', select: 'name email' } })
             .populate({ path: 'doctor', populate: { path: 'user', select: 'name email' } })
             .populate('medicalRecord', 'diagnosis visitDate')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
 
         // Store Audit Log for VIEWED action
         await logAudit({
@@ -167,17 +198,22 @@ exports.getPrescriptionsByEmr = async (req, res) => {
             details: { type: 'get_by_emr', count: prescriptions.length }
         });
 
-        res.status(200).json(prescriptions);
+        res.status(200).json({ success: true, message: 'Operation successful', data: prescriptions });
     } catch (error) {
         console.error('Error in getPrescriptionsByEmr:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Get Prescriptions by Patient ID
-// @route   GET /api/prescriptions/patient/:patientId
-// @access  Private
-exports.getPrescriptionsByPatient = async (req, res) => {
+/**
+ * getPrescriptionsByPatient
+ * @description Handles operations for getPrescriptionsByPatient. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getPrescriptionsByPatient = async (req, res, next) => {
     try {
         const pId = await resolvePatientId(req.params.patientId);
         const prescriptions = await Prescription.find({
@@ -186,7 +222,8 @@ exports.getPrescriptionsByPatient = async (req, res) => {
             .populate({ path: 'patient', populate: { path: 'user', select: 'name email' } })
             .populate({ path: 'doctor', populate: { path: 'user', select: 'name email' } })
             .populate('medicalRecord', 'diagnosis visitDate')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
 
         // Store Audit Log for VIEWED action
         await logAudit({
@@ -197,25 +234,31 @@ exports.getPrescriptionsByPatient = async (req, res) => {
             details: { type: 'get_by_patient', count: prescriptions.length }
         });
 
-        res.status(200).json(prescriptions);
+        res.status(200).json({ success: true, message: 'Operation successful', data: prescriptions });
     } catch (error) {
         console.error('Error in getPrescriptionsByPatient:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Get single Prescription by ID
-// @route   GET /api/prescriptions/:id
-// @access  Private
-exports.getPrescriptionById = async (req, res) => {
+/**
+ * getPrescriptionById
+ * @description Handles operations for getPrescriptionById. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getPrescriptionById = async (req, res, next) => {
     try {
         const prescription = await Prescription.findById(req.params.id)
             .populate({ path: 'patient', populate: { path: 'user', select: 'name email' } })
             .populate({ path: 'doctor', populate: { path: 'user', select: 'name email' } })
-            .populate('medicalRecord', 'diagnosis visitDate');
+            .populate('medicalRecord', 'diagnosis visitDate')
+            .lean();
 
         if (!prescription) {
-            return res.status(404).json({ message: 'Prescription not found' });
+            return res.status(404).json({ success: false, message: 'Prescription not found' , error: 'Prescription not found'  });
         }
 
         // Store Audit Log for VIEWED action
@@ -228,23 +271,28 @@ exports.getPrescriptionById = async (req, res) => {
             details: { status: prescription.status }
         });
 
-        res.status(200).json(prescription);
+        res.status(200).json({ success: true, message: 'Operation successful', data: prescription });
     } catch (error) {
         console.error('Error in getPrescriptionById:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Update Prescription
-// @route   PUT /api/prescriptions/:id
-// @access  Private (Doctor only)
-exports.updatePrescription = async (req, res) => {
+/**
+ * updatePrescription
+ * @description Handles operations for updatePrescription. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.updatePrescription = async (req, res, next) => {
     try {
         const { medications, instructions, status } = req.body;
 
         let prescription = await Prescription.findById(req.params.id);
         if (!prescription) {
-            return res.status(404).json({ message: 'Prescription not found' });
+            return res.status(404).json({ success: false, message: 'Prescription not found' , error: 'Prescription not found'  });
         }
 
         if (medications !== undefined) prescription.medications = medications;
@@ -274,22 +322,30 @@ exports.updatePrescription = async (req, res) => {
         res.status(200).json({
             success: true,
             message: 'Prescription updated successfully',
-            prescription: updated,
+
+            data: {
+                prescription: updated
+            }
         });
     } catch (error) {
         console.error('Error in updatePrescription:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Delete Prescription
-// @route   DELETE /api/prescriptions/:id
-// @access  Private (Doctor or Admin only)
-exports.deletePrescription = async (req, res) => {
+/**
+ * deletePrescription
+ * @description Handles operations for deletePrescription. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.deletePrescription = async (req, res, next) => {
     try {
         const prescription = await Prescription.findById(req.params.id);
         if (!prescription) {
-            return res.status(404).json({ message: 'Prescription not found' });
+            return res.status(404).json({ success: false, message: 'Prescription not found' , error: 'Prescription not found'  });
         }
 
         const hash = prescription.digitalSignatureHash;
@@ -308,9 +364,10 @@ exports.deletePrescription = async (req, res) => {
         res.status(200).json({
             success: true,
             message: 'Prescription deleted successfully',
+            data: {}
         });
     } catch (error) {
         console.error('Error in deletePrescription:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };

@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { cacheRoute } = require('../src/middlewares/cacheMiddleware');
 const {
     getDocuments,
     approveDoctorAccess,
@@ -16,15 +17,20 @@ const {
 } = require('../src/modules/patients/patientController');
 const { protect, authorize } = require('../middlewares/authMiddleware');
 
+const { registerLimiter, loginLimiter } = require('../middlewares/rateLimiter');
+const { patientRegisterRules } = require('../validators/authValidator');
+const { validate } = require('../middlewares/validatorMiddleware');
+
 // Public Patient Routes
-router.post('/register', registerPatient);
-router.post('/login', loginPatient);
+router.post('/register', registerLimiter, patientRegisterRules(), validate, registerPatient);
+router.post('/login', loginLimiter, loginPatient);
 
 // Protected Patient Routes
 router.use(protect);
 router.use(authorize('general_user'));
 
-router.get('/profile', getPatientProfile);
+// Get Patient Profile (Cached for 1 hour)
+router.get('/profile', cacheRoute('patient_profile', 3600), getPatientProfile);
 router.put('/profile', updatePatientProfile);
 router.get('/history', getPatientMedicalHistory);
 

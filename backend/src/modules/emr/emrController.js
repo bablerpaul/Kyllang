@@ -1,10 +1,17 @@
 const { MedicalRecord, Appointment, Prescription, LabReport, User, AuditLog } = require('../../models');
 
-// Medical Record Handlers
-exports.getMedicalRecord = async (req, res) => {
+/**
+ * getMedicalRecord
+ * @description Handles operations for getMedicalRecord. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getMedicalRecord = async (req, res, next) => {
     try {
         const patientId = req.params.patientId || req.user._id;
-        let record = await MedicalRecord.findOne({ patient: patientId }).populate('patient', 'name email');
+        let record = await MedicalRecord.findOne({ patient: patientId }).populate('patient', 'name email').lean();
         if (!record) {
             record = await MedicalRecord.create({
                 patient: patientId,
@@ -15,14 +22,23 @@ exports.getMedicalRecord = async (req, res) => {
                 medicalHistory: [{ condition: 'Seasonal Allergies', diagnosedDate: new Date('2022-01-15'), status: 'active' }],
             });
             record = await record.populate('patient', 'name email');
+            record = record.toObject();
         }
-        res.status(200).json(record);
+        res.status(200).json({ success: true, message: 'Operation successful', data: record });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        next(err);
     }
 };
 
-exports.updateMedicalRecord = async (req, res) => {
+/**
+ * updateMedicalRecord
+ * @description Handles operations for updateMedicalRecord. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.updateMedicalRecord = async (req, res, next) => {
     try {
         const { patientId } = req.params;
         const { bloodGroup, allergies, chronicConditions, vitals, medicalHistory } = req.body;
@@ -46,14 +62,21 @@ exports.updateMedicalRecord = async (req, res) => {
             details: { type: 'update_medical_record', patientId }
         });
 
-        res.status(200).json(record);
+        res.status(200).json({ success: true, message: 'Operation successful', data: record });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        next(err);
     }
 };
 
-// Appointment Handlers
-exports.getAppointments = async (req, res) => {
+/**
+ * getAppointments
+ * @description Handles operations for getAppointments. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getAppointments = async (req, res, next) => {
     try {
         let filter = {};
         if (req.user.role === 'doctor') {
@@ -64,15 +87,24 @@ exports.getAppointments = async (req, res) => {
         const appointments = await Appointment.find(filter)
             .populate('patient', 'name email')
             .populate('doctor', 'name specialty')
-            .sort({ appointmentDate: 1 });
+            .sort({ appointmentDate: 1 })
+            .lean();
 
-        res.status(200).json(appointments);
+        res.status(200).json({ success: true, message: 'Operation successful', data: appointments });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        next(err);
     }
 };
 
-exports.createAppointment = async (req, res) => {
+/**
+ * createAppointment
+ * @description Handles operations for createAppointment. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.createAppointment = async (req, res, next) => {
     try {
         const { doctorId, patientId, appointmentDate, timeSlot, reason } = req.body;
 
@@ -86,14 +118,21 @@ exports.createAppointment = async (req, res) => {
             reason,
         });
 
-        res.status(201).json(appointment);
+        res.status(201).json({ success: true, message: 'Operation successful', data: appointment });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        next(err);
     }
 };
 
-// Prescription Handlers
-exports.getPrescriptions = async (req, res) => {
+/**
+ * getPrescriptions
+ * @description Handles operations for getPrescriptions. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getPrescriptions = async (req, res, next) => {
     try {
         let filter = {};
         if (req.user.role === 'doctor') {
@@ -104,15 +143,24 @@ exports.getPrescriptions = async (req, res) => {
         const prescriptions = await Prescription.find(filter)
             .populate('patient', 'name email')
             .populate('doctor', 'name specialty')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
 
-        res.status(200).json(prescriptions);
+        res.status(200).json({ success: true, message: 'Operation successful', data: prescriptions });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        next(err);
     }
 };
 
-exports.createPrescription = async (req, res) => {
+/**
+ * createPrescription
+ * @description Handles operations for createPrescription. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.createPrescription = async (req, res, next) => {
     try {
         const { patientId, medications, instructions } = req.body;
 
@@ -134,14 +182,21 @@ exports.createPrescription = async (req, res) => {
             details: { type: 'issue_prescription', prescriptionId: prescription._id, patientId }
         });
 
-        res.status(201).json(prescription);
+        res.status(201).json({ success: true, message: 'Operation successful', data: prescription });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        next(err);
     }
 };
 
-// Lab Report Handlers
-exports.getLabReports = async (req, res) => {
+/**
+ * getLabReports
+ * @description Handles operations for getLabReports. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getLabReports = async (req, res, next) => {
     try {
         let filter = {};
         if (req.user.role === 'general_user') {
@@ -150,17 +205,25 @@ exports.getLabReports = async (req, res) => {
             filter = { orderedBy: req.user._id };
         }
         const reports = await LabReport.find(filter)
-            .populate('patient', 'name email')
             .populate('orderedBy', 'name specialty')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
 
-        res.status(200).json(reports);
+        res.status(200).json({ success: true, message: 'Operation successful', data: reports });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        next(err);
     }
 };
 
-exports.createLabReport = async (req, res) => {
+/**
+ * createLabReport
+ * @description Handles operations for createLabReport. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.createLabReport = async (req, res, next) => {
     try {
         const { patientId, testCategory, testName, resultsSummary } = req.body;
 
@@ -172,8 +235,8 @@ exports.createLabReport = async (req, res) => {
             resultsSummary,
         });
 
-        res.status(201).json(report);
+        res.status(201).json({ success: true, message: 'Operation successful', data: report });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        next(err);
     }
 };

@@ -1,5 +1,10 @@
 const mongoose = require('mongoose');
 
+/**
+ * Mongoose schema and model for medicalRecordSchema
+ * @module models/medicalRecordSchema
+ * @description Explains the structure and types for the medicalRecordSchema collection.
+ */
 const medicalRecordSchema = new mongoose.Schema(
     {
         patient: {
@@ -92,5 +97,9 @@ const medicalRecordSchema = new mongoose.Schema(
         timestamps: true,
     }
 );
+
+// Performance Indexes
+medicalRecordSchema.index({ patient: 1, visitDate: -1 });
+medicalRecordSchema.index({ doctor: 1, visitDate: -1 });
 
 module.exports = mongoose.model('MedicalRecord', medicalRecordSchema);

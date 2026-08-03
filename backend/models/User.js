@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
+/**
+ * Mongoose schema and model for userSchema
+ * @module models/userSchema
+ * @description Explains the structure and types for the userSchema collection.
+ */
 const userSchema = new mongoose.Schema(
     {
         name: {
@@ -24,7 +29,7 @@ const userSchema = new mongoose.Schema(
         },
         role: {
             type: String,
-            enum: ['general_user', 'doctor', 'hospital_admin'],
+            enum: ['general_user', 'doctor', 'hospital_admin', 'insurance_officer'],
             default: 'general_user',
         },
         // Doctor specific fields

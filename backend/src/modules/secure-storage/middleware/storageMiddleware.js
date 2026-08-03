@@ -1,7 +1,11 @@
-// This middleware ensures that the user has the required access rights
-// For the sake of this modular example, we mock a 'protect' middleware
-// In reality, this would import from the main auth middleware of the app
-
+/**
+ * protect
+ * @description Handles operations for protect. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
 exports.protect = async (req, res, next) => {
     // Mock user for testing purposes if no auth system is injected
     if (!req.user) {

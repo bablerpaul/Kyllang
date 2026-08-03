@@ -6,7 +6,12 @@ const AuditLog = require('../../../models/AuditLog');
 const { logAudit } = require('../../../utils/auditLogger');
 const crypto = require('crypto');
 
-// Helper to resolve Patient
+/**
+ * getPatientDoc
+ * @description Handles operations for getPatientDoc. Explains parameters, return values and usage.
+ * @param {*} userId - userId parameter
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
 const getPatientDoc = async (userId) => {
     let patient = await Patient.findOne({ user: userId });
     if (!patient) {
@@ -15,15 +20,20 @@ const getPatientDoc = async (userId) => {
     return patient;
 };
 
-// @desc    Grant Doctor Access
-// @route   POST /api/consent/grant-doctor
-// @access  Private (Patient only)
-exports.grantDoctorAccess = async (req, res) => {
+/**
+ * grantDoctorAccess
+ * @description Handles operations for grantDoctorAccess. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.grantDoctorAccess = async (req, res, next) => {
     try {
         const { doctorId, doctorUserId, doctorName, scope, durationDays } = req.body;
 
         if (!doctorId && !doctorUserId && !doctorName) {
-            return res.status(400).json({ message: 'doctorId, doctorUserId, or doctorName is required' });
+            return res.status(400).json({ success: false, message: 'doctorId, doctorUserId, or doctorName is required' , error: 'doctorId, doctorUserId, or doctorName is required'  });
         }
 
         const patientDoc = await getPatientDoc(req.user._id);
@@ -96,18 +106,26 @@ exports.grantDoctorAccess = async (req, res) => {
         res.status(201).json({
             success: true,
             message: 'Doctor access consent granted successfully',
-            consent,
+
+            data: {
+                consent
+            }
         });
     } catch (error) {
         console.error('Error in grantDoctorAccess:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Revoke Doctor Access
-// @route   POST /api/consent/revoke-doctor
-// @access  Private (Patient only)
-exports.revokeDoctorAccess = async (req, res) => {
+/**
+ * revokeDoctorAccess
+ * @description Handles operations for revokeDoctorAccess. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.revokeDoctorAccess = async (req, res, next) => {
     try {
         const { doctorId, doctorUserId, consentId } = req.body;
 
@@ -126,7 +144,7 @@ exports.revokeDoctorAccess = async (req, res) => {
 
         const consents = await Consent.find(filter);
         if (consents.length === 0) {
-            return res.status(404).json({ message: 'No active doctor consent found to revoke' });
+            return res.status(404).json({ success: false, message: 'No active doctor consent found to revoke' , error: 'No active doctor consent found to revoke'  });
         }
 
         for (const c of consents) {
@@ -144,23 +162,31 @@ exports.revokeDoctorAccess = async (req, res) => {
         res.status(200).json({
             success: true,
             message: 'Doctor access consent revoked successfully',
-            revokedCount: consents.length,
+
+            data: {
+                revokedCount: consents.length
+            }
         });
     } catch (error) {
         console.error('Error in revokeDoctorAccess:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Grant Insurance Access
-// @route   POST /api/consent/grant-insurance
-// @access  Private (Patient only)
-exports.grantInsuranceAccess = async (req, res) => {
+/**
+ * grantInsuranceAccess
+ * @description Handles operations for grantInsuranceAccess. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.grantInsuranceAccess = async (req, res, next) => {
     try {
         const { providerName, insuranceUserId, scope, durationDays } = req.body;
 
         if (!providerName && !insuranceUserId) {
-            return res.status(400).json({ message: 'providerName or insuranceUserId is required' });
+            return res.status(400).json({ success: false, message: 'providerName or insuranceUserId is required' , error: 'providerName or insuranceUserId is required'  });
         }
 
         const patientDoc = await getPatientDoc(req.user._id);
@@ -207,22 +233,30 @@ exports.grantInsuranceAccess = async (req, res) => {
         res.status(201).json({
             success: true,
             message: 'Insurance access consent granted successfully',
-            consent,
+
+            data: {
+                consent
+            }
         });
     } catch (error) {
         console.error('Error in grantInsuranceAccess:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Revoke Consent by Consent ID
-// @route   PUT /api/consent/:id/revoke
-// @access  Private (Patient only)
-exports.revokeConsentById = async (req, res) => {
+/**
+ * revokeConsentById
+ * @description Handles operations for revokeConsentById. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.revokeConsentById = async (req, res, next) => {
     try {
         const consent = await Consent.findById(req.params.id);
         if (!consent) {
-            return res.status(404).json({ message: 'Consent record not found' });
+            return res.status(404).json({ success: false, message: 'Consent record not found' , error: 'Consent record not found'  });
         }
 
         consent.status = 'revoked';
@@ -239,18 +273,26 @@ exports.revokeConsentById = async (req, res) => {
         res.status(200).json({
             success: true,
             message: 'Consent revoked successfully',
-            consent,
+
+            data: {
+                consent
+            }
         });
     } catch (error) {
         console.error('Error in revokeConsentById:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Get My Active Consents
-// @route   GET /api/consent
-// @access  Private
-exports.getMyConsents = async (req, res) => {
+/**
+ * getMyConsents
+ * @description Handles operations for getMyConsents. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getMyConsents = async (req, res, next) => {
     try {
         const patientDoc = await Patient.findOne({ user: req.user._id });
         const pId = patientDoc ? patientDoc._id : req.user._id;
@@ -269,9 +311,9 @@ exports.getMyConsents = async (req, res) => {
             details: { count: consents.length }
         });
 
-        res.status(200).json(consents);
+        res.status(200).json({ success: true, message: 'Operation successful', data: consents });
     } catch (error) {
         console.error('Error in getMyConsents:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };

@@ -1,5 +1,10 @@
 const mongoose = require('mongoose');
 
+/**
+ * Mongoose schema and model for insuranceClaimSchema
+ * @module models/insuranceClaimSchema
+ * @description Explains the structure and types for the insuranceClaimSchema collection.
+ */
 const insuranceClaimSchema = new mongoose.Schema(
     {
         patient: {
@@ -86,5 +91,9 @@ const insuranceClaimSchema = new mongoose.Schema(
         timestamps: true,
     }
 );
+
+// Performance Indexes
+insuranceClaimSchema.index({ patient: 1, status: 1 });
+insuranceClaimSchema.index({ submittedDate: -1 });
 
 module.exports = mongoose.model('InsuranceClaim', insuranceClaimSchema);

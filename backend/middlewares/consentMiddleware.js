@@ -3,8 +3,10 @@ const Patient = require('../models/Patient');
 const User = require('../models/User');
 
 /**
- * Checks whether active patient consent exists for a requesting user/role.
- * Returns true if access is allowed, false if forbidden.
+ * hasActiveConsent
+ * @description Handles operations for hasActiveConsent. Explains parameters, return values and usage.
+ * @param {*} param - param parameter
+ * @returns {Promise<void>} Resolves when the operation is complete
  */
 const hasActiveConsent = async ({ patientInput, requestingUser, requiredScope = 'full_access' }) => {
     try {
@@ -64,7 +66,10 @@ const hasActiveConsent = async ({ patientInput, requestingUser, requiredScope = 
 };
 
 /**
- * Express middleware to enforce consent check before returning patient data.
+ * verifyConsent
+ * @description Handles operations for verifyConsent. Explains parameters, return values and usage.
+ * @param {*} requiredScope - requiredScope parameter
+ * @returns {*} Return value
  */
 const verifyConsent = (requiredScope = 'full_access') => async (req, res, next) => {
     const patientId = req.params.patientId || req.query.patientId || req.body.patientId;

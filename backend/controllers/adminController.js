@@ -2,11 +2,19 @@ const User = require('../models/User');
 const Certificate = require('../models/Certificate');
 const AuditLog = require('../models/AuditLog');
 const blockchainContract = require('../blockchain');
+const SecureFile = require('../src/modules/secure-storage/models/SecureFile');
+const os = require('os');
+const { getMetrics } = require('../src/middlewares/metricsMiddleware');
 
-// @desc    Get system analytics
-// @route   GET /api/admin/analytics
-// @access  Private (Admin only)
-exports.getAnalytics = async (req, res) => {
+/**
+ * getAnalytics
+ * @description Handles operations for getAnalytics. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getAnalytics = async (req, res, next) => {
     try {
         const totalUsers = await User.countDocuments({ role: 'general_user' });
         const totalDoctors = await User.countDocuments({ role: 'doctor' });
@@ -14,27 +22,53 @@ exports.getAnalytics = async (req, res) => {
 
         // You can add more complex aggregates here (e.g. certs issued this month)
 
-        res.status(200).json({
+        res.status(200).json({ success: true, message: 'Operation successful', data: {
             totalUsers,
             totalPatients: totalUsers,
             totalDoctors,
             totalCertificates,
             activeHospitals: 1, // Placeholder
-        });
+        } });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Get all users (for management)
-// @route   GET /api/admin/users
-// @access  Private (Admin only)
-exports.getAllUsers = async (req, res) => {
+/**
+ * getAuditLogs
+ * @description Handles operations for getAuditLogs. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getAuditLogs = async (req, res, next) => {
+    try {
+        const logs = await AuditLog.find()
+            .populate('user', 'name role')
+            .populate('actor', 'name role')
+            .sort({ timestamp: -1 })
+            .limit(100);
+        res.status(200).json({ success: true, message: 'Operation successful', data: logs });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * getAllUsers
+ * @description Handles operations for getAllUsers. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getAllUsers = async (req, res, next) => {
     try {
         const users = await User.find({ role: { $ne: 'hospital_admin' } }).select('-password');
-        res.status(200).json(users);
+        res.status(200).json({ success: true, message: 'Operation successful', data: users });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
@@ -42,20 +76,25 @@ const crypto = require('crypto');
 const nacl = require('tweetnacl');
 const util = require('tweetnacl-util');
 
-// @desc    Create a new user (Patient or Doctor) with RSA Key Pair
-// @route   POST /api/admin/users
-// @access  Private (Admin only)
-exports.createUser = async (req, res) => {
+/**
+ * createUser
+ * @description Handles operations for createUser. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.createUser = async (req, res, next) => {
     try {
         const { name, email, password, role, specialty } = req.body;
 
         if (!name || !email || !password || !role) {
-            return res.status(400).json({ message: 'Please provide name, email, password, and role' });
+            return res.status(400).json({ success: false, message: 'Please provide name, email, password, and role' , error: 'Please provide name, email, password, and role'  });
         }
 
         const userExists = await User.findOne({ email });
         if (userExists) {
-            return res.status(400).json({ message: 'User already exists' });
+            return res.status(400).json({ success: false, message: 'User already exists' , error: 'User already exists'  });
         }
 
         // Generate Curve25519 (X25519) Key Pair for the new user
@@ -80,8 +119,7 @@ exports.createUser = async (req, res) => {
             details: { createdUserId: user._id, role: user.role }
         });
 
-        res.status(201).json({
-            message: 'User created successfully',
+        res.status(201).json({ success: true, message: 'User created successfully', data: {
             user: {
                 _id: user._id,
                 name: user.name,
@@ -90,40 +128,45 @@ exports.createUser = async (req, res) => {
                 publicKey: user.publicKey,
             },
             privateKey, // IMPORTANT: Admin will see this once, user must store it!
-        });
+        } });
     } catch (error) {
         console.error('Error creating user:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Assign a patient to a doctor
-// @route   POST /api/admin/assign
-// @access  Private (Admin only)
-exports.assignDoctor = async (req, res) => {
+/**
+ * assignDoctor
+ * @description Handles operations for assignDoctor. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.assignDoctor = async (req, res, next) => {
     try {
         console.log("assignDoctor: 1 - Start");
         const { doctorId, patientId } = req.body;
 
         if (!doctorId || !patientId) {
-            return res.status(400).json({ message: 'Please provide doctorId and patientId' });
+            return res.status(400).json({ success: false, message: 'Please provide doctorId and patientId' , error: 'Please provide doctorId and patientId'  });
         }
 
         console.log("assignDoctor: 2 - Find Doctor");
         const doctor = await User.findById(doctorId);
         if (!doctor || doctor.role !== 'doctor') {
-            return res.status(404).json({ message: 'Doctor not found' });
+            return res.status(404).json({ success: false, message: 'Doctor not found' , error: 'Doctor not found'  });
         }
 
         console.log("assignDoctor: 3 - Find Patient");
         const patient = await User.findById(patientId);
         if (!patient || patient.role !== 'general_user') {
-            return res.status(404).json({ message: 'Patient not found' });
+            return res.status(404).json({ success: false, message: 'Patient not found' , error: 'Patient not found'  });
         }
 
         console.log("assignDoctor: 4 - Check Includes");
         if (doctor.assignedPatients.includes(patientId)) {
-            return res.status(400).json({ message: 'Patient is already assigned to this doctor' });
+            return res.status(400).json({ success: false, message: 'Patient is already assigned to this doctor' , error: 'Patient is already assigned to this doctor'  });
         }
 
         console.log("assignDoctor: 5 - Push Patient");
@@ -139,29 +182,34 @@ exports.assignDoctor = async (req, res) => {
         });
 
         console.log("assignDoctor: 7 - Success");
-        res.status(200).json({ message: 'Patient assigned to doctor successfully' });
+        res.status(200).json({ success: true, message: 'Patient assigned to doctor successfully' , data: { } });
     } catch (error) {
         console.error('Assign Doctor Error Stack Trace:', error.stack);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
 const PatientDocument = require('../models/PatientDocument');
 
-// @desc    Upload an Encrypted Document for a patient
-// @route   POST /api/admin/documents
-// @access  Private (Admin only)
-exports.uploadDocument = async (req, res) => {
+/**
+ * uploadDocument
+ * @description Handles operations for uploadDocument. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.uploadDocument = async (req, res, next) => {
     try {
         const { patientId, title, type, encryptedData, patientEncryptedKey } = req.body;
 
         if (!patientId || !title || !encryptedData || !patientEncryptedKey) {
-            return res.status(400).json({ message: 'Please provide all required fields' });
+            return res.status(400).json({ success: false, message: 'Please provide all required fields' , error: 'Please provide all required fields'  });
         }
 
         const patient = await User.findById(patientId);
         if (!patient || patient.role !== 'general_user') {
-            return res.status(404).json({ message: 'Patient not found' });
+            return res.status(404).json({ success: false, message: 'Patient not found' , error: 'Patient not found'  });
         }
 
         const doc = await PatientDocument.create({
@@ -178,30 +226,33 @@ exports.uploadDocument = async (req, res) => {
             details: { documentId: doc._id, patientId }
         });
 
-        res.status(201).json({
-            message: 'Document uploaded successfully',
+        res.status(201).json({ success: true, message: 'Document uploaded successfully', data: {
             documentId: doc._id,
-        });
+        } });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Anchor unanchored audit logs to the blockchain placeholder
-// @route   POST /api/admin/anchor-logs
-// @access  Private (Admin only)
-exports.anchorLogs = async (req, res) => {
+/**
+ * anchorLogs
+ * @description Handles operations for anchorLogs. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.anchorLogs = async (req, res, next) => {
     try {
         // 1. Efficiently query unanchored logs (uses the isAnchored index)
         const unanchoredLogs = await AuditLog.find({ isAnchored: false }).lean();
 
         // Handle empty state gracefully
         if (!unanchoredLogs || unanchoredLogs.length === 0) {
-            return res.status(200).json({
-                message: 'No unanchored logs found.',
+            return res.status(200).json({ success: true, message: 'No unanchored logs found.', data: {
                 processedCount: 0,
                 batchHash: null
-            });
+            } });
         }
 
         // 2. Cryptographic Hashing: Deterministic Object Hashing
@@ -233,7 +284,7 @@ exports.anchorLogs = async (req, res) => {
             console.log("Successfully anchored to blockchain! TX Hash:", tx.hash);
         } catch (contractError) {
             console.error("Blockchain contract call failed:", contractError.message);
-            return res.status(500).json({ message: 'Blockchain anchoring failed: ' + contractError.message });
+            return next(contractError);
         }
 
         // 4. Database Update: Performant Batch Update
@@ -250,14 +301,96 @@ exports.anchorLogs = async (req, res) => {
         );
 
         // 5. Response
-        res.status(200).json({
-            message: 'Logs successfully anchored',
+        res.status(200).json({ success: true, message: 'Logs successfully anchored', data: {
             processedCount: unanchoredLogs.length,
             batchHash: batchHash
-        });
+        } });
 
     } catch (error) {
         console.error('Error anchoring logs:', error);
-        res.status(500).json({ message: 'Server error during log anchoring' });
+        next(error);
+    }
+};
+
+/**
+ * getMonitoringDashboard
+ * @description Returns aggregated metrics for the Admin Dashboard
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ */
+exports.getMonitoringDashboard = async (req, res, next) => {
+    try {
+        // 1. System Metrics (CPU/Memory)
+        const cpuLoad = os.loadavg();
+        const totalMem = os.totalmem();
+        const freeMem = os.freemem();
+        const memoryUsage = ((totalMem - freeMem) / totalMem * 100).toFixed(2);
+
+        // 2. Storage Usage
+        const totalStorageFiles = await SecureFile.countDocuments();
+
+        // 3. Blockchain Status
+        let blockchainStatus = 'Active';
+        try {
+            if (blockchainContract && blockchainContract.runner) {
+                await blockchainContract.runner.provider.getBlockNumber();
+            }
+        } catch (e) {
+            blockchainStatus = 'Offline';
+        }
+
+        // 4. IPFS Status
+        const ipfsStatus = process.env.TEST_MODE === 'true' ? 'Mock Active' : 'Active';
+
+        // 5. API Response Time
+        const apiMetrics = getMetrics();
+
+        // 6. Active Users (Unique users in the last 24h)
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const activeUsersData = await AuditLog.aggregate([
+            { $match: { timestamp: { $gte: oneDayAgo } } },
+            { $group: { _id: "$user" } }
+        ]);
+        const activeUsersCount = activeUsersData.length;
+
+        // 7. Latest Uploads
+        const latestUploads = await SecureFile.find()
+            .sort({ createdAt: -1 })
+            .limit(5)
+            .select('fileName fileType createdAt');
+
+        // 8. Latest Verifications
+        const latestVerifications = await AuditLog.find({ action: /verify/i })
+            .populate('actor', 'name role')
+            .sort({ timestamp: -1 })
+            .limit(5)
+            .select('action timestamp actor');
+
+        res.status(200).json({
+            success: true,
+            data: {
+                system: {
+                    cpuLoad1m: cpuLoad[0].toFixed(2),
+                    memoryUsagePercent: memoryUsage,
+                    platform: os.platform()
+                },
+                services: {
+                    blockchainStatus,
+                    ipfsStatus
+                },
+                api: apiMetrics,
+                storage: {
+                    totalFiles: totalStorageFiles
+                },
+                activity: {
+                    activeUsers24h: activeUsersCount,
+                    latestUploads,
+                    latestVerifications
+                }
+            }
+        });
+    } catch (error) {
+        next(error);
     }
 };

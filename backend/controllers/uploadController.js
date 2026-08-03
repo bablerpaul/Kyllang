@@ -4,13 +4,18 @@ const path = require('path');
 const AuditLog = require('../models/AuditLog');
 const { uploadToIPFS } = require('../services/ipfsService');
 
-// @desc    Upload Single Medical File to IPFS (MRI, CT Scan, X-ray, Ultrasound, PDF)
-// @route   POST /api/upload/single
-// @access  Private
-exports.uploadSingleFile = async (req, res) => {
+/**
+ * uploadSingleFile
+ * @description Handles operations for uploadSingleFile. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.uploadSingleFile = async (req, res, next) => {
     try {
         if (!req.file) {
-            return res.status(400).json({ message: 'No file uploaded or invalid file format' });
+            return res.status(400).json({ success: false, message: 'No file uploaded or invalid file format' , error: 'No file uploaded or invalid file format'  });
         }
 
         const filePath = req.file.path;
@@ -42,32 +47,40 @@ exports.uploadSingleFile = async (req, res) => {
         res.status(200).json({
             success: true,
             message: 'File uploaded to IPFS successfully. CID stored in metadata.',
-            file: {
-                originalName: req.file.originalname,
-                fileName: req.file.filename,
-                ipfsCid: cid,
-                cid: cid,
-                ipfsUrl: ipfsUrl,
-                gatewayUrl: gatewayUrl,
-                mimeType: req.file.mimetype,
-                size: req.file.size,
-                fileHash: fileHash,
-                uploadedAt: new Date().toISOString(),
-            },
+
+            data: {
+                file: {
+                    originalName: req.file.originalname,
+                    fileName: req.file.filename,
+                    ipfsCid: cid,
+                    cid: cid,
+                    ipfsUrl: ipfsUrl,
+                    gatewayUrl: gatewayUrl,
+                    mimeType: req.file.mimetype,
+                    size: req.file.size,
+                    fileHash: fileHash,
+                    uploadedAt: new Date().toISOString(),
+                }
+            }
         });
     } catch (error) {
         console.error('Error in uploadSingleFile:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Upload Multiple Medical Files to IPFS
-// @route   POST /api/upload/multiple
-// @access  Private
-exports.uploadMultipleFiles = async (req, res) => {
+/**
+ * uploadMultipleFiles
+ * @description Handles operations for uploadMultipleFiles. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.uploadMultipleFiles = async (req, res, next) => {
     try {
         if (!req.files || req.files.length === 0) {
-            return res.status(400).json({ message: 'No files uploaded' });
+            return res.status(400).json({ success: false, message: 'No files uploaded' , error: 'No files uploaded'  });
         }
 
         const uploadedFiles = [];
@@ -104,10 +117,13 @@ exports.uploadMultipleFiles = async (req, res) => {
         res.status(200).json({
             success: true,
             message: `${uploadedFiles.length} files uploaded to IPFS successfully`,
-            files: uploadedFiles,
+
+            data: {
+                files: uploadedFiles
+            }
         });
     } catch (error) {
         console.error('Error in uploadMultipleFiles:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };

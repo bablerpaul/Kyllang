@@ -56,6 +56,7 @@ import InsuranceManager from './dashboard/pages/InsuranceManager';
 import AuditLogsManager from './dashboard/pages/AuditLogsManager';
 import EndToEndEMRWorkflow from './dashboard/pages/EndToEndEMRWorkflow';
 import QRVerificationManager from './dashboard/pages/QRVerificationManager';
+import SecureStorageDashboard from './dashboard/pages/SecureStorageDashboard';
 
 // Import MUI components
 import { Typography, Box, Alert } from '@mui/material';
@@ -85,6 +86,7 @@ function App() {
         <Route path="insurance" element={<InsuranceManager />} />
         <Route path="qr-verify" element={<QRVerificationManager />} />
         <Route path="audit-logs" element={<AuditLogsManager />} />
+        <Route path="secure-storage" element={<SecureStorageDashboard />} />
       </Route>
 
       {/* Protected user routes */}

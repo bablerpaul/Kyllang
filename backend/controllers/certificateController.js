@@ -2,19 +2,24 @@ const crypto = require('crypto');
 const Certificate = require('../models/Certificate');
 const MedicalRecord = require('../models/MedicalRecord');
 const Doctor = require('../models/Doctor');
-const InsuranceClaim = require('../models/InsuranceClaim');
+
 const AuditLog = require('../models/AuditLog');
 const blockchainContract = require('../blockchain');
 
-// @desc    Generate a new certificate (connected to an existing EMR)
-// @route   POST /api/certificates
-// @access  Private (Doctor only)
-exports.createCertificate = async (req, res) => {
+/**
+ * createCertificate
+ * @description Handles operations for createCertificate. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.createCertificate = async (req, res, next) => {
     try {
         const { patientId, diagnosis, remarks, validFrom, validUntil, medicalRecordId, emrId, insuranceClaimId } = req.body;
 
         if (!patientId || !diagnosis || !validFrom || !validUntil) {
-            return res.status(400).json({ message: 'patientId, diagnosis, validFrom, and validUntil are required' });
+            return res.status(400).json({ success: false, message: 'patientId, diagnosis, validFrom, and validUntil are required' , error: 'patientId, diagnosis, validFrom, and validUntil are required'  });
         }
 
         // Connect certificate to an existing EMR
@@ -108,19 +113,25 @@ exports.createCertificate = async (req, res) => {
             .populate('issuedBy', 'name specialty')
             .populate('doctor', 'specialty licenseNumber')
             .populate('medicalRecord', 'diagnosis visitDate vitals clinicalNotes')
-            .populate('insuranceClaim', 'provider policyNumber claimAmount status');
+            .populate('insuranceClaim', 'provider policyNumber claimAmount status')
+            .lean();
 
-        res.status(201).json(populatedCert);
+        res.status(201).json({ success: true, message: 'Operation successful', data: populatedCert });
     } catch (error) {
         console.error('Error in createCertificate:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Get certificates for logged in user
-// @route   GET /api/certificates
-// @access  Private
-exports.getMyCertificates = async (req, res) => {
+/**
+ * getMyCertificates
+ * @description Handles operations for getMyCertificates. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getMyCertificates = async (req, res, next) => {
     try {
         let certificates;
 
@@ -131,32 +142,39 @@ exports.getMyCertificates = async (req, res) => {
                 .populate('doctor', 'specialty licenseNumber')
                 .populate('medicalRecord', 'diagnosis visitDate vitals clinicalNotes')
                 .populate('insuranceClaim', 'provider policyNumber claimAmount status')
-                .sort({ createdAt: -1 });
+                .sort({ createdAt: -1 })
+                .lean();
         } else {
             certificates = await Certificate.find({ patient: req.user._id })
                 .populate('issuedBy', 'name specialty')
                 .populate('doctor', 'specialty licenseNumber')
                 .populate('medicalRecord', 'diagnosis visitDate vitals clinicalNotes')
                 .populate('insuranceClaim', 'provider policyNumber claimAmount status')
-                .sort({ createdAt: -1 });
+                .sort({ createdAt: -1 })
+                .lean();
         }
 
-        res.status(200).json(certificates);
+        res.status(200).json({ success: true, message: 'Operation successful', data: certificates });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Verify certificate by hash and data
-// @route   POST /api/certificates/verify
-// @access  Public
-exports.verifyCertificate = async (req, res) => {
+/**
+ * verifyCertificate
+ * @description Handles operations for verifyCertificate. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.verifyCertificate = async (req, res, next) => {
     try {
         const { hash, data } = req.body;
         console.log("=== RAW REQ.BODY ===", JSON.stringify(req.body, null, 2));
 
         if (!hash || !data) {
-            return res.status(400).json({ message: 'Hash and data are required for verification' });
+            return res.status(400).json({ success: false, message: 'Hash and data are required for verification' , error: 'Hash and data are required for verification'  });
         }
 
         // Recompute hash (ZKP concept verification)
@@ -171,7 +189,9 @@ exports.verifyCertificate = async (req, res) => {
 
         if (hash !== expectedHash) {
             return res.status(400).json({
-                message: `Hash mismatch.\nBackend Received Data: ${JSON.stringify(req.body)}\nComputed Hash: ${expectedHash}\nExpected Hash: ${hash}`
+                success: true,
+                message: `Hash mismatch.\nBackend Received Data: ${JSON.stringify(req.body)}\nComputed Hash: ${expectedHash}\nExpected Hash: ${hash}`,
+                data: {}
             });
         }
 
@@ -182,14 +202,15 @@ exports.verifyCertificate = async (req, res) => {
             .populate('issuedBy', 'name specialty')
             .populate('doctor', 'specialty licenseNumber')
             .populate('medicalRecord', 'diagnosis visitDate vitals clinicalNotes')
-            .populate('insuranceClaim', 'provider policyNumber claimAmount status');
+            .populate('insuranceClaim', 'provider policyNumber claimAmount status')
+            .lean();
 
         if (!certificate) {
-            return res.status(404).json({ message: 'Certificate matches hash but not found in the database. It may have been revoked.' });
+            return res.status(404).json({ success: false, message: 'Certificate matches hash but not found in the database. It may have been revoked.' , error: 'Certificate matches hash but not found in the database. It may have been revoked.'  });
         }
 
-        res.status(200).json({ valid: true, certificate });
+        res.status(200).json({ success: true, message: 'Operation successful', data: { valid: true, certificate } });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };

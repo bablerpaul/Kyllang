@@ -13,6 +13,12 @@ const util = require('tweetnacl-util');
 
 const blockchainContract = require('../../../blockchain');
 
+/**
+ * generateToken
+ * @description Handles operations for generateToken. Explains parameters, return values and usage.
+ * @param {*} id - id parameter
+ * @returns {*} Return value
+ */
 const generateToken = (id) => {
     return jwt.sign({ id }, process.env.JWT_SECRET || 'secret_key', {
         expiresIn: '30d',
@@ -21,33 +27,38 @@ const generateToken = (id) => {
 
 const emailRegex = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/;
 
-// @desc    Register a new Doctor
-// @route   POST /api/doctor/register
-// @access  Public
-exports.registerDoctor = async (req, res) => {
+/**
+ * registerDoctor
+ * @description Handles operations for registerDoctor. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.registerDoctor = async (req, res, next) => {
     try {
         const { name, email, password, specialty, licenseNumber, department, consultationFee } = req.body;
 
         if (!name || !email || !password || !specialty || !licenseNumber) {
-            return res.status(400).json({ message: 'Name, email, password, specialty, and licenseNumber are required' });
+            return res.status(400).json({ success: false, message: 'Name, email, password, specialty, and licenseNumber are required' , error: 'Name, email, password, specialty, and licenseNumber are required'  });
         }
 
         if (!emailRegex.test(email)) {
-            return res.status(400).json({ message: 'Please provide a valid email address' });
+            return res.status(400).json({ success: false, message: 'Please provide a valid email address' , error: 'Please provide a valid email address'  });
         }
 
         if (password.length < 6) {
-            return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+            return res.status(400).json({ success: false, message: 'Password must be at least 6 characters long' , error: 'Password must be at least 6 characters long'  });
         }
 
         const userExists = await User.findOne({ email });
         if (userExists) {
-            return res.status(400).json({ message: 'User with this email already exists' });
+            return res.status(400).json({ success: false, message: 'User with this email already exists' , error: 'User with this email already exists'  });
         }
 
         const licenseExists = await Doctor.findOne({ licenseNumber });
         if (licenseExists) {
-            return res.status(400).json({ message: 'Doctor with this license number already exists' });
+            return res.status(400).json({ success: false, message: 'Doctor with this license number already exists' , error: 'Doctor with this license number already exists'  });
         }
 
         // Generate Curve25519 (X25519) Key Pair for envelope encryption
@@ -77,42 +88,51 @@ exports.registerDoctor = async (req, res) => {
         res.status(201).json({
             success: true,
             message: 'Doctor registered successfully',
-            user: {
-                _id: user._id,
-                name: user.name,
-                email: user.email,
-                role: user.role,
-                specialty: user.specialty,
-                publicKey: user.publicKey,
-            },
-            doctor,
-            token,
-            privateKey,
+
+            data: {
+                user: {
+                    _id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    role: user.role,
+                    specialty: user.specialty,
+                    publicKey: user.publicKey,
+                },
+
+                doctor,
+                token,
+                privateKey
+            }
         });
     } catch (error) {
         console.error('Error in registerDoctor:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Doctor Login
-// @route   POST /api/doctor/login
-// @access  Public
-exports.loginDoctor = async (req, res) => {
+/**
+ * loginDoctor
+ * @description Handles operations for loginDoctor. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.loginDoctor = async (req, res, next) => {
     try {
         const { email, password } = req.body;
 
         if (!email || !password) {
-            return res.status(400).json({ message: 'Email and password are required' });
+            return res.status(400).json({ success: false, message: 'Email and password are required' , error: 'Email and password are required'  });
         }
 
         const user = await User.findOne({ email }).select('+password');
         if (!user || !(await user.matchPassword(password))) {
-            return res.status(401).json({ message: 'Invalid email or password' });
+            return res.status(401).json({ success: false, message: 'Invalid email or password' , error: 'Invalid email or password'  });
         }
 
         if (user.role !== 'doctor') {
-            return res.status(403).json({ message: 'Access denied. Account is not a doctor.' });
+            return res.status(403).json({ success: false, message: 'Access denied. Account is not a doctor.' , error: 'Access denied. Account is not a doctor.'  });
         }
 
         let doctor = await Doctor.findOne({ user: user._id });
@@ -129,62 +149,76 @@ exports.loginDoctor = async (req, res) => {
         res.status(200).json({
             success: true,
             message: 'Doctor login successful',
-            user: {
-                _id: user._id,
-                name: user.name,
-                email: user.email,
-                role: user.role,
-                specialty: user.specialty,
-                publicKey: user.publicKey,
-            },
-            doctor,
-            token,
+
+            data: {
+                user: {
+                    _id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    role: user.role,
+                    specialty: user.specialty,
+                    publicKey: user.publicKey,
+                },
+
+                doctor,
+                token
+            }
         });
     } catch (error) {
         console.error('Error in loginDoctor:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    View Doctor's Patients
-// @route   GET /api/doctor/patients
-// @access  Private (Doctor only)
-exports.getDoctorPatients = async (req, res) => {
+/**
+ * getDoctorPatients
+ * @description Handles operations for getDoctorPatients. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getDoctorPatients = async (req, res, next) => {
     try {
-        const userDoctor = await User.findById(req.user._id).populate('assignedPatients', 'name email role');
+        const userDoctor = await User.findById(req.user._id).populate('assignedPatients', 'name email role').lean();
         const doctorProfile = await Doctor.findOne({ user: req.user._id }).populate({
-            path: 'assignedPatients',
-            populate: { path: 'user', select: 'name email' }
-        });
+            path: 'patients',
+            populate: { path: 'user', select: 'name email role publicKey' }
+        }).lean();
 
         // Combine legacy assignedPatients and Doctor assignedPatients
         const legacyPatients = userDoctor?.assignedPatients || [];
         const doctorPatients = doctorProfile?.assignedPatients || [];
 
-        res.status(200).json({
+        res.status(200).json({ success: true, message: 'Operation successful', data: {
             legacyPatients,
             doctorPatients,
             assignedPatients: legacyPatients.length > 0 ? legacyPatients : doctorPatients,
-        });
+        } });
     } catch (error) {
         console.error('Error in getDoctorPatients:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
 const { hasActiveConsent } = require('../../../middlewares/consentMiddleware');
 
-// @desc    Open Patient Complete EMR
-// @route   GET /api/doctor/patient/:patientId/emr
-// @access  Private (Doctor only)
-exports.getPatientEMR = async (req, res) => {
+/**
+ * getPatientEMR
+ * @description Handles operations for getPatientEMR. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getPatientEMR = async (req, res, next) => {
     try {
         const { patientId } = req.params;
 
         // Verify active consent before opening patient EMR
         const isAllowed = await hasActiveConsent({ patientInput: patientId, requestingUser: req.user });
         if (!isAllowed) {
-            return res.status(403).json({ message: 'Access Denied: Active patient consent is required for doctor access.' });
+            return res.status(403).json({ success: false, message: 'Access Denied: Active patient consent is required for doctor access.' , error: 'Access Denied: Active patient consent is required for doctor access.'  });
         }
 
         const patientUser = await User.findById(patientId).select('-password');
@@ -212,30 +246,35 @@ exports.getPatientEMR = async (req, res) => {
 
         const certificates = await Certificate.find({ patient: uId }).sort({ createdAt: -1 });
 
-        res.status(200).json({
+        res.status(200).json({ success: true, message: 'Operation successful', data: {
             patient: patientProfile,
             patientUser,
             medicalRecords,
             prescriptions,
             labReports,
             certificates,
-        });
+        } });
     } catch (error) {
         console.error('Error in getPatientEMR:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Update Patient Diagnosis
-// @route   PUT /api/doctor/patient/:patientId/diagnosis
-// @access  Private (Doctor only)
-exports.updatePatientDiagnosis = async (req, res) => {
+/**
+ * updatePatientDiagnosis
+ * @description Handles operations for updatePatientDiagnosis. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.updatePatientDiagnosis = async (req, res, next) => {
     try {
         const { patientId } = req.params;
         const { chiefComplaint, diagnosis, treatmentPlan, vitals } = req.body;
 
         if (!diagnosis) {
-            return res.status(400).json({ message: 'Diagnosis field is required' });
+            return res.status(400).json({ success: false, message: 'Diagnosis field is required' , error: 'Diagnosis field is required'  });
         }
 
         let doctorDoc = await Doctor.findOne({ user: req.user._id });
@@ -309,26 +348,34 @@ exports.updatePatientDiagnosis = async (req, res) => {
         res.status(200).json({
             success: true,
             message: 'Diagnosis updated and anchored to blockchain successfully',
-            dataHash,
-            transactionHash,
-            medicalRecord,
+
+            data: {
+                dataHash,
+                transactionHash,
+                medicalRecord
+            }
         });
     } catch (error) {
         console.error('Error in updatePatientDiagnosis:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Add Clinical Notes
-// @route   POST /api/doctor/patient/:patientId/notes
-// @access  Private (Doctor only)
-exports.addClinicalNotes = async (req, res) => {
+/**
+ * addClinicalNotes
+ * @description Handles operations for addClinicalNotes. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.addClinicalNotes = async (req, res, next) => {
     try {
         const { patientId } = req.params;
         const { clinicalNotes, recordId } = req.body;
 
         if (!clinicalNotes) {
-            return res.status(400).json({ message: 'Clinical notes content is required' });
+            return res.status(400).json({ success: false, message: 'Clinical notes content is required' , error: 'Clinical notes content is required'  });
         }
 
         let record;
@@ -372,23 +419,31 @@ exports.addClinicalNotes = async (req, res) => {
         res.status(200).json({
             success: true,
             message: 'Clinical notes added successfully',
-            record,
+
+            data: {
+                record
+            }
         });
     } catch (error) {
         console.error('Error in addClinicalNotes:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Upload / Issue Prescription
-// @route   POST /api/doctor/prescriptions
-// @access  Private (Doctor only)
-exports.uploadPrescription = async (req, res) => {
+/**
+ * uploadPrescription
+ * @description Handles operations for uploadPrescription. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.uploadPrescription = async (req, res, next) => {
     try {
         const { patientId, medications, instructions, medicalRecordId } = req.body;
 
         if (!patientId || !medications || !Array.isArray(medications) || medications.length === 0) {
-            return res.status(400).json({ message: 'patientId and medications array are required' });
+            return res.status(400).json({ success: false, message: 'patientId and medications array are required' , error: 'patientId and medications array are required'  });
         }
 
         let doctorDoc = await Doctor.findOne({ user: req.user._id });
@@ -425,11 +480,14 @@ exports.uploadPrescription = async (req, res) => {
         res.status(201).json({
             success: true,
             message: 'Prescription uploaded and digitally signed successfully',
-            prescription,
-            digitalSignatureHash,
+
+            data: {
+                prescription,
+                digitalSignatureHash
+            }
         });
     } catch (error) {
         console.error('Error in uploadPrescription:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };

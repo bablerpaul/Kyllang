@@ -18,6 +18,7 @@ const IssueCertificateForm = ({ open, onClose, patient }) => {
         validFrom: new Date().toISOString().split('T')[0],
         validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     });
+    const [file, setFile] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleChange = (field) => (event) => {
@@ -29,12 +30,23 @@ const IssueCertificateForm = ({ open, onClose, patient }) => {
         setIsSubmitting(true);
 
         try {
+            const submitData = new FormData();
+            submitData.append('patientId', patient?._id);
+            submitData.append('diagnosis', formData.diagnosis);
+            submitData.append('remarks', formData.remarks);
+            submitData.append('validFrom', formData.validFrom);
+            submitData.append('validUntil', formData.validUntil);
+            
+            if (file) {
+                submitData.append('file', file);
+            }
+
+            // Note: If using a custom apiFetch that sets 'Content-Type': 'application/json' automatically, 
+            // you might need to use standard fetch or adjust apiFetch to not set headers if body is FormData
+            // Usually, fetch sets multipart/form-data boundary automatically when body is FormData.
             const res = await apiFetch('/api/doctor/certificates', {
                 method: 'POST',
-                body: JSON.stringify({
-                    patientId: patient?._id,
-                    ...formData
-                })
+                body: submitData
             });
 
             alert(`✅ Certificate issued successfully!\nVerification Hash: ${res.verificationHash}\n\nPatient can now view and download it.`);
@@ -99,6 +111,21 @@ const IssueCertificateForm = ({ open, onClose, patient }) => {
                                 onChange={handleChange('validUntil')}
                                 required
                             />
+                        </Grid>
+                        <Grid item xs={12}>
+                            <Button
+                                variant="outlined"
+                                component="label"
+                                fullWidth
+                            >
+                                Upload Physical Certificate (Optional)
+                                <input
+                                    type="file"
+                                    hidden
+                                    onChange={(e) => setFile(e.target.files[0])}
+                                />
+                            </Button>
+                            {file && <Typography variant="body2" sx={{ mt: 1 }}>{file.name}</Typography>}
                         </Grid>
                     </Grid>
                     <Alert severity="info" sx={{ mt: 3 }}>

@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 const env = require('./env');
 
+/**
+ * connectDB
+ * @description Handles operations for connectDB. Explains parameters, return values and usage.
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
 const connectDB = async () => {
     try {
         const conn = await mongoose.connect(env.mongoUri);

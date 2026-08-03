@@ -6,7 +6,12 @@ const User = require('../../../models/User');
 const { logAudit } = require('../../../utils/auditLogger');
 const crypto = require('crypto');
 
-// Helper to resolve Patient Document ID
+/**
+ * resolvePatientId
+ * @description Handles operations for resolvePatientId. Explains parameters, return values and usage.
+ * @param {*} idInput - idInput parameter
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
 const resolvePatientId = async (idInput) => {
     let patient = await Patient.findOne({ $or: [{ _id: idInput }, { user: idInput }] });
     if (!patient) {
@@ -18,7 +23,12 @@ const resolvePatientId = async (idInput) => {
     return patient ? patient._id : idInput;
 };
 
-// Helper to resolve Doctor Document ID
+/**
+ * resolveDoctorId
+ * @description Handles operations for resolveDoctorId. Explains parameters, return values and usage.
+ * @param {*} idInput - idInput parameter
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
 const resolveDoctorId = async (idInput) => {
     let doctor = await Doctor.findOne({ $or: [{ _id: idInput }, { user: idInput }] });
     if (!doctor) {
@@ -31,10 +41,15 @@ const resolveDoctorId = async (idInput) => {
     return doctor ? doctor._id : idInput;
 };
 
-// @desc    Create a new Lab Report
-// @route   POST /api/lab-reports
-// @access  Private (Doctor or Hospital Admin only)
-exports.createLabReport = async (req, res) => {
+/**
+ * createLabReport
+ * @description Handles operations for createLabReport. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.createLabReport = async (req, res, next) => {
     try {
         const { patientId, patient, testCategory, testName, results, overallSummary, pdfUrl, fileUrl, visitId, visit, medicalRecord, status } = req.body;
 
@@ -42,12 +57,16 @@ exports.createLabReport = async (req, res) => {
         const targetVisitInput = visitId || visit || medicalRecord;
 
         if (!targetPatientInput || !testCategory || !testName) {
-            return res.status(400).json({ message: 'Patient reference, test category, and test name are required' });
+            return res.status(400).json({ success: false, message: 'Patient reference, test category, and test name are required' , error: 'Patient reference, test category, and test name are required'  });
         }
 
         const validCategories = ['Blood Test', 'Urine Test', 'MRI', 'CT Scan', 'ECG', 'X-ray', 'Ultrasound', 'General Pathology', 'Other'];
         if (!validCategories.includes(testCategory)) {
-            return res.status(400).json({ message: `testCategory must be one of: ${validCategories.join(', ')}` });
+            return res.status(400).json({
+                success: true,
+                message: `testCategory must be one of: ${validCategories.join(', ')}`,
+                data: {}
+            });
         }
 
         let resolvedPatientId = await resolvePatientId(targetPatientInput);
@@ -84,7 +103,8 @@ exports.createLabReport = async (req, res) => {
         const populatedReport = await LabReport.findById(labReport._id)
             .populate({ path: 'patient', populate: { path: 'user', select: 'name email' } })
             .populate({ path: 'orderedBy', populate: { path: 'user', select: 'name email' } })
-            .populate('visit', 'diagnosis visitDate');
+            .populate('visit', 'diagnosis visitDate')
+            .lean();
 
         // Store Audit Log for CREATED action
         await logAudit({
@@ -99,18 +119,26 @@ exports.createLabReport = async (req, res) => {
         res.status(201).json({
             success: true,
             message: 'Lab Report created successfully',
-            labReport: populatedReport,
+
+            data: {
+                labReport: populatedReport
+            }
         });
     } catch (error) {
         console.error('Error in createLabReport:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Get all Lab Reports
-// @route   GET /api/lab-reports
-// @access  Private
-exports.getAllLabReports = async (req, res) => {
+/**
+ * getAllLabReports
+ * @description Handles operations for getAllLabReports. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getAllLabReports = async (req, res, next) => {
     try {
         let filter = {};
 
@@ -129,7 +157,8 @@ exports.getAllLabReports = async (req, res) => {
             .populate({ path: 'patient', populate: { path: 'user', select: 'name email' } })
             .populate({ path: 'orderedBy', populate: { path: 'user', select: 'name email' } })
             .populate('visit', 'diagnosis visitDate')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
 
         // Store Audit Log for VIEWED action
         await logAudit({
@@ -139,17 +168,22 @@ exports.getAllLabReports = async (req, res) => {
             details: { count: reports.length }
         });
 
-        res.status(200).json(reports);
+        res.status(200).json({ success: true, message: 'Operation successful', data: reports });
     } catch (error) {
         console.error('Error in getAllLabReports:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Get Lab Reports by Visit / Medical Record ID
-// @route   GET /api/lab-reports/visit/:visitId
-// @access  Private
-exports.getLabReportsByVisit = async (req, res) => {
+/**
+ * getLabReportsByVisit
+ * @description Handles operations for getLabReportsByVisit. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getLabReportsByVisit = async (req, res, next) => {
     try {
         const { visitId } = req.params;
         const reports = await LabReport.find({
@@ -158,7 +192,8 @@ exports.getLabReportsByVisit = async (req, res) => {
             .populate({ path: 'patient', populate: { path: 'user', select: 'name email' } })
             .populate({ path: 'orderedBy', populate: { path: 'user', select: 'name email' } })
             .populate('visit', 'diagnosis visitDate')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
 
         // Store Audit Log for VIEWED action
         await logAudit({
@@ -169,17 +204,22 @@ exports.getLabReportsByVisit = async (req, res) => {
             details: { type: 'get_by_visit', count: reports.length }
         });
 
-        res.status(200).json(reports);
+        res.status(200).json({ success: true, message: 'Operation successful', data: reports });
     } catch (error) {
         console.error('Error in getLabReportsByVisit:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Get Lab Reports by Patient ID
-// @route   GET /api/lab-reports/patient/:patientId
-// @access  Private
-exports.getLabReportsByPatient = async (req, res) => {
+/**
+ * getLabReportsByPatient
+ * @description Handles operations for getLabReportsByPatient. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getLabReportsByPatient = async (req, res, next) => {
     try {
         const pId = await resolvePatientId(req.params.patientId);
         const reports = await LabReport.find({
@@ -188,7 +228,8 @@ exports.getLabReportsByPatient = async (req, res) => {
             .populate({ path: 'patient', populate: { path: 'user', select: 'name email' } })
             .populate({ path: 'orderedBy', populate: { path: 'user', select: 'name email' } })
             .populate('visit', 'diagnosis visitDate')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
 
         // Store Audit Log for VIEWED action
         await logAudit({
@@ -199,25 +240,31 @@ exports.getLabReportsByPatient = async (req, res) => {
             details: { type: 'get_by_patient', count: reports.length }
         });
 
-        res.status(200).json(reports);
+        res.status(200).json({ success: true, message: 'Operation successful', data: reports });
     } catch (error) {
         console.error('Error in getLabReportsByPatient:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Get single Lab Report by ID
-// @route   GET /api/lab-reports/:id
-// @access  Private
-exports.getLabReportById = async (req, res) => {
+/**
+ * getLabReportById
+ * @description Handles operations for getLabReportById. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getLabReportById = async (req, res, next) => {
     try {
         const report = await LabReport.findById(req.params.id)
             .populate({ path: 'patient', populate: { path: 'user', select: 'name email' } })
             .populate({ path: 'orderedBy', populate: { path: 'user', select: 'name email' } })
-            .populate('visit', 'diagnosis visitDate');
+            .populate('visit', 'diagnosis visitDate')
+            .lean();
 
         if (!report) {
-            return res.status(404).json({ message: 'Lab Report not found' });
+            return res.status(404).json({ success: false, message: 'Lab Report not found' , error: 'Lab Report not found'  });
         }
 
         // Store Audit Log for VIEWED action
@@ -230,23 +277,28 @@ exports.getLabReportById = async (req, res) => {
             details: { testCategory: report.testCategory, testName: report.testName }
         });
 
-        res.status(200).json(report);
+        res.status(200).json({ success: true, message: 'Operation successful', data: report });
     } catch (error) {
         console.error('Error in getLabReportById:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Update Lab Report
-// @route   PUT /api/lab-reports/:id
-// @access  Private (Doctor or Hospital Admin only)
-exports.updateLabReport = async (req, res) => {
+/**
+ * updateLabReport
+ * @description Handles operations for updateLabReport. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.updateLabReport = async (req, res, next) => {
     try {
         const { testCategory, testName, results, overallSummary, pdfUrl, fileUrl, status } = req.body;
 
         let report = await LabReport.findById(req.params.id);
         if (!report) {
-            return res.status(404).json({ message: 'Lab Report not found' });
+            return res.status(404).json({ success: false, message: 'Lab Report not found' , error: 'Lab Report not found'  });
         }
 
         if (testCategory !== undefined) report.testCategory = testCategory;
@@ -265,7 +317,8 @@ exports.updateLabReport = async (req, res) => {
         const updated = await LabReport.findById(report._id)
             .populate({ path: 'patient', populate: { path: 'user', select: 'name email' } })
             .populate({ path: 'orderedBy', populate: { path: 'user', select: 'name email' } })
-            .populate('visit', 'diagnosis visitDate');
+            .populate('visit', 'diagnosis visitDate')
+            .lean();
 
         // Store Audit Log for UPDATED action
         await logAudit({
@@ -280,22 +333,30 @@ exports.updateLabReport = async (req, res) => {
         res.status(200).json({
             success: true,
             message: 'Lab Report updated successfully',
-            labReport: updated,
+
+            data: {
+                labReport: updated
+            }
         });
     } catch (error) {
         console.error('Error in updateLabReport:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Delete Lab Report
-// @route   DELETE /api/lab-reports/:id
-// @access  Private (Doctor or Hospital Admin only)
-exports.deleteLabReport = async (req, res) => {
+/**
+ * deleteLabReport
+ * @description Handles operations for deleteLabReport. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.deleteLabReport = async (req, res, next) => {
     try {
         const report = await LabReport.findById(req.params.id);
         if (!report) {
-            return res.status(404).json({ message: 'Lab Report not found' });
+            return res.status(404).json({ success: false, message: 'Lab Report not found' , error: 'Lab Report not found'  });
         }
 
         const reportHash = report.reportHash;
@@ -314,9 +375,10 @@ exports.deleteLabReport = async (req, res) => {
         res.status(200).json({
             success: true,
             message: 'Lab Report deleted successfully',
+            data: {}
         });
     } catch (error) {
         console.error('Error in deleteLabReport:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };

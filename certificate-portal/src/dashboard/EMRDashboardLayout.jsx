@@ -58,6 +58,7 @@ const menuItems = [
   { text: 'Consent Controls', icon: <VerifiedUserOutlinedIcon />, path: '/emr-dashboard/consent' },
   { text: 'QR Verification', icon: <QrCodeScannerIcon />, path: '/emr-dashboard/qr-verify' },
   { text: 'Audit Logs', icon: <ReceiptLongOutlinedIcon />, path: '/emr-dashboard/audit-logs' },
+  { text: 'Secure Storage', icon: <FolderSharedOutlinedIcon />, path: '/emr-dashboard/secure-storage' },
 ];
 
 export default function EMRDashboardLayout() {

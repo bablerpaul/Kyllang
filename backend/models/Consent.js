@@ -1,5 +1,10 @@
 const mongoose = require('mongoose');
 
+/**
+ * Mongoose schema and model for consentSchema
+ * @module models/consentSchema
+ * @description Explains the structure and types for the consentSchema collection.
+ */
 const consentSchema = new mongoose.Schema(
     {
         patient: {
@@ -52,5 +57,9 @@ const consentSchema = new mongoose.Schema(
         timestamps: true,
     }
 );
+
+// Performance Indexes
+consentSchema.index({ patient: 1, status: 1 });
+consentSchema.index({ grantedTo: 1, status: 1 });
 
 module.exports = mongoose.model('Consent', consentSchema);

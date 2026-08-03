@@ -1,5 +1,10 @@
 const mongoose = require('mongoose');
 
+/**
+ * Mongoose schema and model for certificateSchema
+ * @module models/certificateSchema
+ * @description Explains the structure and types for the certificateSchema collection.
+ */
 const certificateSchema = new mongoose.Schema(
     {
         patient: {
@@ -23,6 +28,10 @@ const certificateSchema = new mongoose.Schema(
         insuranceClaim: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'InsuranceClaim',
+        },
+        secureFileId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'SecureFile',
         },
         diagnosis: {
             type: String,
@@ -61,5 +70,10 @@ const certificateSchema = new mongoose.Schema(
         timestamps: true,
     }
 );
+
+// Performance Indexes
+certificateSchema.index({ patient: 1 });
+certificateSchema.index({ issuedBy: 1 });
+certificateSchema.index({ verificationHash: 1 }, { unique: true });
 
 module.exports = mongoose.model('Certificate', certificateSchema);

@@ -6,7 +6,12 @@ const { logAudit } = require('../../../utils/auditLogger');
 const crypto = require('crypto');
 const blockchainContract = require('../../../blockchain');
 
-// Helper to resolve Patient Document ID
+/**
+ * resolvePatientId
+ * @description Handles operations for resolvePatientId. Explains parameters, return values and usage.
+ * @param {*} idInput - idInput parameter
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
 const resolvePatientId = async (idInput) => {
     let patient = await Patient.findOne({ $or: [{ _id: idInput }, { user: idInput }] });
     if (!patient) {
@@ -18,7 +23,12 @@ const resolvePatientId = async (idInput) => {
     return patient ? patient._id : idInput;
 };
 
-// Helper to resolve Doctor Document ID
+/**
+ * resolveDoctorId
+ * @description Handles operations for resolveDoctorId. Explains parameters, return values and usage.
+ * @param {*} idInput - idInput parameter
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
 const resolveDoctorId = async (idInput) => {
     let doctor = await Doctor.findOne({ $or: [{ _id: idInput }, { user: idInput }] });
     if (!doctor) {
@@ -31,16 +41,21 @@ const resolveDoctorId = async (idInput) => {
     return doctor ? doctor._id : idInput;
 };
 
-// @desc    Create a new EMR Record
-// @route   POST /api/emr
-// @access  Private (Doctor or Hospital Admin only)
-exports.createEMR = async (req, res) => {
+/**
+ * createEMR
+ * @description Handles operations for createEMR. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.createEMR = async (req, res, next) => {
     try {
         const { patientId, patient, diagnosis, symptoms, vitalSigns, vitals, allergies, medications, clinicalNotes, chiefComplaint, treatmentPlan, visitDate, attachments } = req.body;
 
         const targetPatientInput = patientId || patient;
         if (!targetPatientInput || !diagnosis) {
-            return res.status(400).json({ message: 'Patient reference and diagnosis are required' });
+            return res.status(400).json({ success: false, message: 'Patient reference and diagnosis are required' , error: 'Patient reference and diagnosis are required'  });
         }
 
         const resolvedPatientId = await resolvePatientId(targetPatientInput);
@@ -124,20 +139,28 @@ exports.createEMR = async (req, res) => {
         res.status(201).json({
             success: true,
             message: 'EMR record created and anchored to blockchain successfully',
-            dataHash,
-            transactionHash,
-            emr: populatedEmr,
+
+            data: {
+                dataHash,
+                transactionHash,
+                emr: populatedEmr
+            }
         });
     } catch (error) {
         console.error('Error in createEMR:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Get all EMRs (or by patient)
-// @route   GET /api/emr
-// @access  Private
-exports.getAllEMRs = async (req, res) => {
+/**
+ * getAllEMRs
+ * @description Handles operations for getAllEMRs. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getAllEMRs = async (req, res, next) => {
     try {
         let filter = {};
 
@@ -163,19 +186,24 @@ exports.getAllEMRs = async (req, res) => {
             details: { type: 'get_all_emrs', count: emrs.length }
         });
 
-        res.status(200).json(emrs);
+        res.status(200).json({ success: true, message: 'Operation successful', data: emrs });
     } catch (error) {
         console.error('Error in getAllEMRs:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
 const { hasActiveConsent } = require('../../../middlewares/consentMiddleware');
 
-// @desc    Get patient specific EMRs
-// @route   GET /api/emr/patient/:patientId
-// @access  Private
-exports.getPatientEMRs = async (req, res) => {
+/**
+ * getPatientEMRs
+ * @description Handles operations for getPatientEMRs. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getPatientEMRs = async (req, res, next) => {
     try {
         const { patientId } = req.params;
         const pId = await resolvePatientId(patientId);
@@ -183,7 +211,7 @@ exports.getPatientEMRs = async (req, res) => {
         // Verify patient-controlled consent before returning medical data
         const isAllowed = await hasActiveConsent({ patientInput: patientId, requestingUser: req.user });
         if (!isAllowed) {
-            return res.status(403).json({ message: 'Access Denied: Patient active consent is required to view medical records.' });
+            return res.status(403).json({ success: false, message: 'Access Denied: Patient active consent is required to view medical records.' , error: 'Access Denied: Patient active consent is required to view medical records.'  });
         }
 
         const emrs = await MedicalRecord.find({
@@ -202,30 +230,35 @@ exports.getPatientEMRs = async (req, res) => {
             details: { type: 'get_patient_emrs', count: emrs.length }
         });
 
-        res.status(200).json(emrs);
+        res.status(200).json({ success: true, message: 'Operation successful', data: emrs });
     } catch (error) {
         console.error('Error in getPatientEMRs:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Get single EMR by ID
-// @route   GET /api/emr/:id
-// @access  Private
-exports.getEMRById = async (req, res) => {
+/**
+ * getEMRById
+ * @description Handles operations for getEMRById. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.getEMRById = async (req, res, next) => {
     try {
         const emr = await MedicalRecord.findById(req.params.id)
             .populate({ path: 'patient', populate: { path: 'user', select: 'name email' } })
             .populate({ path: 'doctor', populate: { path: 'user', select: 'name email' } });
 
         if (!emr) {
-            return res.status(404).json({ message: 'EMR record not found' });
+            return res.status(404).json({ success: false, message: 'EMR record not found' , error: 'EMR record not found'  });
         }
 
         // Verify patient-controlled consent before returning medical record
         const isAllowed = await hasActiveConsent({ patientInput: emr.patient, requestingUser: req.user });
         if (!isAllowed) {
-            return res.status(403).json({ message: 'Access Denied: Patient active consent is required to view this medical record.' });
+            return res.status(403).json({ success: false, message: 'Access Denied: Patient active consent is required to view this medical record.' , error: 'Access Denied: Patient active consent is required to view this medical record.'  });
         }
 
         // Store Audit Log for VIEWED action
@@ -239,23 +272,28 @@ exports.getEMRById = async (req, res) => {
             details: { diagnosis: emr.diagnosis }
         });
 
-        res.status(200).json(emr);
+        res.status(200).json({ success: true, message: 'Operation successful', data: emr });
     } catch (error) {
         console.error('Error in getEMRById:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Update EMR Record
-// @route   PUT /api/emr/:id
-// @access  Private (Doctor or Hospital Admin only)
-exports.updateEMR = async (req, res) => {
+/**
+ * updateEMR
+ * @description Handles operations for updateEMR. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.updateEMR = async (req, res, next) => {
     try {
         const { diagnosis, symptoms, vitalSigns, vitals, allergies, medications, clinicalNotes, chiefComplaint, treatmentPlan, visitDate, attachments } = req.body;
 
         let emr = await MedicalRecord.findById(req.params.id);
         if (!emr) {
-            return res.status(404).json({ message: 'EMR record not found' });
+            return res.status(404).json({ success: false, message: 'EMR record not found' , error: 'EMR record not found'  });
         }
 
         if (diagnosis !== undefined) emr.diagnosis = diagnosis;
@@ -311,22 +349,30 @@ exports.updateEMR = async (req, res) => {
         res.status(200).json({
             success: true,
             message: 'EMR record updated successfully',
-            emr: updatedEmr,
+
+            data: {
+                emr: updatedEmr
+            }
         });
     } catch (error) {
         console.error('Error in updateEMR:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };
 
-// @desc    Delete EMR Record
-// @route   DELETE /api/emr/:id
-// @access  Private (Doctor or Hospital Admin only)
-exports.deleteEMR = async (req, res) => {
+/**
+ * deleteEMR
+ * @description Handles operations for deleteEMR. Explains parameters, return values and usage.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ * @returns {Promise<void>} Resolves when the operation is complete
+ */
+exports.deleteEMR = async (req, res, next) => {
     try {
         const emr = await MedicalRecord.findById(req.params.id);
         if (!emr) {
-            return res.status(404).json({ message: 'EMR record not found' });
+            return res.status(404).json({ success: false, message: 'EMR record not found' , error: 'EMR record not found'  });
         }
 
         const dataHash = emr.dataHash;
@@ -348,9 +394,10 @@ exports.deleteEMR = async (req, res) => {
         res.status(200).json({
             success: true,
             message: 'EMR record deleted successfully',
+            data: {}
         });
     } catch (error) {
         console.error('Error in deleteEMR:', error);
-        res.status(500).json({ message: error.message });
+        next(error);
     }
 };

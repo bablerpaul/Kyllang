@@ -11,7 +11,7 @@ import {
     Paper,
     Grid
 } from '@mui/material';
-import { Download as DownloadIcon } from '@mui/icons-material';
+import { Download as DownloadIcon, LockOutlined as LockIcon } from '@mui/icons-material';
 import { QRCodeSVG } from 'qrcode.react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -42,6 +42,42 @@ const CertificateViewerDialog = ({ open, onClose, certificate }) => {
         }
     };
 
+    const handleDownloadSecureFile = async () => {
+        try {
+            const token = localStorage.getItem('certificate_portal_token');
+            const res = await fetch(`/api/secure-storage/download/${certificate.secureFileId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.message || 'Download failed');
+            }
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            const contentDisposition = res.headers.get('content-disposition');
+            let filename = 'downloaded-file';
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename=([^;]+)/);
+                if (filenameMatch && filenameMatch.length === 2) {
+                    filename = filenameMatch[1];
+                }
+            }
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (error) {
+            console.error('Download error:', error);
+            alert(`Failed to download secure file: ${error.message}`);
+        }
+    };
+
     if (!certificate) return null;
 
     // Ensure patientId is just the string ID
@@ -69,13 +105,26 @@ const CertificateViewerDialog = ({ open, onClose, certificate }) => {
         <Dialog open={open} onClose={() => onClose()} maxWidth="md" fullWidth>
             <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 View Certificate
-                <Button
-                    variant="contained"
-                    startIcon={<DownloadIcon />}
-                    onClick={handleDownloadPdf}
-                >
-                    Download PDF
-                </Button>
+                <Box>
+                    {certificate.secureFileId && (
+                        <Button
+                            variant="outlined"
+                            color="secondary"
+                            startIcon={<LockIcon />}
+                            onClick={handleDownloadSecureFile}
+                            sx={{ mr: 2 }}
+                        >
+                            Attached File
+                        </Button>
+                    )}
+                    <Button
+                        variant="contained"
+                        startIcon={<DownloadIcon />}
+                        onClick={handleDownloadPdf}
+                    >
+                        Download PDF
+                    </Button>
+                </Box>
             </DialogTitle>
             <DialogContent dividers sx={{ backgroundColor: '#e0e0e0', display: 'flex', justifyContent: 'center' }}>
                 <Paper

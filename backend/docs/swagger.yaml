@@ -1,0 +1,215 @@
+openapi: 3.0.0
+info:
+  title: Hospital Management System API
+  version: 1.0.0
+  description: Comprehensive API documentation for HMS including EMR, Insurance, Blockchain verification, and Auth.
+servers:
+  - url: http://localhost:5000/api
+    description: Local development server
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        error:
+          type: string
+security:
+  - bearerAuth: []
+paths:
+  /auth/register:
+    post:
+      summary: Register a new user
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+                password: { type: string }
+                role: { type: string, enum: [general_user, doctor, hospital_admin, insurance_officer] }
+                specialty: { type: string, description: "Required if role is doctor" }
+      responses:
+        '201':
+          description: User registered successfully
+        '400':
+          description: Validation error
+  /auth/login:
+    post:
+      summary: Authenticate user
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200':
+          description: Login successful
+        '401':
+          description: Invalid credentials
+  /patient:
+    get:
+      summary: Get patient profile
+      tags: [Patients]
+      responses:
+        '200':
+          description: Success
+  /doctor:
+    get:
+      summary: Get doctor profile and assigned patients
+      tags: [Doctors]
+      responses:
+        '200':
+          description: Success
+  /emr:
+    post:
+      summary: Create new EMR
+      tags: [EMR]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                patientId: { type: string }
+                diagnosis: { type: string }
+                treatment: { type: string }
+      responses:
+        '201':
+          description: EMR Created
+  /certificates:
+    post:
+      summary: Issue Medical Certificate
+      tags: [Certificates]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                patientId: { type: string }
+                certificateType: { type: string }
+                diagnosis: { type: string }
+                validUntil: { type: string, format: date }
+      responses:
+        '201':
+          description: Certificate Issued
+  /insurance/claims:
+    post:
+      summary: Submit Insurance Claim
+      tags: [Insurance]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                patientId: { type: string }
+                provider: { type: string }
+                policyNumber: { type: string }
+                claimAmount: { type: number }
+      responses:
+        '201':
+          description: Claim Submitted
+  /insurance/claims/{id}/verify-blockchain:
+    get:
+      summary: Verify Claim against Blockchain
+      tags: [Insurance, Blockchain Verification]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Verification Details
+  /secure-storage/upload:
+    post:
+      summary: Upload a secure document (EMR, Certificate, Claim)
+      tags: [Secure Storage]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+                patientId: { type: string }
+                documentType: { type: string, enum: [EMR, MedicalCertificate, InsuranceClaim] }
+      responses:
+        '201':
+          description: File uploaded and securely anchored to IPFS/Blockchain
+  /secure-storage/download/{id}:
+    get:
+      summary: Download and decrypt secure file
+      tags: [Secure Storage]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: File stream
+  /secure-storage/verify/{id}:
+    get:
+      summary: Verify File Integrity
+      tags: [Secure Storage, Blockchain Verification]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Hash matching and integrity check report
+  /admin/audit-logs:
+    get:
+      summary: Fetch Hospital Audit Logs
+      tags: [Audit Logs]
+      responses:
+        '200':
+          description: Returns system audit logs
+  /consent:
+    get:
+      summary: Get consent status
+      tags: [Consent]
+      responses:
+        '200':
+          description: Success
