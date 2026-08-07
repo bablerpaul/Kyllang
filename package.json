@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.3.7",
+    "@mui/material": "^7.3.7",
+    "@yudiel/react-qr-scanner": "^2.5.1",
+    "react-router-dom": "^7.13.0"
+  }
+}

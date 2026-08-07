@@ -1,0 +1,24 @@
+[package]
+name = "kyllang-enclave"
+version = "4.1.0"
+description = "KYLLANG_V4: Native Enclave for Clinical Workstations"
+authors = ["you"]
+license = ""
+repository = ""
+edition = "2021"
+rust-version = "1.60"
+
+[build-dependencies]
+tauri-build = { version = "1.4", features = [] }
+
+[dependencies]
+tauri = { version = "1.4", features = ["shell-open"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+zeroize = "1.6"
+libc = "0.2"
+base64 = "0.21.5"
+windows-sys = { version = "0.52.0", features = ["Win32_System_Memory", "Win32_Foundation"] }
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]

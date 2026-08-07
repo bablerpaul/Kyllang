@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  proxy-node-1:
+    build:
+      context: ./proxy-service
+    ports:
+      - "5001:5000"
+    environment:
+      - NODE_ID=1
+      - PORT=5000
+      # Ensure RPC points to host machine's Ganache
+      - RPC_URL=http://host.docker.internal:7545
+      - EMERGENCY_ESCROW_ADDRESS=${EMERGENCY_ESCROW_ADDRESS}
+
+  proxy-node-2:
+    build:
+      context: ./proxy-service
+    ports:
+      - "5002:5000"
+    environment:
+      - NODE_ID=2
+      - PORT=5000
+      - RPC_URL=http://host.docker.internal:7545
+      - EMERGENCY_ESCROW_ADDRESS=${EMERGENCY_ESCROW_ADDRESS}
+
+  proxy-node-3:
+    build:
+      context: ./proxy-service
+    ports:
+      - "5003:5000"
+    environment:
+      - NODE_ID=3
+      - PORT=5000
+      - RPC_URL=http://host.docker.internal:7545
+      - EMERGENCY_ESCROW_ADDRESS=${EMERGENCY_ESCROW_ADDRESS}
+
+  proxy-node-4:
+    build:
+      context: ./proxy-service
+    ports:
+      - "5004:5000"
+    environment:
+      - NODE_ID=4
+      - PORT=5000
+      - RPC_URL=http://host.docker.internal:7545
+      - EMERGENCY_ESCROW_ADDRESS=${EMERGENCY_ESCROW_ADDRESS}
+
+  proxy-node-5:
+    build:
+      context: ./proxy-service
+    ports:
+      - "5005:5000"
+    environment:
+      - NODE_ID=5
+      - PORT=5000
+      - RPC_URL=http://host.docker.internal:7545
+      - EMERGENCY_ESCROW_ADDRESS=${EMERGENCY_ESCROW_ADDRESS}

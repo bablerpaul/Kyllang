@@ -1,0 +1,20 @@
+[31m"default" is not exported by "node_modules/qrcode.react/lib/esm/index.js", imported by "src/components/pages/admin/UserManagement.jsx".[39m
+file: [36mD:/Codes/S6Project/certificate-portal/src/components/pages/admin/UserManagement.jsx:39:7[39m
+[33m37: } from '@mui/icons-material';
+38: import { apiFetch } from '../../../utils/api';
+39: import QRCode from 'qrcode.react';
+           ^
+40: import html2canvas from 'html2canvas';
+41: import { jsPDF } from 'jspdf';[39m
+[31merror during build:
+RollupError: "default" is not exported by "node_modules/qrcode.react/lib/esm/index.js", imported by "src/components/pages/admin/UserManagement.jsx".
+    at error (file:///D:/Codes/S6Project/certificate-portal/node_modules/rollup/dist/es/shared/node-entry.js:2287:30)
+    at Module.error (file:///D:/Codes/S6Project/certificate-portal/node_modules/rollup/dist/es/shared/node-entry.js:13745:16)
+    at Module.traceVariable (file:///D:/Codes/S6Project/certificate-portal/node_modules/rollup/dist/es/shared/node-entry.js:14175:29)
+    at ModuleScope.findVariable (file:///D:/Codes/S6Project/certificate-portal/node_modules/rollup/dist/es/shared/node-entry.js:12615:39)
+    at ReturnValueScope.findVariable (file:///D:/Codes/S6Project/certificate-portal/node_modules/rollup/dist/es/shared/node-entry.js:7124:38)
+    at ChildScope.findVariable (file:///D:/Codes/S6Project/certificate-portal/node_modules/rollup/dist/es/shared/node-entry.js:7124:38)
+    at Identifier.bind (file:///D:/Codes/S6Project/certificate-portal/node_modules/rollup/dist/es/shared/node-entry.js:8319:40)
+    at CallExpression.bind (file:///D:/Codes/S6Project/certificate-portal/node_modules/rollup/dist/es/shared/node-entry.js:5888:28)
+    at CallExpression.bind (file:///D:/Codes/S6Project/certificate-portal/node_modules/rollup/dist/es/shared/node-entry.js:9890:15)
+    at LogicalExpression.bind (file:///D:/Codes/S6Project/certificate-portal/node_modules/rollup/dist/es/shared/node-entry.js:5892:23)[39m

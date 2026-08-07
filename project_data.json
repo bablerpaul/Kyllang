@@ -1,0 +1,3198 @@
+{
+  "files": [
+    {
+      "path": "generate_inventory.js",
+      "classes": [],
+      "functions": [
+        "walkSync"
+      ],
+      "imports": [
+        "fs",
+        "path"
+      ],
+      "exports": []
+    },
+    {
+      "path": "package-lock.json",
+      "classes": [],
+      "functions": [],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "package.json",
+      "classes": [],
+      "functions": [],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "README.md",
+      "classes": [],
+      "functions": [],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "backend/app.js",
+      "classes": [],
+      "functions": [
+        "storeHash",
+        "getAnchor",
+        "getTotalAnchors",
+        "storeHash"
+      ],
+      "imports": [
+        "dotenv",
+        "ethers"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/blockchain.js",
+      "classes": [],
+      "functions": [
+        "storeHash",
+        "getAnchor",
+        "getTotalAnchors",
+        "owner",
+        "storeEMRRecord",
+        "getEMRRecord",
+        "getTotalEMRRecords",
+        "getPatientRecordIndices",
+        "verifyRecordHash",
+        "isNullifierConsumed",
+        "consumeNullifier",
+        "setSriHash",
+        "getSession",
+        "openSession",
+        "closeSession",
+        "setMCI"
+      ],
+      "imports": [
+        "ethers",
+        "dotenv",
+        "./blockchain"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/check-hash.js",
+      "classes": [],
+      "functions": [
+        "run"
+      ],
+      "imports": [
+        "mongoose",
+        "crypto",
+        "./models/Certificate",
+        "fs",
+        "dotenv"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/deploy.js",
+      "classes": [],
+      "functions": [
+        "main"
+      ],
+      "imports": [
+        "path",
+        "fs",
+        "solc",
+        "ethers"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/eslint.config.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "@eslint/js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/index.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "dotenv",
+        "express",
+        "mongoose",
+        "cors",
+        "helmet",
+        "cookie-parser",
+        "path",
+        "./middlewares/mongoSanitizeMiddleware",
+        "./src/middlewares/metricsMiddleware",
+        "express-rate-limit",
+        "./routes/authRoutes",
+        "./routes/certificateRoutes",
+        "./routes/adminRoutes",
+        "./routes/doctorRoutes",
+        "./routes/emergencyRoutes",
+        "./routes/patientRoutes",
+        "./src/modules/emr/emrRoutes",
+        "./src/modules/prescriptions/prescriptionRoutes",
+        "./src/modules/lab/labReportRoutes",
+        "./routes/uploadRoutes",
+        "./src/modules/insurance/insuranceRoutes",
+        "./src/modules/consent/consentRoutes",
+        "./src/modules/secure-storage/routes/storageRoutes",
+        "./src/modules/scheduling/appointmentRoutes",
+        "swagger-ui-express",
+        "yamljs",
+        "./middlewares/errorHandler",
+        "./src/jobs/blockchainWorker",
+        "./src/jobs/backupWorker",
+        "./src/jobs/merkleAnchorWorker",
+        "./src/jobs/canaryScanner",
+        "./blockchain",
+        "./src/config/redisClient"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/migrate-folders.js",
+      "classes": [],
+      "functions": [
+        "copyFiles"
+      ],
+      "imports": [
+        "fs",
+        "path"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/mock-qr-payload.js",
+      "classes": [],
+      "functions": [
+        "run"
+      ],
+      "imports": [
+        "mongoose",
+        "./models/Certificate",
+        "crypto",
+        "dotenv"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/package-lock.json",
+      "classes": [],
+      "functions": [],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "backend/package.json",
+      "classes": [],
+      "functions": [],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "backend/seed.js",
+      "classes": [],
+      "functions": [
+        "seedData"
+      ],
+      "imports": [
+        "mongoose",
+        "./models/User",
+        "dotenv"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/test-api.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "http"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/test-blockchain-force.js",
+      "classes": [],
+      "functions": [
+        "test"
+      ],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "backend/test-blockchain.js",
+      "classes": [],
+      "functions": [
+        "testAnchor"
+      ],
+      "imports": [
+        "http"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/test-read.js",
+      "classes": [],
+      "functions": [
+        "checkGanacheState",
+        "anchors",
+        "getTotalAnchors"
+      ],
+      "imports": [
+        "ethers"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/test-storeHash.js",
+      "classes": [],
+      "functions": [
+        "storeHash",
+        "getAnchor",
+        "getTotalAnchors",
+        "storeHash"
+      ],
+      "imports": [
+        "ethers"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/test-tx.js",
+      "classes": [],
+      "functions": [
+        "checkTx",
+        "storeHash"
+      ],
+      "imports": [
+        "./app",
+        "dotenv",
+        "ethers"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/test-verify.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "http"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/test_assign.js",
+      "classes": [],
+      "functions": [
+        "test"
+      ],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "backend/test_mongoose_save.js",
+      "classes": [],
+      "functions": [
+        "test"
+      ],
+      "imports": [
+        "mongoose",
+        "./models/User"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/contracts/EmergencyEscrow.sol",
+      "classes": [
+        "EmergencyEscrow"
+      ],
+      "functions": [
+        "openSession",
+        "closeSession",
+        "getSession",
+        "setMCI"
+      ],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "backend/contracts/EMRRegistry.sol",
+      "classes": [
+        "EMRRegistry"
+      ],
+      "functions": [
+        "storeHash",
+        "getAnchor",
+        "getTotalAnchors",
+        "storeEMRRecord",
+        "getEMRRecord",
+        "getTotalEMRRecords",
+        "getPatientRecordIndices",
+        "verifyRecordHash"
+      ],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "backend/contracts/ZKVerifier.sol",
+      "classes": [
+        "ZKVerifier"
+      ],
+      "functions": [
+        "isNullifierConsumed",
+        "consumeNullifier",
+        "setSriHash"
+      ],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "backend/controllers/adminController.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "../models/User",
+        "../models/Certificate",
+        "../models/AuditLog",
+        "../blockchain",
+        "../src/modules/secure-storage/models/SecureFile",
+        "os",
+        "../src/middlewares/metricsMiddleware",
+        "crypto",
+        "tweetnacl",
+        "tweetnacl-util",
+        "../models/PatientDocument"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/controllers/authController.js",
+      "classes": [],
+      "functions": [
+        "generateAccessToken",
+        "generateRefreshToken",
+        "setTokensInCookies"
+      ],
+      "imports": [
+        "../models/User",
+        "../models/RefreshToken",
+        "jsonwebtoken",
+        "crypto"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/controllers/certificateController.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "crypto",
+        "../models/Certificate",
+        "../models/MedicalRecord",
+        "../models/Doctor",
+        "../models/AuditLog",
+        "../blockchain",
+        "../blockchain"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/controllers/doctorController.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "../models/User",
+        "fs",
+        "../models/Certificate",
+        "../models/PatientDocument",
+        "../models/AuditLog",
+        "../models/MedicalRecord",
+        "../models/Doctor",
+        "../blockchain",
+        "../src/modules/secure-storage/services/storageService",
+        "crypto",
+        "../services/vrfService",
+        "../proxy-nodes/session-proof-verifier",
+        "../models/CertificateRequest"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/controllers/patientController.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "../models/PatientDocument",
+        "../models/CertificateRequest",
+        "../models/AuditLog",
+        "../models/User",
+        "../models/Certificate"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/controllers/uploadController.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "crypto",
+        "fs",
+        "path",
+        "../models/AuditLog",
+        "../services/ipfsService"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/emergency/mci-controller.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "../blockchain",
+        "../models/User"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/middlewares/authMiddleware.js",
+      "classes": [],
+      "functions": [
+        "protect",
+        "authorize"
+      ],
+      "imports": [
+        "jsonwebtoken",
+        "../models/User"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/middlewares/consentMiddleware.js",
+      "classes": [],
+      "functions": [
+        "hasActiveConsent",
+        "verifyConsent"
+      ],
+      "imports": [
+        "../models/Consent",
+        "../models/Patient",
+        "../models/User"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/middlewares/errorHandler.js",
+      "classes": [],
+      "functions": [
+        "errorHandler"
+      ],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "backend/middlewares/mongoSanitizeMiddleware.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "express-mongo-sanitize"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/middlewares/rateLimiter.js",
+      "classes": [],
+      "functions": [
+        "createLimiter"
+      ],
+      "imports": [
+        "express-rate-limit"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/middlewares/uploadMiddleware.js",
+      "classes": [],
+      "functions": [
+        "fileFilter"
+      ],
+      "imports": [
+        "multer",
+        "path",
+        "fs"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/middlewares/validatorMiddleware.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "express-validator"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/models/Appointment.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "mongoose"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/models/AuditLog.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "mongoose"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/models/Certificate.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "mongoose"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/models/CertificateRequest.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "mongoose"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/models/Consent.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "mongoose"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/models/Doctor.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "mongoose"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/models/InsuranceClaim.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "mongoose"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/models/LabReport.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "mongoose"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/models/MedicalCertificate.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "./Certificate"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/models/MedicalRecord.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "mongoose"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/models/Patient.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "mongoose"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/models/PatientDocument.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "mongoose"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/models/Prescription.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "mongoose"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/models/RefreshToken.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "mongoose"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/models/User.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "mongoose",
+        "bcryptjs"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/proxy-nodes/node-manager.js",
+      "classes": [],
+      "functions": [
+        "distributeShares",
+        "collectAndReencrypt"
+      ],
+      "imports": [
+        "./pedersen-vss",
+        "./tpre-evaluator"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/proxy-nodes/pedersen-vss.js",
+      "classes": [],
+      "functions": [
+        "splitSecret",
+        "evaluate",
+        "verifyShare"
+      ],
+      "imports": [
+        "crypto"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/proxy-nodes/session-proof-verifier.js",
+      "classes": [],
+      "functions": [
+        "verifySessionOnChain"
+      ],
+      "imports": [
+        "../blockchain"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/proxy-nodes/tpre-evaluator.js",
+      "classes": [],
+      "functions": [
+        "throws",
+        "evaluatePartialReencryption"
+      ],
+      "imports": [
+        "./session-proof-verifier",
+        "crypto"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/routes/adminRoutes.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "express",
+        "../controllers/adminController",
+        "../middlewares/authMiddleware"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/routes/authRoutes.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "express",
+        "../controllers/authController",
+        "../middlewares/authMiddleware",
+        "../validators/authValidator",
+        "../middlewares/validatorMiddleware",
+        "../middlewares/rateLimiter"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/routes/certificateRoutes.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "express",
+        "../src/middlewares/cacheMiddleware",
+        "../controllers/certificateController",
+        "../middlewares/authMiddleware",
+        "../middlewares/rateLimiter",
+        "../validators/certificateValidator",
+        "../middlewares/validatorMiddleware"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/routes/doctorRoutes.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "express",
+        "../src/middlewares/cacheMiddleware",
+        "multer",
+        "fs",
+        "path",
+        "../controllers/doctorController",
+        "../src/modules/doctors/doctorController",
+        "../middlewares/authMiddleware",
+        "../middlewares/rateLimiter",
+        "../validators/authValidator",
+        "../validators/emrValidator",
+        "../validators/certificateValidator",
+        "../middlewares/validatorMiddleware"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/routes/emergencyRoutes.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "express",
+        "../emergency/mci-controller",
+        "../middlewares/authMiddleware"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/routes/patientRoutes.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "express",
+        "../src/middlewares/cacheMiddleware",
+        "../controllers/patientController",
+        "../src/modules/patients/patientController",
+        "../middlewares/authMiddleware",
+        "../middlewares/rateLimiter",
+        "../validators/authValidator",
+        "../middlewares/validatorMiddleware"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/routes/uploadRoutes.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "express",
+        "../middlewares/uploadMiddleware",
+        "../controllers/uploadController",
+        "../middlewares/authMiddleware"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/scripts/e2e-integration-test.js",
+      "classes": [],
+      "functions": [
+        "generateToken",
+        "setupTestData",
+        "runTests"
+      ],
+      "imports": [
+        "fs",
+        "path",
+        "mongoose",
+        "../models/User",
+        "../models/Patient",
+        "../models/Consent",
+        "jsonwebtoken",
+        "dotenv",
+        "../index"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/scripts/test-comprehensive.js",
+      "classes": [],
+      "functions": [
+        "generateToken",
+        "setupTestData",
+        "runTests"
+      ],
+      "imports": [
+        "path",
+        "mongoose",
+        "../models/User",
+        "../models/Patient",
+        "../models/MedicalRecord",
+        "../models/Certificate",
+        "../models/InsuranceClaim",
+        "../models/AuditLog",
+        "../src/modules/secure-storage/models/FileVersion",
+        "jsonwebtoken",
+        "dotenv",
+        "../index",
+        "crypto"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/scripts/test-insurance-storage.js",
+      "classes": [],
+      "functions": [
+        "generateToken",
+        "runTests"
+      ],
+      "imports": [
+        "fs",
+        "path",
+        "mongoose",
+        "../models/User",
+        "../models/Patient",
+        "../models/InsuranceClaim",
+        "jsonwebtoken",
+        "dotenv",
+        "../index"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/services/ipfsService.js",
+      "classes": [],
+      "functions": [
+        "computeFallbackCID"
+      ],
+      "imports": [
+        "crypto",
+        "fs"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/services/vrfService.js",
+      "classes": [],
+      "functions": [
+        "generateLookupToken",
+        "verifyLookupToken"
+      ],
+      "imports": [
+        "crypto"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/config/db.js",
+      "classes": [],
+      "functions": [
+        "connectDB"
+      ],
+      "imports": [
+        "mongoose",
+        "./env"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/config/env.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "dotenv"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/config/redisClient.js",
+      "classes": [],
+      "functions": [
+        "connectRedis"
+      ],
+      "imports": [
+        "redis"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/config/web3.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "../../blockchain"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/events/auditEmitter.js",
+      "classes": [
+        "AuditEmitter"
+      ],
+      "functions": [
+        "computeChainHash"
+      ],
+      "imports": [
+        "events",
+        "../../models/AuditLog",
+        "../config/redisClient",
+        "crypto"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/jobs/backupWorker.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "../services/backupService"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/jobs/blockchainWorker.js",
+      "classes": [],
+      "functions": [
+        "processPendingTransactions",
+        "startBlockchainWorker",
+        "stopBlockchainWorker"
+      ],
+      "imports": [
+        "mongoose",
+        "../modules/secure-storage/models/FileVersion",
+        "../../blockchain",
+        "../modules/secure-storage/models/SecureFile"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/jobs/canaryScanner.js",
+      "classes": [],
+      "functions": [
+        "scanDormantRecords",
+        "quarantineRecord",
+        "startCanaryScanner",
+        "stopCanaryScanner"
+      ],
+      "imports": [
+        "../../models/Certificate",
+        "../../models/AuditLog",
+        "crypto"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/jobs/merkleAnchorWorker.js",
+      "classes": [],
+      "functions": [
+        "buildMerkleRoot",
+        "anchorBatch",
+        "startMerkleAnchorWorker",
+        "stopMerkleAnchorWorker"
+      ],
+      "imports": [
+        "crypto",
+        "../../models/AuditLog"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/middlewares/cacheMiddleware.js",
+      "classes": [],
+      "functions": [
+        "cacheRoute",
+        "invalidateCache"
+      ],
+      "imports": [
+        "../config/redisClient"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/middlewares/metricsMiddleware.js",
+      "classes": [],
+      "functions": [
+        "trackMetrics",
+        "getMetrics"
+      ],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "backend/src/models/Appointment.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "mongoose"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/models/index.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "../../models/User",
+        "../../models/Patient",
+        "../../models/Doctor",
+        "../../models/MedicalRecord",
+        "../../models/Prescription",
+        "../../models/LabReport",
+        "../../models/Appointment",
+        "../../models/InsuranceClaim",
+        "../../models/Certificate",
+        "../../models/AuditLog",
+        "../../models/Consent",
+        "../../models/PatientDocument",
+        "../../models/CertificateRequest"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/models/LabReport.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "mongoose"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/models/MedicalRecord.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "mongoose"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/models/Prescription.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "mongoose"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/consent/consentController.js",
+      "classes": [],
+      "functions": [
+        "getPatientDoc"
+      ],
+      "imports": [
+        "../../../models/Consent",
+        "../../../models/Patient",
+        "../../../models/Doctor",
+        "../../../models/User",
+        "../../../models/AuditLog",
+        "../../../utils/auditLogger",
+        "crypto"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/consent/consentRoutes.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "express",
+        "./consentController",
+        "../../../middlewares/authMiddleware"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/doctors/doctorController.js",
+      "classes": [],
+      "functions": [
+        "generateToken"
+      ],
+      "imports": [
+        "../../../models/User",
+        "../../../models/Doctor",
+        "../../../models/Patient",
+        "../../../models/MedicalRecord",
+        "../../../models/Prescription",
+        "../../../models/LabReport",
+        "../../../models/Certificate",
+        "../../../models/AuditLog",
+        "jsonwebtoken",
+        "crypto",
+        "tweetnacl",
+        "tweetnacl-util",
+        "../../../blockchain",
+        "../../../middlewares/consentMiddleware"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/emr/emrController.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "../../models",
+        "crypto"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/emr/emrRecordController.js",
+      "classes": [],
+      "functions": [
+        "resolvePatientId",
+        "resolveDoctorId"
+      ],
+      "imports": [
+        "../../../models/MedicalRecord",
+        "../../../models/Patient",
+        "../../../models/Doctor",
+        "../../../models/User",
+        "../../../utils/auditLogger",
+        "crypto",
+        "../../../blockchain",
+        "../../../middlewares/consentMiddleware"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/emr/emrRoutes.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "express",
+        "./emrController",
+        "./emrRecordController",
+        "../../../middlewares/authMiddleware"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/insurance/insuranceController.js",
+      "classes": [],
+      "functions": [
+        "resolvePatientId"
+      ],
+      "imports": [
+        "fs",
+        "../../../models/InsuranceClaim",
+        "../../../models/Certificate",
+        "../../../models/MedicalRecord",
+        "../../../models/Patient",
+        "../../../models/Doctor",
+        "../../../models/User",
+        "../../../utils/auditLogger",
+        "crypto",
+        "../../../blockchain",
+        "../secure-storage/services/storageService",
+        "../secure-storage/models/SecureFile"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/insurance/insuranceRoutes.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "express",
+        "../../middlewares/cacheMiddleware",
+        "multer",
+        "fs",
+        "path",
+        "./insuranceController",
+        "../../../middlewares/authMiddleware",
+        "../../../middlewares/rateLimiter",
+        "../../../validators/insuranceValidator",
+        "../../../middlewares/validatorMiddleware"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/lab/labReportController.js",
+      "classes": [],
+      "functions": [
+        "resolvePatientId",
+        "resolveDoctorId"
+      ],
+      "imports": [
+        "../../../models/LabReport",
+        "../../../models/MedicalRecord",
+        "../../../models/Patient",
+        "../../../models/Doctor",
+        "../../../models/User",
+        "../../../utils/auditLogger",
+        "crypto"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/lab/labReportRoutes.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "express",
+        "./labReportController",
+        "../../../middlewares/authMiddleware"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/patients/patientController.js",
+      "classes": [],
+      "functions": [
+        "generateToken"
+      ],
+      "imports": [
+        "../../../models/User",
+        "../../../models/Patient",
+        "../../../models/Doctor",
+        "../../../models/MedicalRecord",
+        "../../../models/Prescription",
+        "../../../models/LabReport",
+        "../../middlewares/cacheMiddleware",
+        "../../../models/Certificate",
+        "jsonwebtoken",
+        "tweetnacl",
+        "tweetnacl-util"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/prescriptions/prescriptionController.js",
+      "classes": [],
+      "functions": [
+        "resolvePatientId",
+        "resolveDoctorId"
+      ],
+      "imports": [
+        "../../../models/Prescription",
+        "../../../models/MedicalRecord",
+        "../../../models/Patient",
+        "../../../models/Doctor",
+        "../../../models/User",
+        "../../../utils/auditLogger",
+        "crypto"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/prescriptions/prescriptionRoutes.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "express",
+        "./prescriptionController",
+        "../../../middlewares/authMiddleware"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/scheduling/appointmentController.js",
+      "classes": [],
+      "functions": [
+        "getAppointments",
+        "createAppointment",
+        "updateAppointmentStatus"
+      ],
+      "imports": [
+        "../../models"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/scheduling/appointmentRoutes.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "express",
+        "./appointmentController",
+        "../../../middlewares/authMiddleware"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/secure-storage/controllers/storageController.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "fs",
+        "../services/storageService",
+        "../models/SecureFile",
+        "../../../../utils/auditLogger",
+        "../../../../middlewares/consentMiddleware",
+        "../../../../models/MedicalRecord",
+        "../../../../models/Certificate",
+        "../../../../models/InsuranceClaim",
+        "../../../../models/Patient",
+        "../models/FileVersion",
+        "../models/FileVersion"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/secure-storage/middleware/storageMiddleware.js",
+      "classes": [],
+      "functions": [],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/secure-storage/middleware/uploadValidation.js",
+      "classes": [],
+      "functions": [],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/secure-storage/models/FileAccessLog.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "mongoose"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/secure-storage/models/FileVersion.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "mongoose"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/secure-storage/models/SecureDocument.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "mongoose"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/secure-storage/models/SecureFile.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "mongoose"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/secure-storage/routes/storageRoutes.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "express",
+        "multer",
+        "fs",
+        "path",
+        "../controllers/storageController",
+        "../../../../middlewares/authMiddleware",
+        "../../../middlewares/cacheMiddleware",
+        "../middleware/uploadValidation",
+        "../../../../middlewares/rateLimiter",
+        "../../../../validators/storageValidator",
+        "../../../../middlewares/validatorMiddleware"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/modules/secure-storage/services/storageService.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "crypto",
+        "../models/SecureFile",
+        "../models/FileVersion",
+        "../models/FileAccessLog",
+        "../../../../blockchain",
+        "../../../utils/encryptionService",
+        "../../../utils/ipfsService",
+        "fs",
+        "path",
+        "../../../utils/encryptionService",
+        "../../../utils/ipfsService",
+        "../models/FileVersion"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/services/backupService.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "fs",
+        "path",
+        "mongoose"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/services/kmsService.js",
+      "classes": [],
+      "functions": [
+        "getHashKey"
+      ],
+      "imports": [
+        "crypto"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/utils/encryptionService.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "crypto",
+        "fs",
+        "../services/kmsService"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/src/utils/ipfsService.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "fs",
+        "fs",
+        "form-data",
+        "axios"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/utils/auditLogger.js",
+      "classes": [],
+      "functions": [
+        "getClientIp",
+        "logAudit"
+      ],
+      "imports": [
+        "../models/AuditLog",
+        "../src/events/auditEmitter"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/validators/authValidator.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "express-validator"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/validators/certificateValidator.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "express-validator"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/validators/emrValidator.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "express-validator"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/validators/insuranceValidator.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "express-validator"
+      ],
+      "exports": []
+    },
+    {
+      "path": "backend/validators/storageValidator.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "express-validator"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/index.html",
+      "classes": [],
+      "functions": [],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/package-lock.json",
+      "classes": [],
+      "functions": [],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/package.json",
+      "classes": [],
+      "functions": [],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/read_err.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "fs"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/run_build.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "fs",
+        "child_process"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/vite.config.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "vite",
+        "@vitejs/plugin-react"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/App.css",
+      "classes": [],
+      "functions": [],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/App.jsx",
+      "classes": [],
+      "functions": [
+        "App"
+      ],
+      "imports": [
+        "react",
+        "react-router-dom",
+        "./contexts/AuthContext",
+        "./components/layouts/PublicLayout",
+        "./components/layouts/UserLayout",
+        "./components/layouts/DoctorLayout",
+        "./components/layouts/AdminLayout",
+        "./components/pages/LandingPage",
+        "./components/pages/LoginPage",
+        "./components/pages/VerifyCertificate",
+        "./components/pages/user/UserDashboard",
+        "./components/pages/user/MyCertificates",
+        "./components/pages/doctor/DoctorDashboard",
+        "./components/pages/doctor/PatientDetail",
+        "./components/pages/doctor/DocumentViewer",
+        "./components/pages/doctor/DoctorPatients",
+        "./components/pages/doctor/IssueCertificates",
+        "./components/pages/doctor/DoctorRequests",
+        "./components/pages/doctor/DoctorHistory",
+        "./components/pages/admin/AdminDashboard",
+        "./components/pages/admin/UserManagement",
+        "./components/pages/admin/DoctorAssignment",
+        "./components/pages/admin/DocumentUpload",
+        "./components/pages/admin/SystemAnalytics",
+        "./components/protected/ProtectedRoute",
+        "./modules/emr/pages/HealthRecords",
+        "./modules/emr/pages/Appointments",
+        "./modules/emr/pages/Prescriptions",
+        "./modules/emr/pages/LabReports",
+        "./modules/emr/pages/PatientProfile",
+        "./dashboard/EMRDashboardLayout",
+        "./dashboard/pages/DashboardOverview",
+        "./dashboard/pages/PatientsManager",
+        "./dashboard/pages/DoctorsManager",
+        "./dashboard/pages/EMRManager",
+        "./dashboard/pages/AppointmentsManager",
+        "./dashboard/pages/LabReportsManager",
+        "./dashboard/pages/CertificatesManager",
+        "./dashboard/pages/InsuranceManager",
+        "./dashboard/pages/AuditLogsManager",
+        "./dashboard/pages/EndToEndEMRWorkflow",
+        "./dashboard/pages/QRVerificationManager",
+        "@mui/material"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/index.css",
+      "classes": [],
+      "functions": [],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/main.jsx",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "react",
+        "react-dom/client",
+        "react-router-dom",
+        "@mui/material",
+        "./contexts/AuthContext",
+        "./contexts/DataContext",
+        "./App",
+        "./theme"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/theme.js",
+      "classes": [],
+      "functions": [],
+      "imports": [
+        "@mui/material/styles"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/layouts/AdminLayout.jsx",
+      "classes": [],
+      "functions": [
+        "AdminLayout"
+      ],
+      "imports": [
+        "react-router-dom",
+        "@mui/material",
+        "../../contexts/AuthContext"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/layouts/DoctorLayout.jsx",
+      "classes": [],
+      "functions": [
+        "DoctorLayout",
+        "handleDrawerToggle",
+        "handleLogout",
+        "drawer"
+      ],
+      "imports": [
+        "react-router-dom",
+        "../../contexts/AuthContext",
+        "react"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/layouts/PublicLayout.jsx",
+      "classes": [],
+      "functions": [
+        "PublicLayout",
+        "handleLogout"
+      ],
+      "imports": [
+        "react-router-dom",
+        "@mui/material",
+        "../../contexts/AuthContext"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/layouts/UserLayout.jsx",
+      "classes": [],
+      "functions": [
+        "UserLayout",
+        "handleDrawerToggle",
+        "handleLogout",
+        "drawer"
+      ],
+      "imports": [
+        "react-router-dom",
+        "../../contexts/AuthContext",
+        "react"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/LandingPage.jsx",
+      "classes": [],
+      "functions": [
+        "LandingPage",
+        "getDashboardLink"
+      ],
+      "imports": [
+        "react-router-dom",
+        "../../contexts/AuthContext"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/LoginPage.jsx",
+      "classes": [],
+      "functions": [
+        "LoginPage",
+        "handleSubmit"
+      ],
+      "imports": [
+        "react",
+        "react-router-dom",
+        "../../contexts/AuthContext"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/VerifyCertificate.jsx",
+      "classes": [],
+      "functions": [
+        "VerifyCertificate",
+        "handleModeChange",
+        "handleScan",
+        "handleCameraError",
+        "handleFileUpload",
+        "handleUploadClick",
+        "handleRetryScan"
+      ],
+      "imports": [
+        "react",
+        "../../contexts/AuthContext",
+        "@yudiel/react-qr-scanner",
+        "jsqr",
+        "pdfjs-dist/legacy/build/pdf.mjs"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/admin/AdminDashboard.jsx",
+      "classes": [],
+      "functions": [
+        "AdminDashboard",
+        "handleTabChange"
+      ],
+      "imports": [
+        "react",
+        "./UserManagement",
+        "./DoctorAssignment",
+        "./DocumentUpload",
+        "./BlockchainAnchor",
+        "./SystemAnalytics",
+        "../../../contexts/DataContext"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/admin/BlockchainAnchor.jsx",
+      "classes": [],
+      "functions": [
+        "BlockchainAnchor",
+        "handleAnchorLogs"
+      ],
+      "imports": [
+        "react",
+        "../../../utils/api"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/admin/DoctorAssignment.jsx",
+      "classes": [],
+      "functions": [
+        "DoctorAssignment",
+        "handleAssignDoctor",
+        "handleRemoveAssignment",
+        "confirmRemoveAssignment"
+      ],
+      "imports": [
+        "react",
+        "../../../utils/api"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/admin/DocumentUpload.jsx",
+      "classes": [],
+      "functions": [
+        "DocumentUpload",
+        "handleFormChange",
+        "handleUpload",
+        "handleDeleteDocument"
+      ],
+      "imports": [
+        "react",
+        "../../../utils/api",
+        "../../../workers/zkWorkerBridge",
+        "node-forge"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/admin/SystemAnalytics.jsx",
+      "classes": [],
+      "functions": [
+        "SystemAnalytics",
+        "exportAnalytics"
+      ],
+      "imports": [
+        "react",
+        "../../../contexts/DataContext"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/admin/UserManagement.jsx",
+      "classes": [],
+      "functions": [
+        "UserManagement",
+        "fetchUsers",
+        "handleAddUser",
+        "handleDelete",
+        "confirmDelete",
+        "handleDownloadIDCard"
+      ],
+      "imports": [
+        "react",
+        "../../../utils/api",
+        "qrcode.react",
+        "html2canvas",
+        "jspdf"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/doctor/CertificateRequests.jsx",
+      "classes": [],
+      "functions": [
+        "CertificateRequests",
+        "fetchRequests",
+        "handleApproveClick",
+        "handleApproveSubmit",
+        "handleViewDocument",
+        "handlePrivateKeySubmit"
+      ],
+      "imports": [
+        "react",
+        "@mui/icons-material",
+        "../../../utils/api",
+        "../../../workers/zkWorkerBridge",
+        "node-forge",
+        "../../shared/PrivateKeyDialog"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/doctor/DoctorDashboard.jsx",
+      "classes": [],
+      "functions": [
+        "DoctorDashboard",
+        "fetchPatients",
+        "handleRefresh"
+      ],
+      "imports": [
+        "react",
+        "react-router-dom",
+        "../../../contexts/AuthContext",
+        "../../../contexts/DataContext",
+        "../../../utils/api",
+        "./CertificateRequests"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/doctor/DoctorHistory.jsx",
+      "classes": [],
+      "functions": [
+        "DoctorHistory"
+      ],
+      "imports": [
+        "react",
+        "@mui/material",
+        "@mui/icons-material"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/doctor/DoctorPatients.jsx",
+      "classes": [],
+      "functions": [
+        "DoctorPatients",
+        "fetchPatients",
+        "handleSearch",
+        "handleViewPatient",
+        "getPatientAvatarColor"
+      ],
+      "imports": [
+        "react",
+        "@mui/icons-material",
+        "react-router-dom",
+        "../../../utils/api"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/doctor/DoctorRequests.jsx",
+      "classes": [],
+      "functions": [
+        "DoctorRequests"
+      ],
+      "imports": [
+        "react",
+        "@mui/material",
+        "@mui/icons-material",
+        "react-router-dom",
+        "./CertificateRequests"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/doctor/DocumentViewer.jsx",
+      "classes": [],
+      "functions": [
+        "DocumentViewer",
+        "handleContextMenu",
+        "handleSelectStart",
+        "handleKeyDown",
+        "fetchDocument",
+        "handlePrivateKeySubmit"
+      ],
+      "imports": [
+        "react",
+        "react-router-dom",
+        "node-forge",
+        "../../../utils/api",
+        "../../../workers/zkWorkerBridge",
+        "../shared/DocumentRenderer",
+        "../../shared/PrivateKeyDialog"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/doctor/IssueCertificateForm.jsx",
+      "classes": [],
+      "functions": [
+        "IssueCertificateForm",
+        "handleChange",
+        "handleSubmit"
+      ],
+      "imports": [
+        "react",
+        "../../../utils/api"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/doctor/IssueCertificates.jsx",
+      "classes": [],
+      "functions": [
+        "IssueCertificates"
+      ],
+      "imports": [
+        "react",
+        "@mui/material",
+        "@mui/icons-material",
+        "./IssueCertificateForm"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/doctor/PatientDetail.jsx",
+      "classes": [],
+      "functions": [
+        "PatientDetail",
+        "fetchPatientData",
+        "handleRequestAccess",
+        "handleViewDocument",
+        "handleTabChange",
+        "getDocumentIcon",
+        "getStatusColor"
+      ],
+      "imports": [
+        "react",
+        "react-router-dom",
+        "./RequestForm",
+        "./IssueCertificateForm",
+        "../../../utils/api"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/doctor/RequestForm.jsx",
+      "classes": [],
+      "functions": [
+        "RequestForm",
+        "handleChange",
+        "handleSubmit"
+      ],
+      "imports": [
+        "react",
+        "../../../utils/api"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/shared/DocumentRenderer.jsx",
+      "classes": [],
+      "functions": [
+        "DocumentRenderer",
+        "renderDataFields"
+      ],
+      "imports": [
+        "react",
+        "@mui/material"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/user/ApproveRequests.jsx",
+      "classes": [],
+      "functions": [
+        "ApproveRequests",
+        "fetchDocuments",
+        "handleApprove",
+        "executeApproveSingle",
+        "handleDeny",
+        "handleViewDetails",
+        "getUrgencyColor",
+        "formatDate",
+        "handleApproveAll",
+        "executeApproveAll",
+        "handlePrivateKeySubmit"
+      ],
+      "imports": [
+        "react",
+        "../../../workers/zkWorkerBridge",
+        "node-forge",
+        "../../../utils/api",
+        "../../shared/PrivateKeyDialog"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/user/CertificateViewerDialog.jsx",
+      "classes": [],
+      "functions": [
+        "CertificateViewerDialog",
+        "handleDownloadPdf",
+        "formatDt"
+      ],
+      "imports": [
+        "react",
+        "@mui/icons-material",
+        "qrcode.react",
+        "html2canvas",
+        "jspdf"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/user/GenerateCertificate.jsx",
+      "classes": [],
+      "functions": [
+        "GenerateCertificate",
+        "fetchData",
+        "requestCertificate",
+        "handlePrivateKeySubmit",
+        "executeRequest"
+      ],
+      "imports": [
+        "react",
+        "@mui/icons-material",
+        "../../../utils/api",
+        "../../../workers/zkWorkerBridge",
+        "node-forge",
+        "../../shared/PrivateKeyDialog"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/user/MyCertificates.jsx",
+      "classes": [],
+      "functions": [
+        "MyCertificates",
+        "fetchCertificates",
+        "handleViewQR",
+        "getQRCodeData",
+        "formatDt",
+        "handleDownloadPDF"
+      ],
+      "imports": [
+        "react",
+        "qrcode.react",
+        "html2canvas",
+        "jspdf",
+        "../../../utils/api"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/user/MyDocuments.jsx",
+      "classes": [],
+      "functions": [
+        "MyDocuments",
+        "fetchDocuments",
+        "handleView",
+        "handlePrivateKeySubmit",
+        "handleDownload",
+        "executeDownloadFile"
+      ],
+      "imports": [
+        "react",
+        "@mui/icons-material",
+        "../../../workers/zkWorkerBridge",
+        "node-forge",
+        "html2canvas",
+        "jspdf",
+        "../../../utils/api",
+        "../shared/DocumentRenderer",
+        "../../shared/PrivateKeyDialog"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/pages/user/UserDashboard.jsx",
+      "classes": [],
+      "functions": [
+        "UserDashboard",
+        "fetchDashboardData",
+        "handleTabChange"
+      ],
+      "imports": [
+        "react",
+        "./GenerateCertificate",
+        "./ApproveRequests",
+        "./CertificateViewerDialog",
+        "./MyDocuments",
+        "../../../utils/api"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/protected/ProtectedRoute.jsx",
+      "classes": [],
+      "functions": [
+        "ProtectedRoute"
+      ],
+      "imports": [
+        "react-router-dom",
+        "../../contexts/AuthContext"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/components/shared/PrivateKeyDialog.jsx",
+      "classes": [],
+      "functions": [
+        "PrivateKeyDialog",
+        "handleTabChange",
+        "submitKey",
+        "handleManualSubmit",
+        "handleScan",
+        "handleCameraError",
+        "processFile",
+        "handleFileUpload",
+        "handleClose"
+      ],
+      "imports": [
+        "react",
+        "@yudiel/react-qr-scanner",
+        "jsqr",
+        "pdfjs-dist/legacy/build/pdf.mjs"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/contexts/AuthContext.jsx",
+      "classes": [],
+      "functions": [
+        "AuthProvider",
+        "verifyToken",
+        "register",
+        "login",
+        "logout",
+        "verifyCertificate",
+        "useAuth"
+      ],
+      "imports": [
+        "react",
+        "../utils/api"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/contexts/DataContext.jsx",
+      "classes": [],
+      "functions": [
+        "DataProvider",
+        "addPatient",
+        "updatePatient",
+        "deletePatient",
+        "addDoctor",
+        "updateDoctor",
+        "deleteDoctor",
+        "assignDoctorToPatient",
+        "removeDoctorFromPatient",
+        "addDocumentToPatient",
+        "deleteDocumentFromPatient",
+        "getPatientsByDoctor",
+        "getDoctorById",
+        "getPatientById",
+        "addAdmin",
+        "deleteAdmin",
+        "useData"
+      ],
+      "imports": [
+        "react",
+        "../utils/api",
+        "./AuthContext"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/dashboard/EMRDashboardLayout.jsx",
+      "classes": [],
+      "functions": [
+        "EMRDashboardLayout",
+        "handleDrawerToggle",
+        "handleMenuOpen",
+        "handleMenuClose",
+        "handleLogout"
+      ],
+      "imports": [
+        "react",
+        "react-router-dom",
+        "@mui/icons-material/Dashboard",
+        "@mui/icons-material/DashboardOutlined",
+        "@mui/icons-material/PeopleAltOutlined",
+        "@mui/icons-material/MedicalServicesOutlined",
+        "@mui/icons-material/FolderSharedOutlined",
+        "@mui/icons-material/EventNoteOutlined",
+        "@mui/icons-material/ScienceOutlined",
+        "@mui/icons-material/VerifiedUserOutlined",
+        "@mui/icons-material/ShieldOutlined",
+        "@mui/icons-material/ReceiptLongOutlined",
+        "@mui/icons-material/NotificationsOutlined",
+        "@mui/icons-material/AccountCircleOutlined",
+        "@mui/icons-material/Logout",
+        "@mui/icons-material/Menu",
+        "@mui/icons-material/LocalHospital",
+        "@mui/icons-material/PlayCircleOutlined",
+        "@mui/icons-material/QrCodeScanner",
+        "../contexts/AuthContext"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/dashboard/pages/AppointmentsManager.jsx",
+      "classes": [],
+      "functions": [
+        "AppointmentsManager",
+        "handleCreate"
+      ],
+      "imports": [
+        "react",
+        "@mui/icons-material/Event",
+        "@mui/icons-material/Add"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/dashboard/pages/AuditLogsManager.jsx",
+      "classes": [],
+      "functions": [
+        "AuditLogsManager",
+        "getActionColor"
+      ],
+      "imports": [
+        "react",
+        "@mui/icons-material/Search",
+        "@mui/icons-material/ReceiptLong",
+        "@mui/icons-material/Verified"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/dashboard/pages/CertificatesManager.jsx",
+      "classes": [],
+      "functions": [
+        "CertificatesManager",
+        "handleIssue"
+      ],
+      "imports": [
+        "react",
+        "@mui/icons-material/VerifiedUser",
+        "@mui/icons-material/Verified",
+        "@mui/icons-material/Add"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/dashboard/pages/DashboardOverview.jsx",
+      "classes": [],
+      "functions": [
+        "DashboardOverview"
+      ],
+      "imports": [
+        "react",
+        "@mui/icons-material/PeopleAlt",
+        "@mui/icons-material/MedicalServices",
+        "@mui/icons-material/FolderShared",
+        "@mui/icons-material/Shield",
+        "@mui/icons-material/Science",
+        "@mui/icons-material/VerifiedUser",
+        "@mui/icons-material/CheckCircle",
+        "@mui/icons-material/Storage",
+        "@mui/icons-material/Add",
+        "react-router-dom"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/dashboard/pages/DoctorsManager.jsx",
+      "classes": [],
+      "functions": [
+        "DoctorsManager",
+        "handleRegister"
+      ],
+      "imports": [
+        "react",
+        "@mui/icons-material/Search",
+        "@mui/icons-material/MedicalServices",
+        "@mui/icons-material/PersonAdd"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/dashboard/pages/EMRManager.jsx",
+      "classes": [],
+      "functions": [
+        "EMRManager",
+        "handleCreateEMR"
+      ],
+      "imports": [
+        "react",
+        "@mui/icons-material/Add",
+        "@mui/icons-material/Verified",
+        "@mui/icons-material/Description"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/dashboard/pages/EndToEndEMRWorkflow.jsx",
+      "classes": [],
+      "functions": [
+        "EndToEndEMRWorkflow",
+        "handleNext",
+        "handleReset",
+        "addAudit"
+      ],
+      "imports": [
+        "react",
+        "@mui/icons-material/PersonAdd",
+        "@mui/icons-material/Login",
+        "@mui/icons-material/FolderShared",
+        "@mui/icons-material/AddTask",
+        "@mui/icons-material/CloudUpload",
+        "@mui/icons-material/Verified",
+        "@mui/icons-material/VerifiedUser",
+        "@mui/icons-material/Shield",
+        "@mui/icons-material/ReceiptLong",
+        "@mui/icons-material/CheckCircle"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/dashboard/pages/InsuranceManager.jsx",
+      "classes": [],
+      "functions": [
+        "InsuranceManager",
+        "handleVerifyCert",
+        "handleVerifyBlockchain",
+        "handleApprove",
+        "handleReject",
+        "handleSubmitClaim"
+      ],
+      "imports": [
+        "react",
+        "@mui/icons-material/Shield",
+        "@mui/icons-material/CheckCircle",
+        "@mui/icons-material/Cancel",
+        "@mui/icons-material/Verified",
+        "@mui/icons-material/Add"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/dashboard/pages/LabReportsManager.jsx",
+      "classes": [],
+      "functions": [
+        "LabReportsManager",
+        "handleCreate"
+      ],
+      "imports": [
+        "react",
+        "@mui/icons-material/Science",
+        "@mui/icons-material/CloudUpload",
+        "@mui/icons-material/PictureAsPdf"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/dashboard/pages/PatientsManager.jsx",
+      "classes": [],
+      "functions": [
+        "PatientsManager",
+        "handleRegister"
+      ],
+      "imports": [
+        "react",
+        "@mui/icons-material/Search",
+        "@mui/icons-material/PersonAdd",
+        "@mui/icons-material/Visibility",
+        "@mui/icons-material/LockOpen"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/dashboard/pages/QRVerificationManager.jsx",
+      "classes": [],
+      "functions": [
+        "QRVerificationManager",
+        "handleVerify"
+      ],
+      "imports": [
+        "react",
+        "@mui/icons-material/QrCodeScanner",
+        "@mui/icons-material/Verified",
+        "@mui/icons-material/CheckCircle"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/modules/emr/pages/Appointments.jsx",
+      "classes": [],
+      "functions": [
+        "Appointments",
+        "fetchAppointments"
+      ],
+      "imports": [
+        "react",
+        "@mui/material",
+        "@mui/icons-material",
+        "../../../utils/api"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/modules/emr/pages/HealthRecords.jsx",
+      "classes": [],
+      "functions": [
+        "HealthRecords",
+        "fetchRecord"
+      ],
+      "imports": [
+        "react",
+        "@mui/material",
+        "@mui/icons-material",
+        "../../../utils/api"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/modules/emr/pages/LabReports.jsx",
+      "classes": [],
+      "functions": [
+        "LabReports",
+        "fetchReports"
+      ],
+      "imports": [
+        "react",
+        "@mui/material",
+        "@mui/icons-material",
+        "../../../utils/api"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/modules/emr/pages/PatientProfile.jsx",
+      "classes": [],
+      "functions": [
+        "PatientProfile",
+        "fetchProfile",
+        "fetchHistory",
+        "loadAll",
+        "handleChange",
+        "handleSaveProfile"
+      ],
+      "imports": [
+        "react",
+        "../../../utils/api"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/modules/emr/pages/Prescriptions.jsx",
+      "classes": [],
+      "functions": [
+        "Prescriptions",
+        "fetchPrescriptions"
+      ],
+      "imports": [
+        "react",
+        "@mui/material",
+        "@mui/icons-material",
+        "../../../utils/api"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/utils/api.js",
+      "classes": [],
+      "functions": [
+        "apiFetch"
+      ],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/utils/certificateUtils.js",
+      "classes": [],
+      "functions": [
+        "generateCertificateId",
+        "formatCertificateDate",
+        "validateCertificateData",
+        "storeCertificate",
+        "getUserCertificates"
+      ],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/utils/cryptoUtils.js",
+      "classes": [],
+      "functions": [
+        "encryptKeyWithX25519",
+        "decryptKeyWithX25519"
+      ],
+      "imports": [
+        "tweetnacl",
+        "tweetnacl-util"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/utils/mockData.js",
+      "classes": [],
+      "functions": [],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/workers/zkWorker.js",
+      "classes": [],
+      "functions": [
+        "zeroBuffer"
+      ],
+      "imports": [
+        "tweetnacl",
+        "tweetnacl-util"
+      ],
+      "exports": []
+    },
+    {
+      "path": "certificate-portal/src/workers/zkWorkerBridge.js",
+      "classes": [],
+      "functions": [
+        "getWorker",
+        "workerEncryptKey",
+        "workerDecryptKey",
+        "terminateWorker"
+      ],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "native-enclave/package.json",
+      "classes": [],
+      "functions": [],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "native-enclave/src-tauri/tauri.conf.json",
+      "classes": [],
+      "functions": [],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "native-enclave/src-tauri/src/main.rs",
+      "classes": [],
+      "functions": [],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "native-enclave/src-tauri/src/crypto/key_zeroize.rs",
+      "classes": [],
+      "functions": [],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "native-enclave/src-tauri/src/crypto/mlock_vault.rs",
+      "classes": [],
+      "functions": [],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "native-enclave/src-tauri/src/crypto/mod.rs",
+      "classes": [],
+      "functions": [],
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "native-enclave/src-tauri/src/crypto/tpre_ops.rs",
+      "classes": [],
+      "functions": [],
+      "imports": [],
+      "exports": []
+    }
+  ],
+  "tree": [
+    {
+      "dir": ".",
+      "files": [
+        "generate_inventory.js",
+        "package-lock.json",
+        "package.json",
+        "README.md"
+      ]
+    },
+    {
+      "dir": "backend",
+      "files": [
+        "app.js",
+        "blockchain.js",
+        "check-hash.js",
+        "deploy.js",
+        "eslint.config.js",
+        "index.js",
+        "migrate-folders.js",
+        "mock-qr-payload.js",
+        "package-lock.json",
+        "package.json",
+        "seed.js",
+        "test-api.js",
+        "test-blockchain-force.js",
+        "test-blockchain.js",
+        "test-read.js",
+        "test-storeHash.js",
+        "test-tx.js",
+        "test-verify.js",
+        "test_assign.js",
+        "test_mongoose_save.js"
+      ]
+    },
+    {
+      "dir": "backend/contracts",
+      "files": [
+        "EmergencyEscrow.sol",
+        "EMRRegistry.sol",
+        "ZKVerifier.sol"
+      ]
+    },
+    {
+      "dir": "backend/controllers",
+      "files": [
+        "adminController.js",
+        "authController.js",
+        "certificateController.js",
+        "doctorController.js",
+        "patientController.js",
+        "uploadController.js"
+      ]
+    },
+    {
+      "dir": "backend/docs",
+      "files": []
+    },
+    {
+      "dir": "backend/emergency",
+      "files": [
+        "mci-controller.js"
+      ]
+    },
+    {
+      "dir": "backend/middlewares",
+      "files": [
+        "authMiddleware.js",
+        "consentMiddleware.js",
+        "errorHandler.js",
+        "mongoSanitizeMiddleware.js",
+        "rateLimiter.js",
+        "uploadMiddleware.js",
+        "validatorMiddleware.js"
+      ]
+    },
+    {
+      "dir": "backend/models",
+      "files": [
+        "Appointment.js",
+        "AuditLog.js",
+        "Certificate.js",
+        "CertificateRequest.js",
+        "Consent.js",
+        "Doctor.js",
+        "InsuranceClaim.js",
+        "LabReport.js",
+        "MedicalCertificate.js",
+        "MedicalRecord.js",
+        "Patient.js",
+        "PatientDocument.js",
+        "Prescription.js",
+        "RefreshToken.js",
+        "User.js"
+      ]
+    },
+    {
+      "dir": "backend/proxy-nodes",
+      "files": [
+        "node-manager.js",
+        "pedersen-vss.js",
+        "session-proof-verifier.js",
+        "tpre-evaluator.js"
+      ]
+    },
+    {
+      "dir": "backend/routes",
+      "files": [
+        "adminRoutes.js",
+        "authRoutes.js",
+        "certificateRoutes.js",
+        "doctorRoutes.js",
+        "emergencyRoutes.js",
+        "patientRoutes.js",
+        "uploadRoutes.js"
+      ]
+    },
+    {
+      "dir": "backend/scripts",
+      "files": [
+        "e2e-integration-test.js",
+        "test-comprehensive.js",
+        "test-insurance-storage.js"
+      ]
+    },
+    {
+      "dir": "backend/services",
+      "files": [
+        "ipfsService.js",
+        "vrfService.js"
+      ]
+    },
+    {
+      "dir": "backend/src",
+      "files": []
+    },
+    {
+      "dir": "backend/src/config",
+      "files": [
+        "db.js",
+        "env.js",
+        "redisClient.js",
+        "web3.js"
+      ]
+    },
+    {
+      "dir": "backend/src/events",
+      "files": [
+        "auditEmitter.js"
+      ]
+    },
+    {
+      "dir": "backend/src/jobs",
+      "files": [
+        "backupWorker.js",
+        "blockchainWorker.js",
+        "canaryScanner.js",
+        "merkleAnchorWorker.js"
+      ]
+    },
+    {
+      "dir": "backend/src/middlewares",
+      "files": [
+        "cacheMiddleware.js",
+        "metricsMiddleware.js"
+      ]
+    },
+    {
+      "dir": "backend/src/models",
+      "files": [
+        "Appointment.js",
+        "index.js",
+        "LabReport.js",
+        "MedicalRecord.js",
+        "Prescription.js"
+      ]
+    },
+    {
+      "dir": "backend/src/modules",
+      "files": []
+    },
+    {
+      "dir": "backend/src/modules/consent",
+      "files": [
+        "consentController.js",
+        "consentRoutes.js"
+      ]
+    },
+    {
+      "dir": "backend/src/modules/doctors",
+      "files": [
+        "doctorController.js"
+      ]
+    },
+    {
+      "dir": "backend/src/modules/emr",
+      "files": [
+        "emrController.js",
+        "emrRecordController.js",
+        "emrRoutes.js"
+      ]
+    },
+    {
+      "dir": "backend/src/modules/insurance",
+      "files": [
+        "insuranceController.js",
+        "insuranceRoutes.js"
+      ]
+    },
+    {
+      "dir": "backend/src/modules/lab",
+      "files": [
+        "labReportController.js",
+        "labReportRoutes.js"
+      ]
+    },
+    {
+      "dir": "backend/src/modules/patients",
+      "files": [
+        "patientController.js"
+      ]
+    },
+    {
+      "dir": "backend/src/modules/prescriptions",
+      "files": [
+        "prescriptionController.js",
+        "prescriptionRoutes.js"
+      ]
+    },
+    {
+      "dir": "backend/src/modules/scheduling",
+      "files": [
+        "appointmentController.js",
+        "appointmentRoutes.js"
+      ]
+    },
+    {
+      "dir": "backend/src/modules/secure-storage",
+      "files": []
+    },
+    {
+      "dir": "backend/src/modules/secure-storage/controllers",
+      "files": [
+        "storageController.js"
+      ]
+    },
+    {
+      "dir": "backend/src/modules/secure-storage/middleware",
+      "files": [
+        "storageMiddleware.js",
+        "uploadValidation.js"
+      ]
+    },
+    {
+      "dir": "backend/src/modules/secure-storage/models",
+      "files": [
+        "FileAccessLog.js",
+        "FileVersion.js",
+        "SecureDocument.js",
+        "SecureFile.js"
+      ]
+    },
+    {
+      "dir": "backend/src/modules/secure-storage/routes",
+      "files": [
+        "storageRoutes.js"
+      ]
+    },
+    {
+      "dir": "backend/src/modules/secure-storage/services",
+      "files": [
+        "storageService.js"
+      ]
+    },
+    {
+      "dir": "backend/src/services",
+      "files": [
+        "backupService.js",
+        "kmsService.js"
+      ]
+    },
+    {
+      "dir": "backend/src/utils",
+      "files": [
+        "encryptionService.js",
+        "ipfsService.js"
+      ]
+    },
+    {
+      "dir": "backend/utils",
+      "files": [
+        "auditLogger.js"
+      ]
+    },
+    {
+      "dir": "backend/validators",
+      "files": [
+        "authValidator.js",
+        "certificateValidator.js",
+        "emrValidator.js",
+        "insuranceValidator.js",
+        "storageValidator.js"
+      ]
+    },
+    {
+      "dir": "certificate-portal",
+      "files": [
+        "index.html",
+        "package-lock.json",
+        "package.json",
+        "read_err.js",
+        "run_build.js",
+        "vite.config.js"
+      ]
+    },
+    {
+      "dir": "certificate-portal/public",
+      "files": []
+    },
+    {
+      "dir": "certificate-portal/src",
+      "files": [
+        "App.css",
+        "App.jsx",
+        "index.css",
+        "main.jsx",
+        "theme.js"
+      ]
+    },
+    {
+      "dir": "certificate-portal/src/components",
+      "files": []
+    },
+    {
+      "dir": "certificate-portal/src/components/layouts",
+      "files": [
+        "AdminLayout.jsx",
+        "DoctorLayout.jsx",
+        "PublicLayout.jsx",
+        "UserLayout.jsx"
+      ]
+    },
+    {
+      "dir": "certificate-portal/src/components/pages",
+      "files": [
+        "LandingPage.jsx",
+        "LoginPage.jsx",
+        "VerifyCertificate.jsx"
+      ]
+    },
+    {
+      "dir": "certificate-portal/src/components/pages/admin",
+      "files": [
+        "AdminDashboard.jsx",
+        "BlockchainAnchor.jsx",
+        "DoctorAssignment.jsx",
+        "DocumentUpload.jsx",
+        "SystemAnalytics.jsx",
+        "UserManagement.jsx"
+      ]
+    },
+    {
+      "dir": "certificate-portal/src/components/pages/doctor",
+      "files": [
+        "CertificateRequests.jsx",
+        "DoctorDashboard.jsx",
+        "DoctorHistory.jsx",
+        "DoctorPatients.jsx",
+        "DoctorRequests.jsx",
+        "DocumentViewer.jsx",
+        "IssueCertificateForm.jsx",
+        "IssueCertificates.jsx",
+        "PatientDetail.jsx",
+        "RequestForm.jsx"
+      ]
+    },
+    {
+      "dir": "certificate-portal/src/components/pages/shared",
+      "files": [
+        "DocumentRenderer.jsx"
+      ]
+    },
+    {
+      "dir": "certificate-portal/src/components/pages/user",
+      "files": [
+        "ApproveRequests.jsx",
+        "CertificateViewerDialog.jsx",
+        "GenerateCertificate.jsx",
+        "MyCertificates.jsx",
+        "MyDocuments.jsx",
+        "UserDashboard.jsx"
+      ]
+    },
+    {
+      "dir": "certificate-portal/src/components/protected",
+      "files": [
+        "ProtectedRoute.jsx"
+      ]
+    },
+    {
+      "dir": "certificate-portal/src/components/shared",
+      "files": [
+        "PrivateKeyDialog.jsx"
+      ]
+    },
+    {
+      "dir": "certificate-portal/src/contexts",
+      "files": [
+        "AuthContext.jsx",
+        "DataContext.jsx"
+      ]
+    },
+    {
+      "dir": "certificate-portal/src/dashboard",
+      "files": [
+        "EMRDashboardLayout.jsx"
+      ]
+    },
+    {
+      "dir": "certificate-portal/src/dashboard/pages",
+      "files": [
+        "AppointmentsManager.jsx",
+        "AuditLogsManager.jsx",
+        "CertificatesManager.jsx",
+        "DashboardOverview.jsx",
+        "DoctorsManager.jsx",
+        "EMRManager.jsx",
+        "EndToEndEMRWorkflow.jsx",
+        "InsuranceManager.jsx",
+        "LabReportsManager.jsx",
+        "PatientsManager.jsx",
+        "QRVerificationManager.jsx"
+      ]
+    },
+    {
+      "dir": "certificate-portal/src/modules",
+      "files": []
+    },
+    {
+      "dir": "certificate-portal/src/modules/emr",
+      "files": []
+    },
+    {
+      "dir": "certificate-portal/src/modules/emr/pages",
+      "files": [
+        "Appointments.jsx",
+        "HealthRecords.jsx",
+        "LabReports.jsx",
+        "PatientProfile.jsx",
+        "Prescriptions.jsx"
+      ]
+    },
+    {
+      "dir": "certificate-portal/src/utils",
+      "files": [
+        "api.js",
+        "certificateUtils.js",
+        "cryptoUtils.js",
+        "mockData.js"
+      ]
+    },
+    {
+      "dir": "certificate-portal/src/workers",
+      "files": [
+        "zkWorker.js",
+        "zkWorkerBridge.js"
+      ]
+    },
+    {
+      "dir": "native-enclave",
+      "files": [
+        "package.json"
+      ]
+    },
+    {
+      "dir": "native-enclave/src-tauri",
+      "files": [
+        "tauri.conf.json"
+      ]
+    },
+    {
+      "dir": "native-enclave/src-tauri/src",
+      "files": [
+        "main.rs"
+      ]
+    },
+    {
+      "dir": "native-enclave/src-tauri/src/crypto",
+      "files": [
+        "key_zeroize.rs",
+        "mlock_vault.rs",
+        "mod.rs",
+        "tpre_ops.rs"
+      ]
+    }
+  ]
+}
