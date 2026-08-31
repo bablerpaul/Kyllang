@@ -1,150 +1,212 @@
-// KYLLANG_V4: Worker bridge — all crypto ops are dispatched here, never called inline.
-// Fixes Flaw 3 (V8 ghost keys) for web clients. Clinical workstations use the Tauri
-// enclave instead (Phase 4). This is the accepted-residual-risk path for web.
+/**
+ * zkWorkerBridge.js — Main Thread Bridge for zkProofWorker
+ *
+ * Manages the lifecycle of the ZK proof Web Worker:
+ *   - Lazily instantiates the worker on first use (avoids cold-start delay)
+ *   - Wraps the worker message protocol in a clean Promise API
+ *   - Streams progress updates to an optional onProgress callback
+ *   - Terminates the worker on completion or timeout (memory safety)
+ *   - Enforces a 5-minute timeout for proof generation
+ *
+ * Usage:
+ *   import { generateProof } from './zkWorkerBridge';
+ *
+ *   const { proof, publicSignals } = await generateProof(
+ *     circuitInput,
+ *     (msg) => setStatusMessage(msg)   // optional progress callback
+ *   );
+ */
 
-let worker = null;
-const pendingRequests = new Map();
-let reqId = 0;
+// Vite processes `?worker` imports → proper Worker module with bundled deps
+import ZkProofWorker from './zkProofWorker?worker';
 
-function getWorker() {
-  if (!worker) {
-    worker = new Worker(new URL('./zkWorker.js', import.meta.url), { type: 'module' });
-    worker.onmessage = ({ data }) => {
-      const { id, resultBytes, error } = data;
-      const pending = pendingRequests.get(id);
-      pendingRequests.delete(id);
-      if (!pending) return;
-      if (error) {
-        pending.reject(new Error(error));
-        return;
-      }
-      
-      try {
-        if (pending.op === 'encryptKey') {
-          // Convert resultBytes to Base64 string
-          let binary = '';
-          for (let i = 0; i < resultBytes.length; i++) {
-            binary += String.fromCharCode(resultBytes[i]);
-          }
-          const base64 = btoa(binary);
-          
-          if (resultBytes && resultBytes.fill) resultBytes.fill(0);
-          pending.resolve(base64);
-        } else if (pending.op === 'decryptKey') {
-          // Convert resultBytes to binary string
-          let payloadStr = '';
-          for (let i = 0; i < resultBytes.length; i++) {
-            payloadStr += String.fromCharCode(resultBytes[i]);
-          }
-          
-          if (resultBytes && resultBytes.fill) resultBytes.fill(0);
-          pending.resolve(payloadStr);
+const PROOF_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+// ── ZK artifact URLs ───────────────────────────────────────────────────────
+// These files are distributed by zk-setup.js to certificate-portal/public/zk/
+const ZK_BASE_URL  = '/zk';
+const WASM_URL     = `${ZK_BASE_URL}/certificate_proof.wasm`;
+const ZKEY_URL     = `${ZK_BASE_URL}/circuit_final.zkey`;
+
+/**
+ * Generate a Groth16 proof in a dedicated Web Worker.
+ *
+ * @param {object}   circuitInput  - snarkjs input (built by buildCircuitInput from poseidonUtils)
+ * @param {Function} onProgress    - optional progress callback (message: string) => void
+ * @returns {Promise<{ proof: object, publicSignals: string[] }>}
+ * @throws Error if proof fails or times out
+ */
+export function generateProof(circuitInput, onProgress) {
+    return new Promise((resolve, reject) => {
+        // Spawn a fresh worker for each proof request to avoid state contamination
+        let worker;
+        try {
+            worker = new ZkProofWorker();
+        } catch (err) {
+            return reject(new Error(
+                `Failed to spawn ZK Worker: ${err.message}. ` +
+                'Ensure COOP/COEP headers are set in vite.config.js.'
+            ));
         }
-      } catch (err) {
-        pending.reject(err);
-      }
-    };
-    worker.onerror = (err) => {
-      console.error('[zkWorkerBridge] Worker error:', err.message);
-    };
-  }
-  return worker;
+
+        // ── Timeout guard ──────────────────────────────────────────────────
+        const timeoutId = setTimeout(() => {
+            worker.terminate();
+            reject(new Error(`ZK proof generation timed out after ${PROOF_TIMEOUT_MS / 60000} minutes`));
+        }, PROOF_TIMEOUT_MS);
+
+        // ── Message handler ────────────────────────────────────────────────
+        worker.onmessage = (event) => {
+            const { type, payload } = event.data;
+
+            switch (type) {
+                case 'PROOF_PROGRESS':
+                    if (typeof onProgress === 'function') {
+                        onProgress(payload.message);
+                    }
+                    break;
+
+                case 'PROOF_READY':
+                    clearTimeout(timeoutId);
+                    worker.terminate();
+                    resolve({
+                        proof:         payload.proof,
+                        publicSignals: payload.publicSignals,
+                    });
+                    break;
+
+                case 'PROOF_ERROR':
+                    clearTimeout(timeoutId);
+                    worker.terminate();
+                    reject(new Error(`Worker proof error: ${payload.message}`));
+                    break;
+
+                default:
+                    // Unknown message type — ignore
+                    break;
+            }
+        };
+
+        // ── Error handler (worker crash) ───────────────────────────────────
+        worker.onerror = (err) => {
+            clearTimeout(timeoutId);
+            worker.terminate();
+            reject(new Error(`ZK Worker crashed: ${err.message}`));
+        };
+
+        // ── Dispatch proof generation task ─────────────────────────────────
+        worker.postMessage({
+            type: 'GENERATE_PROOF',
+            payload: {
+                circuitInput,
+                wasmUrl: new URL(WASM_URL, window.location.origin).href,
+                zkeyUrl: new URL(ZKEY_URL, window.location.origin).href,
+            },
+        });
+    });
 }
 
 /**
- * Encrypts a payload string using the recipient's X25519 public key.
- * Runs in an isolated Web Worker — key material never touches the main thread.
- * @param {string} payloadStr — binary string (e.g. AES key from forge)
- * @param {string} recipientPublicKeyBase64 — Base64-encoded Curve25519 public key
- * @returns {Promise<string>} Base64-encoded encrypted payload
+ * Verify a Groth16 proof locally using the verification key.
+ * Called by the Verifier UI to trustlessly verify without hitting the backend.
+ *
+ * @param {object}   proof
+ * @param {string[]} publicSignals
+ * @param {object}   vKey - loaded from /zk/verification_key.json
+ * @returns {Promise<boolean>}
  */
-export async function workerEncryptKey(payloadStr, recipientPublicKeyBase64) {
-  if (window.__TAURI__) {
-    try {
-      const result = await window.__TAURI__.invoke('encrypt_key_enclave', {
-        payload: payloadStr,
-        recipientPubB64: recipientPublicKeyBase64
-      });
-      return result;
-    } catch (err) {
-      console.error('[Tauri IPC] Encryption failed:', err);
-      throw new Error(err);
-    }
-  }
-
-  return new Promise((resolve, reject) => {
-    const id = ++reqId;
-    pendingRequests.set(id, { resolve, reject, op: 'encryptKey' });
-    
-    const payloadBytes = new Uint8Array(payloadStr.length);
-    for (let i = 0; i < payloadStr.length; i++) {
-      payloadBytes[i] = payloadStr.charCodeAt(i);
-    }
-    
-    const binaryString = atob(recipientPublicKeyBase64);
-    const recipientPK = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      recipientPK[i] = binaryString.charCodeAt(i);
-    }
-
-    getWorker().postMessage(
-      { id, op: 'encryptKey', payloadBytes, recipientPK },
-      [payloadBytes.buffer, recipientPK.buffer]
-    );
-  });
+export async function verifyProofLocally(proof, publicSignals, vKey) {
+    const { groth16 } = await import('snarkjs');
+    return groth16.verify(vKey, publicSignals, proof);
 }
 
 /**
- * Decrypts an encrypted payload using the user's X25519 private key.
- * Runs in an isolated Web Worker — key material never touches the main thread.
- * @param {string} encryptedPayloadBase64 — Base64-encoded encrypted payload
- * @param {string} myPrivateKeyBase64 — Base64-encoded Curve25519 private key
- * @returns {Promise<string>} Decrypted binary string
+ * Fetch the verification key from the frontend public directory.
+ * Used by the Verifier UI for local proof checking.
+ *
+ * @returns {Promise<object>} verification key JSON
  */
-export async function workerDecryptKey(encryptedPayloadBase64, myPrivateKeyBase64) {
-  if (window.__TAURI__) {
-    try {
-      const result = await window.__TAURI__.invoke('decrypt_key_enclave', {
-        payloadB64: encryptedPayloadBase64,
-        myPrivB64: myPrivateKeyBase64
-      });
-      return result;
-    } catch (err) {
-      console.error('[Tauri IPC] Decryption failed:', err);
-      throw new Error(err);
-    }
-  }
-
-  return new Promise((resolve, reject) => {
-    const id = ++reqId;
-    pendingRequests.set(id, { resolve, reject, op: 'decryptKey' });
-    
-    const encStr = atob(encryptedPayloadBase64);
-    const encryptedPayloadBytes = new Uint8Array(encStr.length);
-    for (let i = 0; i < encStr.length; i++) {
-      encryptedPayloadBytes[i] = encStr.charCodeAt(i);
-    }
-
-    const privStr = atob(myPrivateKeyBase64);
-    const myPrivKey = new Uint8Array(privStr.length);
-    for (let i = 0; i < privStr.length; i++) {
-      myPrivKey[i] = privStr.charCodeAt(i);
-    }
-
-    getWorker().postMessage(
-      { id, op: 'decryptKey', encryptedPayloadBytes, myPrivKey },
-      [encryptedPayloadBytes.buffer, myPrivKey.buffer]
-    );
-  });
+export async function fetchVerificationKey() {
+    const res = await fetch(`${ZK_BASE_URL}/verification_key.json`);
+    if (!res.ok) throw new Error(`Failed to fetch verification_key.json: ${res.statusText}`);
+    return res.json();
 }
 
-/**
- * Terminates the worker thread. Call on logout or cleanup.
- */
-export function terminateWorker() {
-  if (worker) {
-    worker.terminate();
-    worker = null;
-    pendingRequests.clear();
-  }
+// ── Crypto Worker Bridge (X25519) ──────────────────────────────────────────
+import ZkWorker from './zkWorker?worker';
+import util from 'tweetnacl-util';
+
+let cryptoWorkerInstance = null;
+let cryptoMsgIdSeq = 0;
+const cryptoPendingResolvers = new Map();
+
+function getCryptoWorker() {
+    if (!cryptoWorkerInstance) {
+        cryptoWorkerInstance = new ZkWorker();
+        cryptoWorkerInstance.onmessage = (e) => {
+            const { id, resultBytes, error } = e.data;
+            const resolver = cryptoPendingResolvers.get(id);
+            if (resolver) {
+                cryptoPendingResolvers.delete(id);
+                if (error) resolver.reject(new Error(error));
+                else resolver.resolve(resultBytes);
+            }
+        };
+        cryptoWorkerInstance.onerror = (err) => {
+            console.error("Crypto Worker Error:", err);
+        };
+    }
+    return cryptoWorkerInstance;
 }
+
+export function workerEncryptKey(payloadStr, recipientPublicKeyBase64) {
+    return new Promise((resolve, reject) => {
+        try {
+            const recipientPK = util.decodeBase64(recipientPublicKeyBase64);
+            const payloadBytes = new Uint8Array(payloadStr.length);
+            for (let i = 0; i < payloadStr.length; i++) {
+                payloadBytes[i] = payloadStr.charCodeAt(i);
+            }
+
+            const id = ++cryptoMsgIdSeq;
+            cryptoPendingResolvers.set(id, {
+                resolve: (resBytes) => resolve(util.encodeBase64(resBytes)),
+                reject
+            });
+
+            getCryptoWorker().postMessage(
+                { id, op: 'encryptKey', payloadBytes, recipientPK }
+            );
+        } catch (err) {
+            reject(err);
+        }
+    });
+}
+
+export function workerDecryptKey(encryptedPayloadBase64, myPrivateKeyBase64) {
+    return new Promise((resolve, reject) => {
+        try {
+            const encryptedPayloadBytes = util.decodeBase64(encryptedPayloadBase64);
+            const myPrivKey = util.decodeBase64(myPrivateKeyBase64);
+
+            const id = ++cryptoMsgIdSeq;
+            cryptoPendingResolvers.set(id, {
+                resolve: (resBytes) => {
+                    let payloadStr = '';
+                    for (let i = 0; i < resBytes.length; i++) {
+                        payloadStr += String.fromCharCode(resBytes[i]);
+                    }
+                    resolve(payloadStr);
+                },
+                reject
+            });
+
+            getCryptoWorker().postMessage(
+                { id, op: 'decryptKey', encryptedPayloadBytes, myPrivKey }
+            );
+        } catch (err) {
+            reject(err);
+        }
+    });
+}
+

@@ -27,7 +27,8 @@ const MyCertificates = () => {
         const fetchCertificates = async () => {
             try {
                 const data = await apiFetch('/api/patient/certificates');
-                setCertificates(data || []);
+                const certs = Array.isArray(data) ? data : (data?.data || []);
+                setCertificates(certs);
             } catch (err) {
                 setError(err.message || 'Failed to fetch certificates');
             } finally {

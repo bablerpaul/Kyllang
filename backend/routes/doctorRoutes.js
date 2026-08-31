@@ -35,7 +35,8 @@ const {
     getPatientEMR,
     updatePatientDiagnosis,
     addClinicalNotes,
-    uploadPrescription
+    uploadPrescription,
+    getAllDoctors
 } = require('../src/modules/doctors/doctorController');
 const { protect, authorize } = require('../middlewares/authMiddleware');
 const { registerLimiter, loginLimiter, uploadLimiter } = require('../middlewares/rateLimiter');
@@ -47,6 +48,9 @@ const { validate } = require('../middlewares/validatorMiddleware');
 // Public Doctor Routes
 router.post('/register', registerLimiter, doctorRegisterRules(), validate, registerDoctor);
 router.post('/login', loginLimiter, loginDoctor);
+
+// General Protected Route for All Users
+router.get('/all', protect, getAllDoctors);
 
 // Protected Doctor Routes
 router.use(protect);

@@ -1,12 +1,16 @@
 const mongoose = require('mongoose');
 
 /**
- * Mongoose schema and model for certificateSchema
- * @module models/certificateSchema
- * @description Explains the structure and types for the certificateSchema collection.
+ * Certificate schema — Kyllang ZK Certificate System
+ *
+ * PRIVACY NOTE: diagnosis and raw patientId strings are NOT stored here.
+ * The publicCommitmentHash (Poseidon4 of private fields) is the only
+ * cryptographic reference stored in MongoDB. Plaintext fields have been
+ * removed from this schema to enforce zero-leakage at the database layer.
  */
 const certificateSchema = new mongoose.Schema(
     {
+        // ── Patient / Doctor References ──────────────────────────────────
         patient: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',
@@ -29,17 +33,10 @@ const certificateSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'InsuranceClaim',
         },
-        secureFileId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'SecureFile',
-        },
-        diagnosis: {
-            type: String,
-            required: [true, 'Diagnosis is required'],
-        },
-        remarks: {
-            type: String,
-        },
+
+        // ── Non-sensitive Metadata (display only) ──────────────────────────
+        // Diagnosis and patient details are stored ONLY inside the patient's
+        // encrypted local vault. The backend stores only validity dates.
         validFrom: {
             type: Date,
             required: true,
@@ -48,33 +45,48 @@ const certificateSchema = new mongoose.Schema(
             type: Date,
             required: true,
         },
-        verificationHash: {
+        remarks: {
+            type: String,   // General, non-identifying remarks (optional)
+        },
+
+        // ── ZK Commitment Hash ────────────────────────────────────────────
+        // Poseidon4(patientId_field, diagnosisCode_field, validFrom_unix, secretSalt)
+        // Computed client-side by doctor's browser. Registered on-chain.
+        // Used as the lookup key for verification.
+        publicCommitmentHash: {
             type: String,
             required: true,
             unique: true,
+            index: true,
         },
-        blockchainHash: {
+
+        // ── Legacy field alias (backward compatibility with existing API calls)
+        // Maps to publicCommitmentHash for any legacy code still using verificationHash
+        verificationHash: {
             type: String,
+            sparse: true,
         },
-        transactionHash: {
-            type: String,
+
+        // ── Blockchain Anchoring ──────────────────────────────────────────
+        blockchainTxHash: {
+            type: String,   // Transaction hash of on-chain registerCertificate() call
         },
-        // KYLLANG_V4: Dual-path verification — routes verify logic by method type.
-        // All pre-migration certificates default to 'hmac_legacy'.
+        issuerAddress: {
+            type: String,   // The doctor's on-chain wallet address (anti-forgery audit)
+        },
+
+        // ── Verification Method ───────────────────────────────────────────
         verificationMethod: {
             type: String,
-            enum: ['hmac_legacy', 'zk_proof'],
-            default: 'hmac_legacy',
+            enum: ['zk_proof', 'hmac_legacy'],
+            default: 'zk_proof',
         },
-        // KYLLANG_V4: ZK nullifier — Poseidon(secret_seed, record_epoch).
-        // Used for anti-replay lookups in the zk_proof verification path.
-        zkNullifier: {
-            type: String,
-        },
+
+        // ── Access Control ────────────────────────────────────────────────
         accessList: [
             {
                 type: mongoose.Schema.Types.ObjectId,
-                ref: 'User', // List of doctors
+                ref: 'User',
             },
         ],
     },
@@ -83,9 +95,17 @@ const certificateSchema = new mongoose.Schema(
     }
 );
 
-// Performance Indexes
+// ── Indexes ────────────────────────────────────────────────────────────────
 certificateSchema.index({ patient: 1 });
 certificateSchema.index({ issuedBy: 1 });
-certificateSchema.index({ verificationHash: 1 }, { unique: true });
+certificateSchema.index({ publicCommitmentHash: 1 }, { unique: true });
+
+// ── Pre-save hook: sync legacy alias ──────────────────────────────────────
+certificateSchema.pre('save', function (next) {
+    if (this.publicCommitmentHash && !this.verificationHash) {
+        this.verificationHash = this.publicCommitmentHash;
+    }
+    next();
+});
 
 module.exports = mongoose.model('Certificate', certificateSchema);

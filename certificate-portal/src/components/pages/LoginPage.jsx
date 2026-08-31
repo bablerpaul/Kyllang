@@ -26,20 +26,8 @@ const LoginPage = () => {
     const result = await login(username, password);
 
     if (result.success) {
-      // Redirect based on role
-      switch (result.role) {
-        case 'general_user':
-          navigate('/user/dashboard');
-          break;
-        case 'doctor':
-          navigate('/doctor/dashboard');
-          break;
-        case 'hospital_admin':
-          navigate('/admin/dashboard');
-          break;
-        default:
-          navigate('/');
-      }
+      // All roles land on the unified dashboard — the sidebar adapts to their role
+      navigate('/dashboard');
     } else {
       setError(result.message || 'Login failed');
     }

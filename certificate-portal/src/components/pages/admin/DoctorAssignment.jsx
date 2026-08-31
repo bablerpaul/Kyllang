@@ -43,8 +43,9 @@ const DoctorAssignment = () => {
 
   const fetchUsers = useCallback(async () => {
     try {
-      const data = await apiFetch('/api/admin/users');
-      setUsers(data || []);
+      const res = await apiFetch('/api/admin/users');
+      // API returns { success, data: [...] } — unwrap .data
+      setUsers(res?.data || res || []);
     } catch (error) {
       console.error('Failed to fetch users:', error);
     }

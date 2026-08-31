@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -18,67 +18,133 @@ import {
   DialogContent,
   DialogActions,
   Grid,
+  IconButton,
+  Tooltip,
+  Alert,
+  CircularProgress,
+  Avatar,
+  Skeleton,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import LockOpenIcon from '@mui/icons-material/LockOpen';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import PersonIcon from '@mui/icons-material/Person';
+import EmailIcon from '@mui/icons-material/Email';
+import { apiFetch } from '../../utils/api';
+
+const EMPTY_FORM = { name: '', email: '', password: '', phone: '' };
 
 export default function PatientsManager() {
+  const [patients, setPatients] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
-  const [newPatient, setNewPatient] = useState({ name: '', email: '', password: '', bloodGroup: 'O+', phone: '' });
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [submitting, setSubmitting] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
+  const [privateKey, setPrivateKey] = useState('');
+  const [pkDialog, setPkDialog] = useState(false);
 
-  const [patients, setPatients] = useState([
-    { _id: 'PAT-101', name: 'John Doe', email: 'john@example.com', bloodGroup: 'A+', phone: '+1 555-0192', activeConsent: true },
-    { _id: 'PAT-102', name: 'Alice Smith', email: 'alice@example.com', bloodGroup: 'O-', phone: '+1 555-0283', activeConsent: true },
-    { _id: 'PAT-103', name: 'Robert Johnson', email: 'robert@example.com', bloodGroup: 'B+', phone: '+1 555-0374', activeConsent: false },
-    { _id: 'PAT-104', name: 'Emma Watson', email: 'emma@example.com', bloodGroup: 'AB+', phone: '+1 555-0465', activeConsent: true },
-  ]);
+  const fetchPatients = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await apiFetch('/api/admin/users');
+      const all = res?.data || res || [];
+      // Filter to general_user role only
+      setPatients(all.filter(u => u.role === 'general_user'));
+    } catch (err) {
+      setError('Failed to load patients: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const handleRegister = (e) => {
+  useEffect(() => {
+    fetchPatients();
+  }, [fetchPatients]);
+
+  const handleRegister = async (e) => {
     e.preventDefault();
-    const created = {
-      _id: `PAT-${100 + patients.length + 1}`,
-      name: newPatient.name,
-      email: newPatient.email,
-      bloodGroup: newPatient.bloodGroup,
-      phone: newPatient.phone,
-      activeConsent: true,
-    };
-    setPatients([created, ...patients]);
-    setOpenDialog(false);
-    setNewPatient({ name: '', email: '', password: '', bloodGroup: 'O+', phone: '' });
+    if (!form.name.trim() || !form.email.trim() || !form.password.trim()) {
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await apiFetch('/api/admin/users', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          password: form.password,
+          role: 'general_user',
+        }),
+      });
+      // If the backend returned a private key for the new user, show it
+      const pk = res?.data?.privateKey || res?.privateKey;
+      if (pk) {
+        setPrivateKey(pk);
+        setPkDialog(true);
+      } else {
+        setSuccessMsg(`Patient "${form.name}" registered successfully.`);
+        setTimeout(() => setSuccessMsg(''), 5000);
+      }
+      setForm(EMPTY_FORM);
+      setOpenDialog(false);
+      await fetchPatients(); // Refresh the list
+    } catch (err) {
+      setError('Registration failed: ' + err.message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const filtered = patients.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.email.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filtered = patients.filter(
+    p =>
+      p.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <Box>
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* Header */}
+      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 700, color: '#0f172a' }}>
             Patients Directory
           </Typography>
           <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
-            Manage registered patients, patient profiles, and active consent controls
+            {loading ? 'Loading…' : `${patients.length} registered patient${patients.length !== 1 ? 's' : ''} in the system`}
           </Typography>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<PersonAddIcon />}
-          onClick={() => setOpenDialog(true)}
-          sx={{ bgcolor: '#2563eb', textTransform: 'none', fontWeight: 600, borderRadius: '8px' }}
-        >
-          Register New Patient
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Tooltip title="Refresh">
+            <IconButton onClick={fetchPatients} disabled={loading}>
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
+          <Button
+            variant="contained"
+            startIcon={<PersonAddIcon />}
+            onClick={() => { setOpenDialog(true); setError(''); }}
+            sx={{ textTransform: 'none', fontWeight: 600, borderRadius: '8px' }}
+          >
+            Register New Patient
+          </Button>
+        </Box>
       </Box>
 
+      {/* Success / error banners */}
+      {successMsg && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccessMsg('')}>{successMsg}</Alert>}
+      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
+
+      {/* Search */}
       <Paper elevation={0} sx={{ p: 2, mb: 3, border: '1px solid #e2e8f0', borderRadius: '12px' }}>
         <TextField
           fullWidth
           size="small"
-          placeholder="Search patients by name or email..."
+          placeholder="Search patients by name or email…"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           InputProps={{
@@ -91,73 +157,162 @@ export default function PatientsManager() {
         />
       </Paper>
 
+      {/* Table */}
       <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #e2e8f0', borderRadius: '12px' }}>
         <Table>
           <TableHead sx={{ bgcolor: '#f8fafc' }}>
             <TableRow>
-              <TableCell sx={{ fontWeight: 700 }}>Patient ID</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Patient Name</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Email Address</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Blood Group</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Contact Phone</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Consent Status</TableCell>
-              <TableCell sx={{ fontWeight: 700, textAlign: 'right' }}>Actions</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Patient</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Email</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Public Key</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Registered</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {filtered.map((patient) => (
-              <TableRow key={patient._id} hover>
-                <TableCell sx={{ fontWeight: 600, color: '#2563eb' }}>{patient._id}</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>{patient.name}</TableCell>
-                <TableCell>{patient.email}</TableCell>
-                <TableCell><Chip label={patient.bloodGroup} size="small" sx={{ bgcolor: '#dbeafe', color: '#1e40af', fontWeight: 700 }} /></TableCell>
-                <TableCell>{patient.phone}</TableCell>
-                <TableCell>
-                  {patient.activeConsent ? (
-                    <Chip label="Active Consent" size="small" color="success" icon={<LockOpenIcon />} />
-                  ) : (
-                    <Chip label="Consent Required" size="small" color="warning" />
-                  )}
-                </TableCell>
-                <TableCell textAlign="right" sx={{ textAlign: 'right' }}>
-                  <Button size="small" startIcon={<VisibilityIcon />} sx={{ textTransform: 'none' }}>
-                    View EMR
-                  </Button>
+            {loading ? (
+              // Skeleton rows while loading
+              Array.from({ length: 4 }).map((_, i) => (
+                <TableRow key={i}>
+                  {Array.from({ length: 4 }).map((__, j) => (
+                    <TableCell key={j}><Skeleton variant="text" width="80%" /></TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : filtered.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} align="center" sx={{ py: 6, color: '#94a3b8' }}>
+                  {searchTerm ? 'No patients match your search.' : 'No patients registered yet. Click "Register New Patient" to add one.'}
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              filtered.map((patient) => (
+                <TableRow key={patient._id} hover>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                      <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: '0.8rem', fontWeight: 700 }}>
+                        {patient.name?.charAt(0)?.toUpperCase() || 'P'}
+                      </Avatar>
+                      <Box>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{patient.name}</Typography>
+                        <Typography variant="caption" sx={{ color: '#64748b' }}>
+                          ID: {patient._id?.slice(-6)?.toUpperCase()}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </TableCell>
+                  <TableCell sx={{ color: '#475569' }}>{patient.email}</TableCell>
+                  <TableCell>
+                    {patient.publicKey ? (
+                      <Chip
+                        label="Key Present ✓"
+                        size="small"
+                        color="success"
+                        variant="outlined"
+                      />
+                    ) : (
+                      <Chip
+                        label="No Key"
+                        size="small"
+                        color="warning"
+                        variant="outlined"
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell sx={{ color: '#64748b', fontSize: '0.8rem' }}>
+                    {patient.createdAt
+                      ? new Date(patient.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                      : '—'}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </TableContainer>
 
       {/* Register Patient Dialog */}
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
+      <Dialog open={openDialog} onClose={() => { setOpenDialog(false); setForm(EMPTY_FORM); }} maxWidth="sm" fullWidth>
         <form onSubmit={handleRegister}>
-          <DialogTitle sx={{ fontWeight: 700 }}>Register New Patient</DialogTitle>
+          <DialogTitle sx={{ fontWeight: 700 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <PersonAddIcon color="primary" />
+              Register New Patient
+            </Box>
+          </DialogTitle>
           <DialogContent dividers>
+            <Alert severity="info" sx={{ mb: 2, fontSize: '0.82rem' }}>
+              A Curve25519 key pair will be generated automatically. The private key is shown once — give it to the patient securely.
+            </Alert>
             <Grid container spacing={2}>
               <Grid item xs={12}>
-                <TextField fullWidth label="Full Name" required value={newPatient.name} onChange={(e) => setNewPatient({ ...newPatient, name: e.target.value })} />
+                <TextField
+                  fullWidth label="Full Name" required
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  InputProps={{ startAdornment: <InputAdornment position="start"><PersonIcon fontSize="small" /></InputAdornment> }}
+                />
               </Grid>
-              <Grid item xs={6}>
-                <TextField fullWidth label="Email Address" type="email" required value={newPatient.email} onChange={(e) => setNewPatient({ ...newPatient, email: e.target.value })} />
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth label="Email Address" type="email" required
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  InputProps={{ startAdornment: <InputAdornment position="start"><EmailIcon fontSize="small" /></InputAdornment> }}
+                />
               </Grid>
-              <Grid item xs={6}>
-                <TextField fullWidth label="Password" type="password" required value={newPatient.password} onChange={(e) => setNewPatient({ ...newPatient, password: e.target.value })} />
-              </Grid>
-              <Grid item xs={6}>
-                <TextField fullWidth label="Blood Group" value={newPatient.bloodGroup} onChange={(e) => setNewPatient({ ...newPatient, bloodGroup: e.target.value })} />
-              </Grid>
-              <Grid item xs={6}>
-                <TextField fullWidth label="Phone Number" value={newPatient.phone} onChange={(e) => setNewPatient({ ...newPatient, phone: e.target.value })} />
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth label="Initial Password" type="password" required
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  helperText="Patient can change this after first login."
+                />
               </Grid>
             </Grid>
           </DialogContent>
-          <DialogActions sx={{ p: 2 }}>
-            <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-            <Button type="submit" variant="contained" sx={{ bgcolor: '#2563eb' }}>Register Patient</Button>
+          <DialogActions sx={{ p: 2, gap: 1 }}>
+            <Button onClick={() => { setOpenDialog(false); setForm(EMPTY_FORM); }}>Cancel</Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={submitting}
+              startIcon={submitting ? <CircularProgress size={16} /> : <PersonAddIcon />}
+            >
+              {submitting ? 'Registering…' : 'Register Patient'}
+            </Button>
           </DialogActions>
         </form>
+      </Dialog>
+
+      {/* Private Key One-Time Dialog */}
+      <Dialog open={pkDialog} onClose={() => { setPkDialog(false); setPrivateKey(''); }} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700, color: 'warning.dark' }}>⚠️ Save This Private Key Now</DialogTitle>
+        <DialogContent dividers>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            This private key will <strong>never be shown again</strong>. Copy it and hand it to the patient securely.
+          </Alert>
+          <TextField
+            fullWidth
+            multiline
+            rows={4}
+            value={privateKey}
+            InputProps={{ readOnly: true, sx: { fontFamily: 'monospace', fontSize: '0.8rem' } }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 2, gap: 1 }}>
+          <Button
+            variant="contained"
+            onClick={() => { navigator.clipboard.writeText(privateKey); }}
+          >
+            Copy to Clipboard
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={() => { setPkDialog(false); setPrivateKey(''); setSuccessMsg('Patient registered. Private key saved.'); }}
+          >
+            Done — I Saved It
+          </Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );

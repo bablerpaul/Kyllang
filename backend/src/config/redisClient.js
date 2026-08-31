@@ -27,8 +27,10 @@ const connectRedis = async () => {
         try {
             await redisClient.connect();
             isConnected = true;
+            global.__REDIS_DOWN__ = false;
         } catch (error) {
             console.warn('Failed to connect to Redis on startup. Caching is disabled.');
+            global.__REDIS_DOWN__ = true;
         }
     }
 };

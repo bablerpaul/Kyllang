@@ -5,15 +5,20 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "zk:setup": "node scripts/zk-setup.js",
+    "zk:deploy": "node scripts/deploy-zk.js",
+    "zk:test": "node scripts/test-zk-security.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@openzeppelin/contracts": "^4.9.3",
     "axios": "^1.19.0",
     "bcryptjs": "^3.0.3",
+    "circomlibjs": "^0.1.7",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
@@ -29,12 +34,15 @@
     "multer": "^2.2.0",
     "qrcode": "^1.5.4",
     "redis": "^6.2.0",
+    "snarkjs": "^0.7.4",
+    "solc": "^0.8.36",
     "swagger-ui-express": "^5.0.1",
     "tweetnacl": "^1.0.3",
     "tweetnacl-util": "^0.15.1",
     "yamljs": "^0.3.0"
   },
   "devDependencies": {
+    "circomlib": "^2.0.5",
     "nodemon": "^3.1.13"
   }
 }

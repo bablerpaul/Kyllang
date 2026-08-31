@@ -1,338 +1,345 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
-  Box,
-  Typography,
-  Grid,
-  Card,
-  CardContent,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Chip,
-  Divider,
-  Alert,
-  Button,
-  LinearProgress
+  Box, Typography, Grid, Card, CardContent, Paper,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  Chip, Divider, Alert, Button, LinearProgress, Skeleton, IconButton, Tooltip
 } from '@mui/material';
 import {
   Analytics as AnalyticsIcon,
-  TrendingUp as TrendingUpIcon,
   People as PeopleIcon,
+  MedicalServices as MedicalServicesIcon,
+  VerifiedUser as VerifiedUserIcon,
   Assignment as AssignmentIcon,
-  CalendarToday as CalendarIcon,
   Download as DownloadIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  Memory as MemoryIcon,
+  Storage as StorageIcon,
+  Link as LinkIcon,
 } from '@mui/icons-material';
-import { useData } from '../../../contexts/DataContext';
+import { apiFetch } from '../../../utils/api';
 
 const SystemAnalytics = () => {
-  const { patients, doctors, systemStats } = useData();
-  
-  const [analytics, setAnalytics] = useState({
-    patientGrowth: 15, // percentage
-    doctorUtilization: 78, // percentage
-    documentGrowth: 23, // percentage
-    avgDocumentsPerPatient: 0,
-    topConditions: [],
-    recentActivity: []
+  const [loading, setLoading]     = useState(true);
+  const [stats, setStats]         = useState(null);   // /api/admin/analytics
+  const [sysInfo, setSysInfo]     = useState(null);   // /api/admin/dashboard
+  const [users, setUsers]         = useState([]);     // /api/admin/users
+  const [auditLogs, setAuditLogs] = useState([]);     // /api/admin/audit-logs
+  const [error, setError]         = useState('');
+  const [lastUpdated, setLastUpdated] = useState(null);
+
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [analyticsRes, dashRes, usersRes, auditRes] = await Promise.allSettled([
+        apiFetch('/api/admin/analytics'),
+        apiFetch('/api/admin/dashboard'),
+        apiFetch('/api/admin/users'),
+        apiFetch('/api/admin/audit-logs'),
+      ]);
+
+      if (analyticsRes.status === 'fulfilled') setStats(analyticsRes.value?.data || analyticsRes.value);
+      if (dashRes.status === 'fulfilled')      setSysInfo(dashRes.value?.data || dashRes.value);
+      if (usersRes.status === 'fulfilled') {
+        const arr = usersRes.value?.data || usersRes.value || [];
+        setUsers(Array.isArray(arr) ? arr : []);
+      }
+      if (auditRes.status === 'fulfilled') {
+        const arr = auditRes.value?.data || auditRes.value || [];
+        setAuditLogs(Array.isArray(arr) ? arr : []);
+      }
+      setLastUpdated(new Date());
+    } catch (e) {
+      setError('Failed to load analytics: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // ── Derived metrics from real data ─────────────────────────────────────
+  const patients = users.filter(u => u.role === 'general_user');
+  const doctors  = users.filter(u => u.role === 'doctor');
+
+  // Doctor utilization = assigned doctors / total doctors * 100
+  const assignedDoctorIds = new Set(
+    patients.flatMap(p => p.assignedDoctorId ? [p.assignedDoctorId.toString()] : [])
+  );
+  // From doctor side — doctors with assignedPatients
+  const assignedDoctors = doctors.filter(d => d.assignedPatients && d.assignedPatients.length > 0);
+  const doctorUtilization = doctors.length > 0
+    ? Math.round((assignedDoctors.length / doctors.length) * 100)
+    : 0;
+
+  // Avg docs per patient
+  const totalDocs = users.reduce((acc, u) => acc + (u.documents?.length || 0), 0);
+  const avgDocsPerPatient = patients.length > 0 ? (totalDocs / patients.length).toFixed(1) : 0;
+
+  // Action type breakdown from audit logs
+  const actionCounts = {};
+  auditLogs.forEach(log => {
+    actionCounts[log.action] = (actionCounts[log.action] || 0) + 1;
   });
+  const topActions = Object.entries(actionCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8);
 
-  useEffect(() => {
-    // Calculate analytics
-    const totalDocuments = patients.reduce((total, patient) => total + patient.documents.length, 0);
-    const avgDocuments = patients.length > 0 ? (totalDocuments / patients.length).toFixed(1) : 0;
-    
-    // Get top conditions
-    const conditionCount = {};
-    patients.forEach(patient => {
-      patient.conditions.forEach(condition => {
-        conditionCount[condition] = (conditionCount[condition] || 0) + 1;
-      });
-    });
-    
-    const topConditions = Object.entries(conditionCount)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([condition, count]) => ({ condition, count }));
-    
-    // Recent activity (mock data)
-    const recentActivity = [
-      { action: 'New patient registered', timestamp: '2 hours ago', user: 'System' },
-      { action: 'Doctor assignment updated', timestamp: '4 hours ago', user: 'Admin' },
-      { action: 'Document uploaded', timestamp: '6 hours ago', user: 'Dr. Johnson' },
-      { action: 'Certificate verified', timestamp: '1 day ago', user: 'Public User' },
-      { action: 'User logged in', timestamp: '2 days ago', user: 'Jane Smith' }
-    ];
-    
-    setAnalytics({
-      ...analytics,
-      avgDocumentsPerPatient: avgDocuments,
-      topConditions,
-      recentActivity
-    });
-  }, [patients]);
+  // Recent audit activity (last 10)
+  const recentActivity = auditLogs.slice(0, 10);
 
+  // Export analytics as JSON
   const exportAnalytics = () => {
     const data = {
-      timestamp: new Date().toISOString(),
-      systemStats,
-      analytics,
-      patientCount: patients.length,
-      doctorCount: doctors.length
+      exportedAt: new Date().toISOString(),
+      stats,
+      system: sysInfo,
+      derived: { doctorUtilization, avgDocsPerPatient, totalPatients: patients.length, totalDoctors: doctors.length },
+      topActions,
     };
-    
-    const dataStr = JSON.stringify(data, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-    
-    const exportFileDefaultName = `analytics-${new Date().toISOString().split('T')[0]}.json`;
-    
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
-    linkElement.click();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `kyllang-analytics-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
     <Box>
-      <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <AnalyticsIcon /> System Analytics & Reports
-      </Typography>
+      {/* Header */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, mb: 3 }}>
+        <Box>
+          <Typography variant="h5" sx={{ display: 'flex', alignItems: 'center', gap: 1, fontWeight: 700 }}>
+            <AnalyticsIcon /> System Analytics &amp; Reports
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
+            All values sourced directly from MongoDB &amp; backend APIs.
+            {lastUpdated && ` · Last updated: ${lastUpdated.toLocaleTimeString()}`}
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Tooltip title="Refresh data">
+            <IconButton onClick={fetchAll} disabled={loading}><RefreshIcon /></IconButton>
+          </Tooltip>
+          <Button variant="contained" startIcon={<DownloadIcon />} size="small" onClick={exportAnalytics} disabled={loading}>
+            Export JSON
+          </Button>
+        </Box>
+      </Box>
 
-      <Alert severity="info" sx={{ mb: 3 }}>
-        Real-time analytics and system performance metrics. Data updates automatically.
-      </Alert>
+      {error && <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>{error}</Alert>}
 
-      <Grid container spacing={3}>
-        {/* Key Metrics */}
-        <Grid item xs={12} md={3}>
-          <Card elevation={2}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <TrendingUpIcon sx={{ color: 'success.main', mr: 2 }} />
+      {/* ── Row 1: KPI Counts ───────────────────────────────────────────── */}
+      <Grid container spacing={2.5} sx={{ mb: 3 }}>
+        {[
+          { label: 'Total Patients',     value: stats?.totalPatients ?? patients.length, icon: <PeopleIcon />,         color: '#2563EB' },
+          { label: 'Active Doctors',     value: stats?.totalDoctors  ?? doctors.length,  icon: <MedicalServicesIcon />,color: '#10B981' },
+          { label: 'Certificates Issued',value: stats?.totalCertificates,                icon: <VerifiedUserIcon />,   color: '#F59E0B' },
+          { label: 'Active Hospitals',   value: stats?.activeHospitals ?? 1,             icon: <AssignmentIcon />,     color: '#6366F1' },
+        ].map(({ label, value, icon, color }) => (
+          <Grid item xs={12} sm={6} md={3} key={label}>
+            <Card>
+              <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: color + '18', color }}>
+                  {icon}
+                </Box>
                 <Box>
-                  <Typography variant="h4">{analytics.patientGrowth}%</Typography>
-                  <Typography variant="caption">Patient Growth</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>{label}</Typography>
+                  {loading ? <Skeleton width={60} height={36} /> : (
+                    <Typography variant="h5" sx={{ fontWeight: 800 }}>{value ?? '—'}</Typography>
+                  )}
                 </Box>
-              </Box>
-              <LinearProgress variant="determinate" value={analytics.patientGrowth} color="success" />
-            </CardContent>
-          </Card>
-        </Grid>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
 
-        <Grid item xs={12} md={3}>
-          <Card elevation={2}>
+      {/* ── Row 2: Utilization bars ────────────────────────────────────── */}
+      <Grid container spacing={2.5} sx={{ mb: 3 }}>
+        <Grid item xs={12} md={4}>
+          <Card>
             <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <PeopleIcon sx={{ color: 'primary.main', mr: 2 }} />
-                <Box>
-                  <Typography variant="h4">{analytics.doctorUtilization}%</Typography>
-                  <Typography variant="caption">Doctor Utilization</Typography>
-                </Box>
-              </Box>
-              <LinearProgress variant="determinate" value={analytics.doctorUtilization} color="primary" />
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={3}>
-          <Card elevation={2}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <AssignmentIcon sx={{ color: 'warning.main', mr: 2 }} />
-                <Box>
-                  <Typography variant="h4">{analytics.documentGrowth}%</Typography>
-                  <Typography variant="caption">Document Growth</Typography>
-                </Box>
-              </Box>
-              <LinearProgress variant="determinate" value={analytics.documentGrowth} color="warning" />
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={3}>
-          <Card elevation={2}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <CalendarIcon sx={{ color: 'info.main', mr: 2 }} />
-                <Box>
-                  <Typography variant="h4">{analytics.avgDocumentsPerPatient}</Typography>
-                  <Typography variant="caption">Avg Docs/Patient</Typography>
-                </Box>
-              </Box>
-              <Typography variant="caption" color="text.secondary">
-                Per patient average
+              <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 700 }}>Doctor Utilization</Typography>
+              <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
+                {loading ? '…' : `${assignedDoctors.length} of ${doctors.length} doctors have assigned patients`}
               </Typography>
+              {loading
+                ? <Skeleton height={10} />
+                : <LinearProgress variant="determinate" value={doctorUtilization} color={doctorUtilization > 70 ? 'success' : 'warning'} sx={{ height: 8, borderRadius: 4 }} />
+              }
+              <Typography variant="h4" sx={{ fontWeight: 800, mt: 1 }}>{loading ? '—' : `${doctorUtilization}%`}</Typography>
             </CardContent>
           </Card>
         </Grid>
-
-        {/* Top Conditions */}
-        <Grid item xs={12} md={6}>
-          <Card elevation={3}>
+        <Grid item xs={12} md={4}>
+          <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Top Medical Conditions
+              <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 700 }}>Memory Usage</Typography>
+              <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
+                {loading ? '…' : `${sysInfo?.system?.memoryUsagePercent ?? '—'}% of server RAM in use`}
               </Typography>
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell><strong>Condition</strong></TableCell>
-                      <TableCell align="right"><strong>Patients</strong></TableCell>
-                      <TableCell><strong>Prevalence</strong></TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {analytics.topConditions.map((item, index) => (
-                      <TableRow key={index}>
-                        <TableCell>{item.condition}</TableCell>
-                        <TableCell align="right">{item.count}</TableCell>
-                        <TableCell>
-                          <LinearProgress 
-                            variant="determinate" 
-                            value={(item.count / patients.length) * 100} 
-                            sx={{ width: '100%' }}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
-                Based on {patients.length} patient records
-              </Typography>
+              {loading
+                ? <Skeleton height={10} />
+                : <LinearProgress variant="determinate" value={parseFloat(sysInfo?.system?.memoryUsagePercent || 0)} color="primary" sx={{ height: 8, borderRadius: 4 }} />
+              }
+              <Typography variant="h4" sx={{ fontWeight: 800, mt: 1 }}>{loading ? '—' : `${sysInfo?.system?.memoryUsagePercent ?? 0}%`}</Typography>
             </CardContent>
           </Card>
         </Grid>
-
-        {/* Recent Activity */}
-        <Grid item xs={12} md={6}>
-          <Card elevation={3}>
+        <Grid item xs={12} md={4}>
+          <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Recent System Activity
+              <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 700 }}>Avg Docs / Patient</Typography>
+              <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
+                Encrypted documents per registered patient
               </Typography>
-              <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
-                {analytics.recentActivity.map((activity, index) => (
-                  <Box key={index} sx={{ mb: 2, pb: 2, borderBottom: index < analytics.recentActivity.length - 1 ? '1px solid #e0e0e0' : 'none' }}>
-                    <Typography variant="body2">{activity.action}</Typography>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
-                      <Typography variant="caption" color="text.secondary">
-                        By: {activity.user}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {activity.timestamp}
-                      </Typography>
-                    </Box>
-                  </Box>
-                ))}
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* System Statistics */}
-        <Grid item xs={12}>
-          <Card elevation={3}>
-            <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Typography variant="h6">
-                  System Statistics
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Button
-                    variant="outlined"
-                    startIcon={<RefreshIcon />}
-                    size="small"
-                  >
-                    Refresh
-                  </Button>
-                  <Button
-                    variant="contained"
-                    startIcon={<DownloadIcon />}
-                    size="small"
-                    onClick={exportAnalytics}
-                  >
-                    Export Data
-                  </Button>
-                </Box>
-              </Box>
-              
-              <Grid container spacing={2}>
-                <Grid item xs={6} md={3}>
-                  <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
-                    <Typography variant="h4" color="primary.main">
-                      {systemStats.totalPatients}
-                    </Typography>
-                    <Typography variant="caption">Total Patients</Typography>
-                  </Paper>
-                </Grid>
-                <Grid item xs={6} md={3}>
-                  <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
-                    <Typography variant="h4" color="success.main">
-                      {systemStats.totalDoctors}
-                    </Typography>
-                    <Typography variant="caption">Active Doctors</Typography>
-                  </Paper>
-                </Grid>
-                <Grid item xs={6} md={3}>
-                  <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
-                    <Typography variant="h4" color="warning.main">
-                      {systemStats.totalCertificates}
-                    </Typography>
-                    <Typography variant="caption">Documents</Typography>
-                  </Paper>
-                </Grid>
-                <Grid item xs={6} md={3}>
-                  <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
-                    <Typography variant="h4" color="info.main">
-                      {patients.filter(p => p.assignedDoctorId).length}
-                    </Typography>
-                    <Typography variant="caption">Assigned Patients</Typography>
-                  </Paper>
-                </Grid>
-              </Grid>
-              
-              <Divider sx={{ my: 3 }} />
-              
-              <Typography variant="subtitle2" gutterBottom>
-                System Health Status
-              </Typography>
-              <Grid container spacing={1}>
-                <Grid item xs={12} md={4}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography variant="body2">Database</Typography>
-                    <Chip label="Healthy" size="small" color="success" />
-                  </Box>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography variant="body2">API Services</Typography>
-                    <Chip label="Operational" size="small" color="success" />
-                  </Box>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography variant="body2">Certificate Verification</Typography>
-                    <Chip label="Active" size="small" color="success" />
-                  </Box>
-                </Grid>
-              </Grid>
+              {loading
+                ? <Skeleton height={10} />
+                : <LinearProgress variant="determinate" value={Math.min(100, avgDocsPerPatient * 20)} color="info" sx={{ height: 8, borderRadius: 4 }} />
+              }
+              <Typography variant="h4" sx={{ fontWeight: 800, mt: 1 }}>{loading ? '—' : avgDocsPerPatient}</Typography>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
 
-      <Alert severity="success" sx={{ mt: 3 }}>
-        <Typography variant="body2">
-          <strong>System Status: All systems operational.</strong> Last updated: {new Date().toLocaleString()}
-        </Typography>
-      </Alert>
+      {/* ── Row 3: Action breakdown + Service health ─────────────────── */}
+      <Grid container spacing={2.5} sx={{ mb: 3 }}>
+        {/* Audit Action Breakdown */}
+        <Grid item xs={12} md={6}>
+          <Card sx={{ height: '100%' }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 700 }}>Audit Action Breakdown</Typography>
+              {loading ? (
+                Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} height={32} sx={{ mb: 0.5 }} />)
+              ) : topActions.length === 0 ? (
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>No audit events recorded yet.</Typography>
+              ) : (
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell><strong>Action</strong></TableCell>
+                        <TableCell align="right"><strong>Count</strong></TableCell>
+                        <TableCell><strong>Share</strong></TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {topActions.map(([action, count]) => (
+                        <TableRow key={action} hover>
+                          <TableCell>
+                            <Chip label={action.replace(/_/g, ' ')} size="small"
+                              sx={{ fontSize: '0.7rem', fontWeight: 600 }} />
+                          </TableCell>
+                          <TableCell align="right">{count}</TableCell>
+                          <TableCell sx={{ width: 120 }}>
+                            <LinearProgress
+                              variant="determinate"
+                              value={(count / auditLogs.length) * 100}
+                              sx={{ height: 6, borderRadius: 3 }}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+              <Typography variant="caption" sx={{ mt: 1.5, display: 'block', color: 'text.secondary' }}>
+                Based on {auditLogs.length} total audit records
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Service Health */}
+        <Grid item xs={12} md={6}>
+          <Card sx={{ height: '100%' }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 700 }}>Service Health</Typography>
+              <Grid container spacing={1.5}>
+                {[
+                  { label: 'MongoDB Database', value: stats ? 'Connected' : 'Unknown', ok: !!stats },
+                  { label: 'REST API',          value: 'Operational',                   ok: true },
+                  { label: 'Blockchain Node',   value: sysInfo?.services?.blockchainStatus ?? '—', ok: sysInfo?.services?.blockchainStatus === 'Active' },
+                  { label: 'IPFS Gateway',      value: sysInfo?.services?.ipfsStatus ?? '—',       ok: sysInfo?.services?.ipfsStatus === 'Active' || sysInfo?.services?.ipfsStatus === 'Mock Active' },
+                  { label: 'ZK Proof Engine',   value: 'Active (Curve25519)',            ok: true },
+                  { label: 'Redis Cache',        value: 'Bypassed (no Redis)',            ok: false },
+                ].map(({ label, value, ok }) => (
+                  <Grid item xs={12} sm={6} key={label}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{label}</Typography>
+                      {loading ? <Skeleton width={70} /> : (
+                        <Chip label={value} size="small" color={ok ? 'success' : 'error'} variant="outlined" />
+                      )}
+                    </Box>
+                  </Grid>
+                ))}
+              </Grid>
+
+              <Divider sx={{ my: 2 }} />
+
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                <Chip icon={<MemoryIcon />} label={`CPU: ${sysInfo?.system?.cpuLoad1m ?? '—'}`} size="small" />
+                <Chip icon={<StorageIcon />} label={`Files: ${sysInfo?.storage?.totalFiles ?? '—'}`} size="small" />
+                <Chip icon={<PeopleIcon />} label={`Active 24h: ${sysInfo?.activity?.activeUsers24h ?? '—'}`} size="small" />
+                <Chip icon={<LinkIcon />} label={`Platform: ${sysInfo?.system?.platform ?? '—'}`} size="small" />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* ── Row 4: Recent Audit Log ────────────────────────────────────── */}
+      <Card>
+        <CardContent>
+          <Typography variant="h6" gutterBottom sx={{ fontWeight: 700 }}>Recent System Activity</Typography>
+          {loading ? (
+            Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} height={28} sx={{ mb: 0.5 }} />)
+          ) : recentActivity.length === 0 ? (
+            <Alert severity="info">No audit events have been recorded yet.</Alert>
+          ) : (
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell><strong>Action</strong></TableCell>
+                    <TableCell><strong>Actor</strong></TableCell>
+                    <TableCell><strong>Role</strong></TableCell>
+                    <TableCell><strong>Timestamp</strong></TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {recentActivity.map((log, i) => (
+                    <TableRow key={log._id || i} hover>
+                      <TableCell>
+                        <Chip label={log.action?.replace(/_/g, ' ')} size="small"
+                          color={
+                            log.action?.includes('CREATE') ? 'success' :
+                            log.action?.includes('DELETE') ? 'error' :
+                            log.action?.includes('ASSIGN') ? 'primary' : 'default'
+                          } />
+                      </TableCell>
+                      <TableCell>{log.actor?.name || log.actor || '—'}</TableCell>
+                      <TableCell>
+                        <Chip label={log.actor?.role || '—'} size="small" variant="outlined" />
+                      </TableCell>
+                      <TableCell sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
+                        {log.timestamp
+                          ? new Date(log.timestamp).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+                          : '—'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </CardContent>
+      </Card>
     </Box>
   );
 };

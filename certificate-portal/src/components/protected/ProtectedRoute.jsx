@@ -9,22 +9,11 @@ const ProtectedRoute = ({ allowedRoles }) => {
     return <Navigate to="/login" replace />;
   }
 
-  // If role is not allowed, redirect to appropriate dashboard or home
+  // If role is not in allowed list, send to unified dashboard (it will show their content)
   if (allowedRoles && !allowedRoles.includes(role)) {
-    // Redirect to role-specific dashboard if logged in with different role
-    switch (role) {
-      case 'general_user':
-        return <Navigate to="/user/dashboard" replace />;
-      case 'doctor':
-        return <Navigate to="/doctor/dashboard" replace />;
-      case 'hospital_admin':
-        return <Navigate to="/admin/dashboard" replace />;
-      default:
-        return <Navigate to="/" replace />;
-    }
+    return <Navigate to="/dashboard" replace />;
   }
 
-  // If authorized, render the child routes
   return <Outlet />;
 };
 

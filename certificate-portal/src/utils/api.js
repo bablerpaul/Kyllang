@@ -31,3 +31,12 @@ export const apiFetch = async (endpoint, options = {}) => {
 
     return data;
 };
+
+const api = {
+    get: async (endpoint, options) => ({ data: await apiFetch(endpoint, { ...options, method: 'GET' }) }),
+    post: async (endpoint, body, options) => ({ data: await apiFetch(endpoint, { ...options, method: 'POST', body: JSON.stringify(body) }) }),
+    put: async (endpoint, body, options) => ({ data: await apiFetch(endpoint, { ...options, method: 'PUT', body: JSON.stringify(body) }) }),
+    delete: async (endpoint, options) => ({ data: await apiFetch(endpoint, { ...options, method: 'DELETE' }) }),
+};
+
+export default api;

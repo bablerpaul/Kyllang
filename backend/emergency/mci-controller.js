@@ -73,3 +73,64 @@ exports.getMCIStatus = async (req, res, next) => {
         next(error);
     }
 };
+
+/**
+ * Break-Glass Protocol: Instantly bypasses normal authorization to fetch a patient's EMR.
+ * Used during life-or-death emergencies. Generates a critical audit log.
+ */
+exports.breakGlass = async (req, res, next) => {
+    try {
+        const { patientId } = req.body;
+        if (!patientId) {
+            return res.status(400).json({ success: false, message: 'Patient ID is required' });
+        }
+
+        const AuditLog = require('../models/AuditLog');
+        const MedicalRecord = require('../models/MedicalRecord');
+        const mongoose = require('mongoose');
+
+        // Check if patientId is a valid ObjectId
+        let record = null;
+        if (mongoose.Types.ObjectId.isValid(patientId)) {
+            // Instantly bypass constraints and fetch the record
+            record = await MedicalRecord.findOne({ patient: patientId })
+                .populate('patient', 'name email')
+                .lean();
+        }
+
+        if (!record) {
+            return res.status(404).json({ success: false, message: 'Medical record not found for this patient ID' });
+        }
+
+        // Fire a critical audit event (BREAK_GLASS_ACTIVATED)
+        await AuditLog.create({
+            actor: req.user._id,
+            action: 'BREAK_GLASS_ACTIVATED',
+            details: {
+                message: 'Emergency Break-Glass protocol triggered',
+                patientId: patientId,
+                timestamp: new Date()
+            }
+        });
+
+        // Optionally interact with BreakGlassRegistry contract to log it on-chain
+        try {
+            const contract = getContract('BreakGlassRegistry');
+            if (contract) {
+                // Assuming contract has a way to log this immediately, 
+                // for simplicity here we just log it in our off-chain DB,
+                // but we could emit an event on-chain as well if needed.
+            }
+        } catch (err) {
+            console.warn('Failed to interact with BreakGlassRegistry contract for on-chain audit', err);
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Break-glass protocol activated. Critical audit logged.',
+            data: record
+        });
+    } catch (error) {
+        next(error);
+    }
+};

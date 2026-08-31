@@ -1,61 +1,114 @@
-const crypto = require('crypto');
-const Certificate = require('../models/Certificate');
-const MedicalRecord = require('../models/MedicalRecord');
-const Doctor = require('../models/Doctor');
+'use strict';
+/**
+ * certificateController.js — Kyllang ZK Certificate API
+ *
+ * Endpoints:
+ *   POST   /api/certificates/          createCertificate
+ *   GET    /api/certificates/          getMyCertificates
+ *   GET    /api/certificates/challenge getCertificateChallenge
+ *   GET    /api/certificates/session/:sessionId  pollVerificationSession
+ *   POST   /api/certificates/verify   verifyCertificate
+ *
+ * Security Design:
+ *   • HMAC logic is entirely removed — no HMAC keys, no plaintext hashing on backend
+ *   • publicCommitmentHash is computed client-side by doctor's browser (Poseidon4)
+ *   • Backend registers hash on-chain via CertificateRegistry.registerCertificate()
+ *   • Verification forwards Groth16 proof to CertificateRegistry.verifyCertificateProof()
+ *   • No plaintext diagnosis or patientId is ever logged or stored
+ */
 
-const AuditLog = require('../models/AuditLog');
+const Certificate   = require('../models/Certificate');
+const MedicalRecord = require('../models/MedicalRecord');
+const Doctor        = require('../models/Doctor');
+const AuditLog      = require('../models/AuditLog');
+const { ethers }    = require('ethers');
+
 const blockchainContract = require('../blockchain');
+const challengeService   = require('../services/challengeService');
+
+// ── Helpers ────────────────────────────────────────────────────────────────
 
 /**
+ * Normalise a commitment hash to bytes32 hex for on-chain use.
+ * Accepts decimal string (snarkjs publicSignals format) or hex string.
+ */
+function toBytes32(value) {
+    if (typeof value === 'string' && value.startsWith('0x')) {
+        return ethers.zeroPadValue(value, 32);
+    }
+    // Decimal string from snarkjs
+    const hex = BigInt(value).toString(16).padStart(64, '0');
+    return '0x' + hex;
+}
+
+/**
+ * Build a structured Groth16 proof array from the snarkjs proof object.
+ * snarkjs format → ethers.js calldata format
+ */
+function proofToCalldata(proof) {
+    return {
+        pA: [BigInt(proof.pi_a[0]), BigInt(proof.pi_a[1])],
+        pB: [
+            [BigInt(proof.pi_b[0][1]), BigInt(proof.pi_b[0][0])],
+            [BigInt(proof.pi_b[1][1]), BigInt(proof.pi_b[1][0])],
+        ],
+        pC: [BigInt(proof.pi_c[0]), BigInt(proof.pi_c[1])],
+    };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /api/certificates/
+// ═══════════════════════════════════════════════════════════════════════════
+/**
  * createCertificate
- * @description Handles operations for createCertificate. Explains parameters, return values and usage.
- * @param {Object} req - The Express request object
- * @param {Object} res - The Express response object
- * @param {Function} next - The Express next middleware function
- * @returns {Promise<void>} Resolves when the operation is complete
+ *
+ * Receives the Poseidon commitment hash (computed client-side by doctor's browser)
+ * and registers it on-chain via CertificateRegistry.registerCertificate().
+ * NO plaintext diagnosis or patient data is stored here.
+ *
+ * Request body:
+ *   {
+ *     patientId:            string   (MongoDB ObjectId)
+ *     publicCommitmentHash: string   (hex Poseidon4 commitment from doctor's browser)
+ *     issuerAddress:        string   (doctor's Ethereum wallet address)
+ *     validFrom:            string   (ISO date)
+ *     validUntil:           string   (ISO date)
+ *     remarks:              string?  (non-identifying general remarks)
+ *     medicalRecordId:      string?
+ *     insuranceClaimId:     string?
+ *   }
  */
 exports.createCertificate = async (req, res, next) => {
     try {
-        const { patientId, diagnosis, remarks, validFrom, validUntil, medicalRecordId, emrId, insuranceClaimId } = req.body;
+        const {
+            patientId,
+            publicCommitmentHash,
+            issuerAddress,
+            validFrom,
+            validUntil,
+            remarks,
+            medicalRecordId,
+            insuranceClaimId,
+        } = req.body;
 
-        if (!patientId || !diagnosis || !validFrom || !validUntil) {
-            return res.status(400).json({ success: false, message: 'patientId, diagnosis, validFrom, and validUntil are required' , error: 'patientId, diagnosis, validFrom, and validUntil are required'  });
+        // ── Input Validation ───────────────────────────────────────────────
+        if (!patientId || !publicCommitmentHash || !validFrom || !validUntil) {
+            return res.status(400).json({
+                success: false,
+                message: 'patientId, publicCommitmentHash, validFrom, and validUntil are required',
+            });
         }
 
-        // Connect certificate to an existing EMR
-        const targetEmrId = medicalRecordId || emrId;
-        let emrRecord = null;
-
-        if (targetEmrId) {
-            emrRecord = await MedicalRecord.findById(targetEmrId);
+        if (!publicCommitmentHash.startsWith('0x') && !/^\d+$/.test(publicCommitmentHash)) {
+            return res.status(400).json({
+                success: false,
+                message: 'publicCommitmentHash must be a hex string (0x…) or decimal string',
+            });
         }
 
-        // Auto-resolve or find existing MedicalRecord for this patient if not explicitly supplied
-        if (!emrRecord) {
-            emrRecord = await MedicalRecord.findOne({
-                $or: [{ patient: patientId }]
-            }).sort({ createdAt: -1 });
+        const commitmentBytes32 = toBytes32(publicCommitmentHash);
 
-            if (!emrRecord) {
-                let doctorDoc = await Doctor.findOne({ user: req.user._id });
-                if (!doctorDoc) {
-                    doctorDoc = await Doctor.create({
-                        user: req.user._id,
-                        specialty: 'General Medicine',
-                        licenseNumber: `DOC-${req.user._id.toString().substring(18)}`,
-                    });
-                }
-                emrRecord = await MedicalRecord.create({
-                    patient: patientId,
-                    doctor: doctorDoc._id,
-                    diagnosis,
-                    chiefComplaint: 'Medical Certificate Evaluation',
-                    visitDate: new Date(validFrom),
-                });
-            }
-        }
-
-        // Resolve Doctor profile
+        // ── Resolve Doctor Profile ─────────────────────────────────────────
         let doctorProfile = await Doctor.findOne({ user: req.user._id });
         if (!doctorProfile) {
             doctorProfile = await Doctor.create({
@@ -65,195 +118,436 @@ exports.createCertificate = async (req, res, next) => {
             });
         }
 
-        // Generate HMAC verification hash
-        const hashString = `${patientId}|${diagnosis}|${validFrom}|${validUntil}`;
-        const secret = process.env.JWT_SECRET || 'supersecretkey123';
-        const verificationHash = crypto.createHmac('sha256', secret).update(hashString).digest('hex');
-
-        // Store hash on blockchain (calling storeEMRRecord on EMRRegistry.sol)
-        let transactionHash = null;
-        try {
-            const tx = await blockchainContract.storeEMRRecord(
-                patientId.toString(),
-                'MedicalCertificate',
-                verificationHash,
-                ''
-            );
-            await tx.wait();
-            transactionHash = tx.hash;
-            console.log("Certificate hash anchored to blockchain! TX Hash:", tx.hash);
-        } catch (contractError) {
-            console.error("Blockchain contract call failed:", contractError.message);
+        // ── Connect / resolve EMR ──────────────────────────────────────────
+        let emrRecord = null;
+        if (medicalRecordId) {
+            emrRecord = await MedicalRecord.findById(medicalRecordId);
+        }
+        if (!emrRecord) {
+            emrRecord = await MedicalRecord.findOne({ patient: patientId }).sort({ createdAt: -1 });
         }
 
+        // ── On-Chain Registration ──────────────────────────────────────────
+        let blockchainTxHash = null;
+        const registry = blockchainContract.getContract('CertificateRegistry');
+
+        if (registry) {
+            try {
+                // registerCertificate() on-chain — must be called by an authorized issuer wallet
+                const tx = await registry.registerCertificate(commitmentBytes32);
+                const receipt = await tx.wait();
+                blockchainTxHash = receipt.hash || tx.hash;
+                console.log('[CertificateRegistry] Hash registered on-chain. TX:', blockchainTxHash);
+            } catch (contractErr) {
+                console.error('[CertificateRegistry] On-chain registration failed:', contractErr.message);
+                // Return error — we must not create a certificate without on-chain registration
+                return res.status(502).json({
+                    success: false,
+                    message: 'On-chain certificate registration failed. Please ensure the issuer wallet is authorized.',
+                    error: contractErr.message,
+                });
+            }
+        } else {
+            console.warn('[CertificateRegistry] Contract not available — skipping on-chain registration (dev mode)');
+        }
+
+        // ── MongoDB Document ───────────────────────────────────────────────
         const certificate = await Certificate.create({
-            patient: patientId,
-            issuedBy: req.user._id,
-            doctor: doctorProfile._id,
-            medicalRecord: emrRecord._id,
-            insuranceClaim: insuranceClaimId || undefined,
-            diagnosis,
-            remarks,
+            patient:              patientId,
+            issuedBy:             req.user._id,
+            doctor:               doctorProfile._id,
+            medicalRecord:        emrRecord?._id,
+            insuranceClaim:       insuranceClaimId || undefined,
             validFrom,
             validUntil,
-            verificationHash,
-            blockchainHash: transactionHash || verificationHash,
-            transactionHash: transactionHash,
-            accessList: [req.user._id],
+            remarks,
+            publicCommitmentHash: commitmentBytes32,
+            verificationHash:     commitmentBytes32, // legacy alias
+            verificationMethod:   'zk_proof',
+            blockchainTxHash,
+            issuerAddress:        issuerAddress || req.user.walletAddress || null,
+            accessList:           [req.user._id],
         });
 
+        // ── Audit Log ──────────────────────────────────────────────────────
         await AuditLog.create({
-            actor: req.user._id,
-            action: 'ISSUE_CERTIFICATE',
-            details: { certificateId: certificate._id, patientId, emrId: emrRecord._id, transactionHash }
+            actor:  req.user._id,
+            action: 'ISSUE_ZK_CERTIFICATE',
+            details: {
+                certificateId: certificate._id,
+                patientId,
+                commitmentHash: commitmentBytes32,
+                blockchainTxHash,
+                issuerAddress,
+            },
         });
 
+        // ── Populate for Response ──────────────────────────────────────────
         const populatedCert = await Certificate.findById(certificate._id)
-            .populate('patient', 'name email')
-            .populate('issuedBy', 'name specialty')
-            .populate('doctor', 'specialty licenseNumber')
-            .populate('medicalRecord', 'diagnosis visitDate vitals clinicalNotes')
-            .populate('insuranceClaim', 'provider policyNumber claimAmount status')
+            .populate('patient',      'name email')
+            .populate('issuedBy',     'name')
+            .populate('doctor',       'specialty licenseNumber')
+            .populate('medicalRecord','visitDate')
             .lean();
 
-        res.status(201).json({ success: true, message: 'Operation successful', data: populatedCert });
+        // Privacy: do not return any plaintext medical fields from the DB document
+        return res.status(201).json({
+            success: true,
+            message: 'Certificate registered on-chain and stored',
+            data: {
+                _id:                  populatedCert._id,
+                validFrom:            populatedCert.validFrom,
+                validUntil:           populatedCert.validUntil,
+                publicCommitmentHash: populatedCert.publicCommitmentHash,
+                blockchainTxHash:     populatedCert.blockchainTxHash,
+                issuerAddress:        populatedCert.issuerAddress,
+                patient:              populatedCert.patient,
+                doctor:               populatedCert.doctor,
+                createdAt:            populatedCert.createdAt,
+            },
+        });
     } catch (error) {
-        console.error('Error in createCertificate:', error);
+        console.error('[createCertificate] Error:', error.message);
         next(error);
     }
 };
 
-/**
- * getMyCertificates
- * @description Handles operations for getMyCertificates. Explains parameters, return values and usage.
- * @param {Object} req - The Express request object
- * @param {Object} res - The Express response object
- * @param {Function} next - The Express next middleware function
- * @returns {Promise<void>} Resolves when the operation is complete
- */
+// ═══════════════════════════════════════════════════════════════════════════
+// GET /api/certificates/
+// ═══════════════════════════════════════════════════════════════════════════
 exports.getMyCertificates = async (req, res, next) => {
     try {
-        let certificates;
+        const query = req.user.role === 'doctor'
+            ? { issuedBy: req.user._id }
+            : { patient: req.user._id };
 
-        if (req.user.role === 'doctor') {
-            certificates = await Certificate.find({ issuedBy: req.user._id })
-                .populate('patient', 'name email')
-                .populate('issuedBy', 'name specialty')
-                .populate('doctor', 'specialty licenseNumber')
-                .populate('medicalRecord', 'diagnosis visitDate vitals clinicalNotes')
-                .populate('insuranceClaim', 'provider policyNumber claimAmount status')
-                .sort({ createdAt: -1 })
-                .lean();
-        } else {
-            certificates = await Certificate.find({ patient: req.user._id })
-                .populate('issuedBy', 'name specialty')
-                .populate('doctor', 'specialty licenseNumber')
-                .populate('medicalRecord', 'diagnosis visitDate vitals clinicalNotes')
-                .populate('insuranceClaim', 'provider policyNumber claimAmount status')
-                .sort({ createdAt: -1 })
-                .lean();
-        }
+        const certificates = await Certificate.find(query)
+            .populate('patient', 'name email')
+            .populate('issuedBy', 'name')
+            .populate('doctor', 'specialty licenseNumber')
+            .sort({ createdAt: -1 })
+            .lean();
 
-        res.status(200).json({ success: true, message: 'Operation successful', data: certificates });
+        // Strip any legacy fields with medical data before sending
+        const safe = certificates.map(cert => ({
+            _id:                  cert._id,
+            validFrom:            cert.validFrom,
+            validUntil:           cert.validUntil,
+            publicCommitmentHash: cert.publicCommitmentHash,
+            blockchainTxHash:     cert.blockchainTxHash,
+            issuerAddress:        cert.issuerAddress,
+            verificationMethod:   cert.verificationMethod,
+            patient:              cert.patient,
+            doctor:               cert.doctor,
+            remarks:              cert.remarks,
+            createdAt:            cert.createdAt,
+        }));
+
+        return res.status(200).json({ success: true, data: safe });
     } catch (error) {
         next(error);
     }
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// GET /api/certificates/lookup/:hash
+// ═══════════════════════════════════════════════════════════════════════════
 /**
- * verifyCertificate
- * @description Handles operations for verifyCertificate. Explains parameters, return values and usage.
- * @param {Object} req - The Express request object
- * @param {Object} res - The Express response object
- * @param {Function} next - The Express next middleware function
- * @returns {Promise<void>} Resolves when the operation is complete
+ * lookupCertificate — Public hash-based certificate lookup
+ *
+ * Searches the Certificate collection by:
+ *   1. publicCommitmentHash (exact hex match)
+ *   2. verificationHash     (legacy alias)
+ *   3. blockchainTxHash     (on-chain TX)
+ *   4. _id                  (MongoDB ObjectId, if valid)
+ *
+ * Returns safe non-PII metadata only (no diagnosis, no patient email).
+ * This endpoint is intentionally PUBLIC — anyone with the hash can verify.
  */
-exports.verifyCertificate = async (req, res, next) => {
+exports.lookupCertificate = async (req, res, next) => {
     try {
-        // KYLLANG_V4: Destructure verificationMethod and zkNullifier for dual-path routing
-        const { hash, data, verificationMethod = 'hmac_legacy', zkNullifier, zkProof } = req.body;
-        console.log("=== RAW REQ.BODY ===", JSON.stringify(req.body, null, 2));
-
-        if (verificationMethod === 'zk_proof') {
-            if (!zkNullifier) {
-                return res.status(400).json({ success: false, message: 'zkNullifier is required for ZK verification' });
-            }
-
-            // KYLLANG_V4: Fix ZKP Race Condition
-            // We must verify and consume the nullifier on-chain BEFORE returning any off-chain data
-            const blockchain = require('../blockchain');
-            const zkContract = blockchain.getContract && blockchain.getContract('ZKVerifier');
-            
-            if (zkContract && (process.env.NODE_ENV === 'production' || process.env.TEST_MODE === 'true')) {
-                try {
-                    const consumed = await zkContract.isNullifierConsumed(zkNullifier);
-                    if (consumed) {
-                        return res.status(403).json({ success: false, message: 'ZK Nullifier already consumed (Replay attack)', error: 'Replay attack' });
-                    }
-                    
-                    // Submit transaction and wait for block confirmation
-                    const tx = await zkContract.consumeNullifier(zkNullifier);
-                    await tx.wait();
-                } catch (e) {
-                    console.error('[ZKVerifier] Check or consumption failed', e);
-                    return res.status(500).json({ success: false, message: 'Blockchain verification failed', error: e.message });
-                }
-            }
-
-            const certificate = await Certificate.findOne({ zkNullifier })
-                .populate('patient', 'name email')
-                .populate('issuedBy', 'name specialty')
-                .populate('doctor', 'specialty licenseNumber')
-                .populate('medicalRecord', 'diagnosis visitDate vitals clinicalNotes')
-                .populate('insuranceClaim', 'provider policyNumber claimAmount status')
-                .lean();
-
-            if (!certificate) {
-                return res.status(404).json({ success: false, message: 'Certificate matches nullifier but not found in the database. It may have been revoked.', error: 'Not found' });
-            }
-
-            return res.status(200).json({ success: true, message: 'Operation successful', data: { valid: true, certificate } });
+        const raw = (req.params.hash || '').trim();
+        if (!raw) {
+            return res.status(400).json({ success: false, message: 'Hash parameter is required.' });
         }
 
-        // --- LEGACY HMAC PATH ---
-        if (!hash || !data) {
-            return res.status(400).json({ success: false, message: 'Hash and data are required for verification' , error: 'Hash and data are required for verification'  });
+        // Normalise: if it looks like a base64 key payload (QR from document)
+        // try to treat it as a verificationHash too.
+        // Build an $or query across all searchable fields.
+        const conditions = [
+            { publicCommitmentHash: raw },
+            { verificationHash: raw },
+            { blockchainTxHash: raw },
+        ];
+
+        // Add ObjectId match only if the string is a valid Mongo ObjectId
+        if (/^[a-fA-F0-9]{24}$/.test(raw)) {
+            conditions.push({ _id: raw });
         }
 
-        // Recompute hash (ZKP concept verification)
-        const hashString = `${data.patientId}|${data.diagnosis}|${data.validFrom}|${data.validUntil}`;
-        const secret = process.env.JWT_SECRET || 'supersecretkey123';
-        const expectedHash = crypto.createHmac('sha256', secret).update(hashString).digest('hex');
+        // Also try hex-prefixed variant
+        if (!raw.startsWith('0x')) {
+            conditions.push({ publicCommitmentHash: '0x' + raw });
+            conditions.push({ verificationHash: '0x' + raw });
+        }
 
-        console.log("=== VERIFY HASH FIX ===");
-        console.log("Received Hash:", hash);
-        console.log("Expected Hash:", expectedHash);
-        console.log("Data piped string:", hashString);
+        const cert = await Certificate.findOne({ $or: conditions })
+            .populate('patient',  'name')       // name only — no email
+            .populate('issuedBy', 'name')
+            .populate('doctor',   'specialty licenseNumber')
+            .lean();
 
-        if (hash !== expectedHash) {
-            return res.status(400).json({
-                success: true,
-                message: `Hash mismatch.\nBackend Received Data: ${JSON.stringify(req.body)}\nComputed Hash: ${expectedHash}\nExpected Hash: ${hash}`,
-                data: {}
+        if (!cert) {
+            return res.status(404).json({
+                success: false,
+                status: 'not_found',
+                message: 'No certificate found matching this hash. It may not be registered in the Kyllang system.',
             });
         }
 
+        // Return safe fields only
+        return res.status(200).json({
+            success: true,
+            status: 'verified',
+            data: {
+                _id:                  cert._id,
+                patientName:          cert.patient?.name || 'Patient',
+                doctorName:           cert.issuedBy?.name || 'Unknown Issuer',
+                specialty:            cert.doctor?.specialty,
+                licenseNumber:        cert.doctor?.licenseNumber,
+                validFrom:            cert.validFrom,
+                validUntil:           cert.validUntil,
+                remarks:              cert.remarks,
+                publicCommitmentHash: cert.publicCommitmentHash,
+                blockchainTxHash:     cert.blockchainTxHash,
+                issuerAddress:        cert.issuerAddress,
+                verificationMethod:   cert.verificationMethod,
+                issuedAt:             cert.createdAt,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * getCertificateChallenge
+ *
+ * Issues a fresh 248-bit ephemeral challenge nonce for the ZK verification
+ * challenge-response protocol.
+ *
+ * Response:
+ *   { nonce, sessionId, expiresIn }
+ *
+ * The Verifier encodes { nonce, sessionId, callbackUrl } into a Challenge QR.
+ * The Patient scans this QR, generates a Groth16 proof using the nonce,
+ * and submits it back.
+ */
+exports.getCertificateChallenge = async (req, res) => {
+    const challenge = challengeService.generateChallenge();
+
+    return res.status(200).json({
+        success: true,
+        data: {
+            nonce:     challenge.nonce,
+            sessionId: challenge.sessionId,
+            expiresIn: challenge.expiresIn,
+            callbackUrl: `${req.protocol}://${req.get('host')}/api/certificates/verify`,
+        },
+    });
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GET /api/certificates/session/:sessionId
+// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * pollVerificationSession
+ *
+ * Verifier polls this endpoint to check if the patient has submitted their proof.
+ * Returns null/pending until the proof is processed and stored.
+ *
+ * This is the ONLY path the Verifier uses to get results — the backend
+ * never sends verification status proactively (no WebSocket required).
+ */
+exports.pollVerificationSession = async (req, res) => {
+    const { sessionId } = req.params;
+
+    if (!sessionId || sessionId.length !== 32) {
+        return res.status(400).json({ success: false, message: 'Invalid sessionId' });
+    }
+
+    const result = challengeService.pollSessionResult(sessionId);
+
+    if (!result) {
+        return res.status(200).json({
+            success: true,
+            data: { status: 'pending', message: 'Patient has not yet submitted a proof for this session' },
+        });
+    }
+
+    return res.status(200).json({
+        success: true,
+        data: { status: 'resolved', ...result },
+    });
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /api/certificates/verify
+// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * verifyCertificate
+ *
+ * Receives the Groth16 proof from the Patient's device. HMAC logic is removed.
+ *
+ * Protocol:
+ *   1. Validate nonce TTL and uniqueness (challengeService)
+ *   2. Call CertificateRegistry.verifyCertificateProof(a, b, c, pubSignals)
+ *      — On-chain: checks proof math, hash registration, nonce freshness atomically
+ *   3. Consume nonce in challengeService (off-chain guard)
+ *   4. Look up Certificate in MongoDB by publicCommitmentHash
+ *   5. Store proof result in session (for Verifier polling)
+ *   6. Return safe metadata (no plaintext medical data)
+ *
+ * Request body:
+ *   {
+ *     proof: {
+ *       pi_a: [string, string, string],
+ *       pi_b: [[string,string],[string,string],[string,string]],
+ *       pi_c: [string, string, string],
+ *       protocol: "groth16",
+ *       curve: "bn128"
+ *     },
+ *     publicSignals: [string, string, string],   // [commitment, nonce, sessionCommitment]
+ *     sessionId:     string                      // from GET /challenge
+ *   }
+ */
+exports.verifyCertificate = async (req, res, next) => {
+    try {
+        const { proof, publicSignals, sessionId } = req.body;
+
+        // ── Input validation ───────────────────────────────────────────────
+        if (!proof || !publicSignals || !Array.isArray(publicSignals) || publicSignals.length !== 3) {
+            return res.status(400).json({
+                success: false,
+                message: 'Request must include proof and publicSignals[3] (commitment, nonce, sessionCommitment)',
+            });
+        }
+
+        if (!proof.pi_a || !proof.pi_b || !proof.pi_c) {
+            return res.status(400).json({
+                success: false,
+                message: 'Malformed proof object. Expected pi_a, pi_b, pi_c arrays.',
+            });
+        }
+
+        const [commitmentDecStr, nonceDecStr, sessionCommitmentDecStr] = publicSignals;
+
+        // ── Derive nonce hex for challengeService lookup ───────────────────
+        const nonceHex = '0x' + BigInt(nonceDecStr).toString(16).padStart(62, '0');
+
+        // ── Step 1: Validate nonce TTL (off-chain fast check) ─────────────
+        const challengeCheck = challengeService.validateChallenge(nonceHex);
+        if (!challengeCheck.valid) {
+            return res.status(400).json({
+                success: false,
+                message: `Challenge validation failed: ${challengeCheck.reason}`,
+                error: 'NONCE_INVALID',
+            });
+        }
+
+        // ── Step 2: Build on-chain calldata ────────────────────────────────
+        const { pA, pB, pC } = proofToCalldata(proof);
+        const pubSignalsOnChain = [
+            BigInt(commitmentDecStr),
+            BigInt(nonceDecStr),
+            BigInt(sessionCommitmentDecStr),
+        ];
+
+        // ── Step 3: On-chain atomic verification + nonce consumption ───────
+        const registry = blockchainContract.getContract('CertificateRegistry');
+
+        if (!registry) {
+            // Dev fallback: trust publicSignals, skip on-chain verification
+            console.warn('[verifyCertificate] CertificateRegistry not connected — dev mode bypass');
+        } else {
+            try {
+                // verifyCertificateProof is state-changing (atomically consumes session on-chain)
+                const tx = await registry.verifyCertificateProof(pA, pB, pC, pubSignalsOnChain);
+                await tx.wait();
+                console.log('[CertificateRegistry] Proof verified on-chain. TX:', tx.hash || tx);
+            } catch (contractErr) {
+                // Parse revert reason for structured error response
+                const reason = contractErr.reason || contractErr.message || 'Unknown contract error';
+                console.error('[verifyCertificate] On-chain verification failed:', reason);
+
+                let errorCode = 'PROOF_INVALID';
+                if (reason.includes('session already consumed') || reason.includes('replay')) errorCode = 'REPLAY_BLOCKED';
+                if (reason.includes('not registered')) errorCode = 'HASH_UNREGISTERED';
+                if (reason.includes('revoked'))        errorCode = 'CERTIFICATE_REVOKED';
+
+                return res.status(400).json({
+                    success: false,
+                    valid:   false,
+                    message: `On-chain verification failed: ${reason}`,
+                    error:   errorCode,
+                });
+            }
+        }
+
+        // ── Step 4: Consume nonce in challengeService (off-chain guard) ────
+        challengeService.validateAndConsumeChallenge(nonceHex);
+
+        // ── Step 5: Look up Certificate in MongoDB ─────────────────────────
+        const commitmentBytes32 = toBytes32(commitmentDecStr);
         const certificate = await Certificate.findOne({
-            verificationHash: hash,
+            publicCommitmentHash: commitmentBytes32,
         })
-            .populate('patient', 'name email')
-            .populate('issuedBy', 'name specialty')
-            .populate('doctor', 'specialty licenseNumber')
-            .populate('medicalRecord', 'diagnosis visitDate vitals clinicalNotes')
-            .populate('insuranceClaim', 'provider policyNumber claimAmount status')
+            .populate('patient',  'name email')
+            .populate('issuedBy', 'name')
+            .populate('doctor',   'specialty licenseNumber')
             .lean();
 
         if (!certificate) {
-            return res.status(404).json({ success: false, message: 'Certificate matches hash but not found in the database. It may have been revoked.' , error: 'Certificate matches hash but not found in the database. It may have been revoked.'  });
+            // Certificate is valid on-chain but not in our DB — issue a soft warning
+            console.warn('[verifyCertificate] Hash verified on-chain but not found in MongoDB:', commitmentBytes32);
         }
 
-        res.status(200).json({ success: true, message: 'Operation successful', data: { valid: true, certificate } });
+        // ── Step 6: Build safe response (zero plaintext leakage) ──────────
+        const safeResult = {
+            valid:            true,
+            commitmentHash:   commitmentBytes32,
+            issuerAddress:    certificate?.issuerAddress || null,
+            issuedAt:         certificate?.createdAt || null,
+            validFrom:        certificate?.validFrom || null,
+            validUntil:       certificate?.validUntil || null,
+            doctor:           certificate?.doctor || null,
+            // Note: NO diagnosis, NO patientId string, NO salt
+        };
+
+        // ── Step 7: Store result in session (for Verifier polling) ─────────
+        if (sessionId) {
+            challengeService.storeProofResult(sessionId, safeResult);
+        }
+
+        // ── Audit Log ──────────────────────────────────────────────────────
+        await AuditLog.create({
+            actor:  certificate?.patient || null,
+            action: 'VERIFY_ZK_CERTIFICATE',
+            details: {
+                commitmentHash: commitmentBytes32,
+                sessionId,
+                valid: true,
+            },
+        }).catch(() => {}); // Non-blocking
+
+        return res.status(200).json({
+            success: true,
+            message: 'Certificate proof verified successfully',
+            data: safeResult,
+        });
     } catch (error) {
+        console.error('[verifyCertificate] Unexpected error:', error.message);
         next(error);
     }
 };

@@ -8,7 +8,7 @@ const rateLimit = require('express-rate-limit');
  * @param {*} message - message parameter
  * @returns {*} Return value
  */
-const createLimiter = (windowMs, max, message) => {
+const createLimiter = (windowMs, max, message, options = {}) => {
     return rateLimit({
         windowMs,
         max,
@@ -17,7 +17,8 @@ const createLimiter = (windowMs, max, message) => {
         message: {
             success: false,
             message: message || 'Too many requests from this IP, please try again later.'
-        }
+        },
+        ...options
     });
 };
 
@@ -25,7 +26,8 @@ const createLimiter = (windowMs, max, message) => {
 exports.loginLimiter = createLimiter(
     15 * 60 * 1000, 
     500, 
-    'Too many login attempts from this IP, please try again after 15 minutes.'
+    'Too many login attempts from this IP, please try again after 15 minutes.',
+    { skipSuccessfulRequests: true }
 );
 
 // Register Limiter: 300 requests per 1 hour

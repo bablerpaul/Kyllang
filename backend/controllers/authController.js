@@ -1,7 +1,9 @@
 const User = require('../models/User');
 const RefreshToken = require('../models/RefreshToken');
+const EscrowStore = require('../models/EscrowStore');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const { ethers } = require('ethers');
 
 /**
  * generateAccessToken
@@ -51,7 +53,7 @@ const setTokensInCookies = (res, accessToken, refreshToken) => {
  */
 exports.register = async (req, res, next) => {
     try {
-        const { name, email, password, role, specialty } = req.body;
+        const { name, email, password, role, specialty, escrowPackage } = req.body;
 
         if (!name || !email || !password) {
             return res.status(400).json({ success: false, message: 'Please add all fields' , error: 'Please add all fields'  });
@@ -74,6 +76,56 @@ exports.register = async (req, res, next) => {
         });
 
         if (user) {
+            // Process Escrow Package if provided
+            if (escrowPackage && escrowPackage.envelopes && escrowPackage.commitments) {
+                try {
+                    // Separate on-chain envelope (Custodian 2) and off-chain envelopes
+                    const onChainEnvelope = escrowPackage.envelopes.find(e => e.custodianId === 2);
+                    const offChainEnvelopes = escrowPackage.envelopes.filter(e => e.custodianId !== 2);
+
+                    // 1. Store off-chain envelopes
+                    await EscrowStore.create({
+                        patientPubKey: escrowPackage.patientPubKey,
+                        envelopes: offChainEnvelopes
+                    });
+
+                    // 2. Dispatch on-chain envelope to Ganache
+                    const rpcUrl = process.env.RPC_URL || 'http://127.0.0.1:7545';
+                    const provider = new ethers.JsonRpcProvider(rpcUrl);
+                    const adminWallet = new ethers.Wallet(
+                        process.env.REGISTRY_ADMIN_KEY || process.env.PRIVATE_KEY, 
+                        provider
+                    );
+                    
+                    const registryAddress = process.env.KEY_ESCROW_REGISTRY_ADDRESS;
+                    if (registryAddress) {
+                        const abi = [
+                            "function depositEscrow(bytes32 patientPubKey, bytes calldata encryptedShare, tuple(uint256 x, uint256 y) c0, tuple(uint256 x, uint256 y) c1, tuple(uint256 x, uint256 y) c2, address trustee) external"
+                        ];
+                        const registry = new ethers.Contract(registryAddress, abi, adminWallet);
+                        
+                        // Convert public key base64 to bytes32 (hash it)
+                        // In reality, patientPubKey is 32 bytes (X25519 public key)
+                        const pubKeyBuffer = Buffer.from(escrowPackage.patientPubKey, 'base64');
+                        const patientPubKeyHex = '0x' + pubKeyBuffer.toString('hex');
+                        
+                        const ciphertextHex = '0x' + Buffer.from(JSON.stringify(onChainEnvelope)).toString('hex');
+                        
+                        const c0 = { x: escrowPackage.commitments[0].x, y: escrowPackage.commitments[0].y };
+                        const c1 = { x: escrowPackage.commitments[1].x, y: escrowPackage.commitments[1].y };
+                        const c2 = { x: escrowPackage.commitments[2].x, y: escrowPackage.commitments[2].y };
+                        
+                        const trustee = adminWallet.address; // For prototype
+                        
+                        const tx = await registry.depositEscrow(patientPubKeyHex, ciphertextHex, c0, c1, c2, trustee);
+                        await tx.wait();
+                    }
+                } catch (escrowErr) {
+                    console.error("Escrow deposit failed:", escrowErr);
+                    // We don't fail registration if escrow fails for prototype
+                }
+            }
+
             const accessToken = generateAccessToken(user._id);
             const refreshToken = await generateRefreshToken(user._id);
             setTokensInCookies(res, accessToken, refreshToken);

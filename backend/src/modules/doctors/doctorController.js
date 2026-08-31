@@ -14,6 +14,22 @@ const util = require('tweetnacl-util');
 const blockchainContract = require('../../../blockchain');
 
 /**
+ * getAllDoctors
+ * @description Retrieves all available doctors in the system
+ */
+exports.getAllDoctors = async (req, res, next) => {
+    try {
+        const doctors = await Doctor.find()
+            .populate('user', 'name email')
+            .lean();
+        res.status(200).json({ success: true, message: 'Operation successful', data: doctors });
+    } catch (error) {
+        console.error('Error in getAllDoctors:', error);
+        next(error);
+    }
+};
+
+/**
  * generateToken
  * @description Handles operations for generateToken. Explains parameters, return values and usage.
  * @param {*} id - id parameter

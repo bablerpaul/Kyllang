@@ -37,7 +37,8 @@ const MyDocuments = () => {
     const fetchDocuments = async () => {
         try {
             const data = await apiFetch('/api/patient/documents');
-            setDocuments(data || []);
+            const docs = Array.isArray(data) ? data : (data?.data || []);
+            setDocuments(docs);
             setLoading(false);
         } catch (err) {
             setError(err.message || 'Failed to fetch documents');

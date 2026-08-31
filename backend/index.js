@@ -25,16 +25,10 @@ app.use(mongoSanitize());
 // Strict CORS Policy
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
     ? process.env.ALLOWED_ORIGINS.split(',') 
-    : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'];
+    : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'];
 
 app.use(cors({
-    origin: function (origin, callback) {
-        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
+    origin: true, // Allow all origins for development and ease of testing
     credentials: true, // Allow cookies to be sent across origins
 }));
 
@@ -121,8 +115,8 @@ mongoose
         const { connectRedis } = require('./src/config/redisClient');
         await connectRedis();
         if (require.main === module) {
-            app.listen(PORT, () => {
-                console.log(`Server running on port ${PORT}`);
+            app.listen(PORT, '0.0.0.0', () => {
+                console.log(`Server running on port ${PORT} (0.0.0.0)`);
             });
         }
     })
