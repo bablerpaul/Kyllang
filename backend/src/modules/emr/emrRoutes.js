@@ -17,6 +17,7 @@ const {
     getEMRById,
     updateEMR,
     deleteEMR,
+    verifyEMR,
 } = require('./emrRecordController');
 const { protect, authorize } = require('../../../middlewares/authMiddleware');
 
@@ -29,10 +30,7 @@ router.route('/')
 
 router.get('/patient/:patientId', getPatientEMRs);
 
-router.route('/:id')
-    .get(getEMRById)
-    .put(authorize('doctor', 'hospital_admin'), updateEMR)
-    .delete(authorize('doctor', 'hospital_admin'), deleteEMR);
+router.get('/:id/verify', authorize('admin', 'hospital_admin', 'doctor', 'general_user'), verifyEMR);
 
 // Existing Legacy EMR Aliases & Domains (Preserved 100%)
 router.get('/records', getMedicalRecord);
@@ -50,5 +48,10 @@ router.post('/prescriptions', authorize('doctor'), createPrescription);
 // Lab Reports
 router.get('/lab-reports', getLabReports);
 router.post('/lab-reports', authorize('doctor', 'hospital_admin'), createLabReport);
+
+router.route('/:id')
+    .get(getEMRById)
+    .put(authorize('doctor', 'hospital_admin'), updateEMR)
+    .delete(authorize('doctor', 'hospital_admin'), deleteEMR);
 
 module.exports = router;

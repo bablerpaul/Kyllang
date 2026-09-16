@@ -6,5 +6,5 @@ module.exports = {
     jwtSecret: process.env.JWT_SECRET || 'secret_key',
     rpcUrl: process.env.RPC_URL || 'http://127.0.0.1:7545',
     privateKey: process.env.PRIVATE_KEY || '0x712fac96b41c7df01136bad90dbd1ae957ecdfc169bf88c8a59f650bc9a9f388',
-    contractAddress: process.env.CONTRACT_ADDRESS || '0x4cB06b7850239d5CcDCA04FddEc75772A5a573Ec',
+    contractAddress: process.env.CONTRACT_ADDRESS || '0xDA0bab807633f07f013f94DD0E6A4F96F8742B53',
 };

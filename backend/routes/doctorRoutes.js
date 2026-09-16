@@ -36,7 +36,11 @@ const {
     updatePatientDiagnosis,
     addClinicalNotes,
     uploadPrescription,
-    getAllDoctors
+    getAllDoctors,
+    getDoctorProfile,
+    getMyAvailability,
+    updateMyAvailability,
+    getAvailableSlots,
 } = require('../src/modules/doctors/doctorController');
 const { protect, authorize } = require('../middlewares/authMiddleware');
 const { registerLimiter, loginLimiter, uploadLimiter } = require('../middlewares/rateLimiter');
@@ -52,12 +56,22 @@ router.post('/login', loginLimiter, loginDoctor);
 // General Protected Route for All Users
 router.get('/all', protect, getAllDoctors);
 
+// Available slots — accessible by any authenticated user (patients book via this)
+router.get('/:doctorId/slots', protect, getAvailableSlots);
+
 // Protected Doctor Routes
 router.use(protect);
 router.use(authorize('doctor'));
 
+// Doctor Profile
+router.get('/me', getDoctorProfile);
+
+// Doctor Availability Management (doctor only)
+router.get('/me/availability', getMyAvailability);
+router.put('/me/availability', updateMyAvailability);
+
 // EMR Patient & Clinical Operations
-router.get('/patients', cacheRoute('doctor_profile', 3600), getDoctorPatients);
+router.get('/patients', cacheRoute('doctor_profile', 60), getDoctorPatients);
 router.get('/patient/:patientId/emr', getPatientEMR);
 router.put('/patient/:patientId/diagnosis', emrDiagnosisRules(), validate, updatePatientDiagnosis);
 router.post('/patient/:patientId/notes', emrNotesRules(), validate, addClinicalNotes);

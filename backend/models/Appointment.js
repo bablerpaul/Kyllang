@@ -37,9 +37,34 @@ const appointmentSchema = new mongoose.Schema(
         clinicalNotes: {
             type: String,
         },
+
+        /**
+         * Rescheduling audit: stores the original date/time before the
+         * most recent reschedule so the history remains traceable.
+         * Only populated when a cancelled appointment is rescheduled.
+         */
+        rescheduledFrom: {
+            appointmentDate: { type: Date },
+            timeSlot:        { type: String },
+        },
+        rescheduledAt: { type: Date },
     },
     {
         timestamps: true,
+    }
+);
+
+/**
+ * Partial unique index: prevents two SCHEDULED appointments for the same
+ * doctor/date/timeSlot. Cancelled and no_show appointments are excluded
+ * from the index so those slots can be rebooked without conflict.
+ */
+appointmentSchema.index(
+    { doctor: 1, appointmentDate: 1, timeSlot: 1 },
+    {
+        unique: true,
+        partialFilterExpression: { status: 'scheduled' },
+        name: 'unique_scheduled_slot',
     }
 );
 

@@ -1,4 +1,7 @@
 const { MedicalRecord, Appointment, Prescription, LabReport, User, AuditLog } = require('../../models');
+const Patient = require('../../../models/Patient');
+const Doctor = require('../../../models/Doctor');
+const mongoose = require('mongoose');
 
 /**
  * getMedicalRecord
@@ -10,24 +13,38 @@ const { MedicalRecord, Appointment, Prescription, LabReport, User, AuditLog } = 
  */
 exports.getMedicalRecord = async (req, res, next) => {
     try {
-        let patientId = req.params.patientId || req.user._id;
-        if (req.user.role === 'general_user' && patientId.toString() !== req.user._id.toString()) {
+        console.log("===> HITTING getMedicalRecord", req.originalUrl, req.params);
+        let userId = req.params.patientId || req.user._id;
+        if (req.user.role === 'general_user' && userId.toString() !== req.user._id.toString()) {
             return res.status(403).json({ success: false, message: 'Not authorized to access this record' });
         }
-        let record = await MedicalRecord.findOne({ patient: patientId }).populate('patient', 'name email').lean();
-        if (!record) {
-            record = await MedicalRecord.create({
-                patient: patientId,
-                bloodGroup: 'O+',
-                allergies: ['Penicillin'],
-                chronicConditions: ['Hypertension'],
-                vitals: { bloodPressure: '120/80', heartRate: 72, temperature: 98.6, weight: 70, height: 175 },
-                medicalHistory: [{ condition: 'Seasonal Allergies', diagnosedDate: new Date('2022-01-15'), status: 'active' }],
-            });
-            record = await record.populate('patient', 'name email');
-            record = record.toObject();
+
+        const patientDoc = await Patient.findOne({ user: userId }).populate('user', 'name email').lean();
+        if (!patientDoc) {
+            return res.status(404).json({ success: false, message: 'Patient profile not found' });
         }
-        res.status(200).json({ success: true, message: 'Operation successful', data: record });
+
+        // Find the latest medical record for this patient (for top-level vitals compatibility)
+        let record = await MedicalRecord.findOne({ patient: patientDoc._id }).sort({ visitDate: -1 }).lean();
+        
+        // Find ALL medical records for the patient (EMR History)
+        const emrHistory = await MedicalRecord.find({ patient: patientDoc._id })
+            .populate({ path: 'doctor', populate: { path: 'user', select: 'name email' } })
+            .sort({ visitDate: -1 })
+            .lean();
+
+        // Merge patient profile data with medical record data
+        const responseData = {
+            ...record,
+            bloodGroup: patientDoc.bloodGroup,
+            allergies: patientDoc.allergies || [],
+            chronicConditions: patientDoc.chronicConditions || [],
+            vitals: record?.vitals || record?.vitalSigns || {},
+            medicalHistory: record?.medicalHistory || [],
+            emrHistory: emrHistory || []
+        };
+
+        res.status(200).json({ success: true, message: 'Operation successful', data: responseData });
     } catch (err) {
         next(err);
     }
@@ -86,14 +103,35 @@ exports.updateMedicalRecord = async (req, res, next) => {
 exports.getAppointments = async (req, res, next) => {
     try {
         let filter = {};
+
         if (req.user.role === 'doctor') {
-            filter = { doctor: req.user._id };
+            // Appointment.doctor refs Doctor._id, not User._id
+            const doctorDoc = await Doctor.findOne({ user: req.user._id }).select('_id');
+            if (!doctorDoc) {
+                return res.status(404).json({ success: false, message: 'Doctor profile not found for this account.' });
+            }
+            filter = { doctor: doctorDoc._id };
         } else if (req.user.role === 'general_user') {
-            filter = { patient: req.user._id };
+            // Appointment.patient refs Patient._id, not User._id
+            const patientDoc = await Patient.findOne({ user: req.user._id }).select('_id');
+            if (!patientDoc) {
+                return res.status(404).json({ success: false, message: 'Patient profile not found for this account.' });
+            }
+            filter = { patient: patientDoc._id };
         }
+        // hospital_admin: filter stays {} — sees all appointments
+
         const appointments = await Appointment.find(filter)
-            .populate('patient', 'name email')
-            .populate('doctor', 'name specialty')
+            .populate({
+                path: 'patient',
+                select: 'dateOfBirth gender bloodGroup',
+                populate: { path: 'user', select: 'name email' },
+            })
+            .populate({
+                path: 'doctor',
+                select: 'specialty licenseNumber department',
+                populate: { path: 'user', select: 'name email' },
+            })
             .sort({ appointmentDate: 1 })
             .lean();
 
@@ -115,18 +153,101 @@ exports.createAppointment = async (req, res, next) => {
     try {
         const { doctorId, patientId, appointmentDate, timeSlot, reason } = req.body;
 
-        const pId = req.user.role === 'general_user' ? req.user._id : patientId;
+        // ── Doctors cannot book appointments as patients ──────────────────
+        if (req.user.role === 'doctor') {
+            return res.status(403).json({ success: false, message: 'Doctors cannot create patient appointments.' });
+        }
 
+        // ── Input validation ──────────────────────────────────────────────
+        if (!doctorId || !mongoose.Types.ObjectId.isValid(doctorId)) {
+            return res.status(400).json({ success: false, message: 'A valid doctorId is required.' });
+        }
+        if (!appointmentDate) {
+            return res.status(400).json({ success: false, message: 'appointmentDate is required.' });
+        }
+        const apptDate = new Date(appointmentDate);
+        if (isNaN(apptDate.getTime())) {
+            return res.status(400).json({ success: false, message: 'appointmentDate is not a valid date.' });
+        }
+        // Compare using start-of-day UTC so a same-day booking is not rejected
+        const todayUtc = new Date();
+        todayUtc.setUTCHours(0, 0, 0, 0);
+        if (apptDate < todayUtc) {
+            return res.status(400).json({ success: false, message: 'appointmentDate cannot be in the past.' });
+        }
+        if (!timeSlot || !timeSlot.toString().trim()) {
+            return res.status(400).json({ success: false, message: 'timeSlot is required.' });
+        }
+        if (!reason || !reason.toString().trim()) {
+            return res.status(400).json({ success: false, message: 'reason is required.' });
+        }
+
+        // ── Validate Doctor ───────────────────────────────────────────────
+        const doctorDoc = await Doctor.findById(doctorId);
+        if (!doctorDoc) {
+            return res.status(404).json({ success: false, message: 'Doctor not found.' });
+        }
+
+        // ── Resolve Patient ───────────────────────────────────────────────
+        let resolvedPatientId;
+        if (req.user.role === 'general_user') {
+            // Find the Patient profile linked to this User account
+            const patientDoc = await Patient.findOne({ user: req.user._id }).select('_id');
+            if (!patientDoc) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Patient profile not found for this account. Please contact the administrator.',
+                });
+            }
+            resolvedPatientId = patientDoc._id;
+        } else if (req.user.role === 'hospital_admin') {
+            // Admin must supply a valid patientId
+            if (!patientId || !mongoose.Types.ObjectId.isValid(patientId)) {
+                return res.status(400).json({ success: false, message: 'Admin must provide a valid patientId.' });
+            }
+            const patientDoc = await Patient.findById(patientId).select('_id');
+            if (!patientDoc) {
+                return res.status(404).json({ success: false, message: 'Patient not found.' });
+            }
+            resolvedPatientId = patientDoc._id;
+        } else {
+            return res.status(403).json({ success: false, message: 'Not authorized to create appointments.' });
+        }
+
+        // ── Double-booking check (application level) ──────────────────────
+        // The partial unique index on the model also enforces this at DB level
+        // but we check first to return a clean 409 instead of a MongoError.
+        const existingAppointment = await Appointment.findOne({
+            doctor: doctorDoc._id,
+            appointmentDate: apptDate,
+            timeSlot: timeSlot.trim(),
+            status: { $in: ['scheduled', 'completed'] },
+        });
+        if (existingAppointment) {
+            return res.status(409).json({
+                success: false,
+                message: 'This time slot is already booked for the selected doctor. Please choose a different time.',
+            });
+        }
+
+        // ── Create ────────────────────────────────────────────────────────
         const appointment = await Appointment.create({
-            patient: pId,
-            doctor: doctorId,
-            appointmentDate,
-            timeSlot,
-            reason,
+            patient: resolvedPatientId,
+            doctor: doctorDoc._id,
+            appointmentDate: apptDate,
+            timeSlot: timeSlot.trim(),
+            reason: reason.trim(),
         });
 
-        res.status(201).json({ success: true, message: 'Operation successful', data: appointment });
+        res.status(201).json({ success: true, message: 'Appointment booked successfully.', data: appointment });
     } catch (err) {
+        // Handle the DB-level unique index violation as a 409 too
+        if (err.code === 11000) {
+            return res.status(409).json({
+                success: false,
+                message: 'This time slot is already booked for the selected doctor.',
+            });
+        }
         next(err);
     }
 };

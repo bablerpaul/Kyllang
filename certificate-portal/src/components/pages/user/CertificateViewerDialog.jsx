@@ -12,29 +12,43 @@ import {
     Grid
 } from '@mui/material';
 import { Download as DownloadIcon } from '@mui/icons-material';
-import { QRCodeSVG } from 'qrcode.react';
-import html2canvas from 'html2canvas';
+import { QRCodeCanvas } from 'qrcode.react';
 import { jsPDF } from 'jspdf';
 
 const CertificateViewerDialog = ({ open, onClose, certificate }) => {
     const printRef = useRef();
 
     const handleDownloadPdf = async () => {
-        const element = printRef.current;
-        if (!element) return;
+        if (!certificate) return;
 
         try {
-            const canvas = await html2canvas(element, {
-                scale: 2,
-                useCORS: true,
-            });
-            const dataUrl = canvas.toDataURL('image/png');
             const pdf = new jsPDF('p', 'mm', 'a4');
+            const patientId = typeof certificate.patient === 'object'
+                ? certificate.patient._id
+                : certificate.patient;
+            const issuer = certificate.issuedBy?.name || 'Unknown Issuer';
+            const qrCanvas = printRef.current?.querySelector('canvas');
 
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            pdf.setFontSize(20);
+            pdf.text('MEDICAL CERTIFICATE', 105, 25, { align: 'center' });
+            pdf.setFontSize(11);
+            pdf.text(`Patient ID: ${patientId || 'Patient'}`, 20, 45);
+            pdf.text(`Issued By: Dr. ${issuer}`, 20, 55);
+            pdf.text(`Valid: ${new Date(certificate.validFrom || certificate.createdAt).toLocaleDateString()} - ${certificate.validUntil ? new Date(certificate.validUntil).toLocaleDateString() : 'N/A'}`, 20, 65);
+            pdf.text(`Remarks: ${certificate.remarks || certificate.treatment || 'None'}`, 20, 75);
+            pdf.text(`Certificate ID: ${certificate._id}`, 20, 85);
+            pdf.text(`Commitment: ${certificate.publicCommitmentHash || certificate.verificationHash || 'Unavailable'}`, 20, 95, { maxWidth: 170 });
 
-            pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            if (certificate.status === 'revoked') {
+                pdf.setTextColor(190, 30, 30);
+                pdf.setFontSize(15);
+                pdf.text('REVOKED - NOT VALID', 105, 115, { align: 'center' });
+                pdf.setTextColor(0, 0, 0);
+            }
+
+            if (qrCanvas) {
+                pdf.addImage(qrCanvas.toDataURL('image/png'), 'PNG', 75, 130, 60, 60);
+            }
             pdf.save(`Certificate_${certificate._id}.pdf`);
         } catch (error) {
             console.error('Failed to generate PDF', error);
@@ -55,14 +69,10 @@ const CertificateViewerDialog = ({ open, onClose, certificate }) => {
     };
 
     // The verification data stringified for the QR Code
+    // Privacy Architecture: We do NOT expose plaintext diagnosis here.
+    // The verifier will only see the public commitment hash.
     const qrData = JSON.stringify({
-        data: {
-            patientId: pId,
-            diagnosis: certificate.diagnosis,
-            validFrom: certificate.validFrom ? certificate.validFrom.split('T')[0] : certificate.validFrom,
-            validUntil: certificate.validUntil ? certificate.validUntil.split('T')[0] : certificate.validUntil
-        },
-        hash: certificate.verificationHash
+        commitment: certificate.publicCommitmentHash || certificate.verificationHash
     });
 
     return (
@@ -95,6 +105,13 @@ const CertificateViewerDialog = ({ open, onClose, certificate }) => {
                         <Typography variant="subtitle1" color="text.secondary">
                             Official Medical Document
                         </Typography>
+                        {certificate.status === 'revoked' && (
+                            <Box sx={{ mt: 2, p: 2, bgcolor: '#ffebee', color: '#c62828', textAlign: 'center', border: '2px solid #c62828', borderRadius: 1 }}>
+                                <Typography variant="h5" sx={{ fontWeight: 'bold' }}>REVOKED — NOT VALID</Typography>
+                                <Typography variant="body1">This certificate was permanently revoked by the issuer.</Typography>
+                                {certificate.revokedAt && <Typography variant="body2">Revoked on: {new Date(certificate.revokedAt).toLocaleDateString()}</Typography>}
+                            </Box>
+                        )}
                     </Box>
 
                     <Box sx={{ mb: 4 }}>
@@ -109,7 +126,7 @@ const CertificateViewerDialog = ({ open, onClose, certificate }) => {
                         <Grid container spacing={2}>
                             <Grid item xs={12} sm={6}>
                                 <Typography variant="subtitle2" color="text.secondary">Diagnosis/Purpose</Typography>
-                                <Typography variant="body1" gutterBottom>{certificate.diagnosis || certificate.type || 'N/A'}</Typography>
+                                <Typography variant="body1" gutterBottom>{certificate.diagnosis || certificate.type || 'Secure ZKP Record (Hidden)'}</Typography>
                             </Grid>
                             <Grid item xs={12} sm={6}>
                                 <Typography variant="subtitle2" color="text.secondary">Dates of Validity</Typography>
@@ -139,12 +156,12 @@ const CertificateViewerDialog = ({ open, onClose, certificate }) => {
                                 Date: {new Date(certificate.createdAt).toLocaleDateString()}
                             </Typography>
                             <Typography variant="caption" sx={{ mt: 2, display: 'block', maxWidth: 300, wordBreak: 'break-all', fontFamily: 'monospace' }}>
-                                Hash: {certificate.verificationHash}
+                                Hash: {certificate.publicCommitmentHash || certificate.verificationHash}
                             </Typography>
                         </Box>
 
                         <Box sx={{ textAlign: 'center' }}>
-                            <QRCodeSVG value={qrData} size={120} level="H" includeMargin />
+                            <QRCodeCanvas value={qrData} size={120} level="H" includeMargin />
                             <Typography variant="caption" display="block" sx={{ mt: 1 }}>
                                 Scan to Verify
                             </Typography>

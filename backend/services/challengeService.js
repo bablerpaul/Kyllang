@@ -23,7 +23,7 @@
 const crypto = require('crypto');
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const SESSION_TTL_MS   = 60 * 1000;   // 60 seconds
+const SESSION_TTL_MS   = 300 * 1000;   // 300 seconds (5 mins) to allow for human interaction & WASM generation
 const EVICTION_INTERVAL= 30 * 1000;   // Evict every 30 seconds
 const FIELD_MASK_248   = (1n << 248n) - 1n; // BN128-safe mask
 
@@ -78,8 +78,8 @@ function generateChallenge() {
     // Mirror to Redis if available (fire-and-forget)
     if (redisClient && redisClient.isOpen) {
         const key = `zk:nonce:${nonce}`;
-        redisClient.setEx(key, 60, JSON.stringify(entry)).catch(() => {});
-        redisClient.setEx(`zk:session:${sessionId}`, 60, nonce).catch(() => {});
+        redisClient.setEx(key, 300, JSON.stringify(entry)).catch(() => {});
+        redisClient.setEx(`zk:session:${sessionId}`, 300, nonce).catch(() => {});
     }
 
     return { nonce, sessionId, expiresIn: SESSION_TTL_MS / 1000 };
@@ -96,7 +96,7 @@ function validateChallenge(nonce) {
     if (Date.now() > entry.expiresAt) {
         nonceStore.delete(nonce);
         sessionStore.delete(entry.sessionId);
-        return { valid: false, reason: 'Nonce expired (TTL: 60s)' };
+        return { valid: false, reason: 'Nonce expired (TTL: 300s)' };
     }
     if (entry.consumed) return { valid: false, reason: 'Nonce already consumed' };
     return { valid: true, entry };

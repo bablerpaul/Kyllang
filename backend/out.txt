@@ -1,0 +1,16 @@
+Latest cert:
+ID: 699e8080326df09df2f5ab2c
+Patient: 6999652f33759a66de05d0c1
+Diagnosis: of ourse
+ValidFrom: Wed Feb 25 2026 05:30:00 GMT+0530 (India Standard Time)
+ValidUntil: Wed Mar 04 2026 05:30:00 GMT+0530 (India Standard Time)
+Hash: 86aecc67c59a8b4fd5b34c768d320245e38c8b133c38cf4b9de0e3907b720b62
+
+Test 0 hashData: {"patientId":"6999652f33759a66de05d0c1","diagnosis":"of ourse","validFrom":"2026-02-25T00:00:00.000Z","validUntil":"2026-03-04T00:00:00.000Z"}
+Test 0 hash: 401618fab2b74ccf3ed618ca0451ba3fae2da7f3b41363d5bee39e4371e6339f (MISMATCH)
+
+Test 1 hashData: {"patientId":"6999652f33759a66de05d0c1","diagnosis":"of ourse","validFrom":"2026-02-25T00:00:00.000Z","validUntil":"2026-03-04T00:00:00.000Z"}
+Test 1 hash: 401618fab2b74ccf3ed618ca0451ba3fae2da7f3b41363d5bee39e4371e6339f (MISMATCH)
+
+Test 2 hashData: {"patientId":"6999652f33759a66de05d0c1","diagnosis":"of ourse","validFrom":"2026-02-25","validUntil":"2026-03-04"}
+Test 2 hash: 86aecc67c59a8b4fd5b34c768d320245e38c8b133c38cf4b9de0e3907b720b62 (MATCH)

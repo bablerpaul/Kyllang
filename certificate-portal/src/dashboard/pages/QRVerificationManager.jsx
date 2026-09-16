@@ -120,7 +120,7 @@ function parseQRPayload(rawText) {
 
 // ── Result Card ──────────────────────────────────────────────────────────────
 function VerificationResult({ result, onReset }) {
-  const isValid = result.status === 'valid' || result.verified === true;
+  const isValid = ['valid', 'verified'].includes(result.status) || result.verified === true;
   const isError = result.status === 'error';
 
   return (
@@ -259,7 +259,7 @@ export default function QRVerificationManager() {
       setResult({
         ...data,
         hash: hash.trim(),
-        status: data.status || 'verified',
+        status: data.status || res.status || 'verified',
       });
     } catch (err) {
       if (err.message?.includes('404') || err.message?.toLowerCase().includes('not found')) {

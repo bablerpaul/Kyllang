@@ -165,6 +165,13 @@ export async function buildCircuitInput(
     const s = packSalt(saltHex);
     const nonce = nonceHexToBigInt(challengeNonceHex);
 
+    // If the commitment was stored as a bytes32 hex string in the vault,
+    // explicitly convert it to a decimal string for SnarkJS circuit input.
+    let expectedCommitmentStr = String(expectedCommitmentDec).trim();
+    if (expectedCommitmentStr.startsWith('0x')) {
+        expectedCommitmentStr = BigInt(expectedCommitmentStr).toString();
+    }
+
     return {
         // Private inputs (witness — never revealed)
         patientId:           p.toString(),
@@ -172,7 +179,7 @@ export async function buildCircuitInput(
         validFrom:           t.toString(),
         secretSalt:          s.toString(),
         // Public inputs (appear in publicSignals)
-        expectedCommitment:  expectedCommitmentDec,
+        expectedCommitment:  expectedCommitmentStr,
         challengeNonce:      nonce.toString(),
     };
 }

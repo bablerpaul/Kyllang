@@ -7,6 +7,93 @@ const crypto = require('crypto');
 const blockchainContract = require('../../../blockchain');
 
 /**
+ * Helper function to canonicalize EMR data deterministically
+ * Addresses Mongoose subdocument `_id` leakage, defaults, and key ordering
+ */
+const canonicalizeEMRData = (value) => {
+    if (value === null || value === undefined) {
+        return value;
+    }
+
+    // 1. Convert Mongoose Documents to plain logical data
+    if (typeof value.toObject === 'function') {
+        value = value.toObject({ getters: true, virtuals: false, minimize: false });
+    }
+
+    // 2. Dates to exact ISO string
+    if (value instanceof Date) {
+        return value.toISOString();
+    }
+
+    // 3. ObjectIds to strings
+    if (value._bsontype === 'ObjectID' || value.constructor.name === 'ObjectId') {
+        return value.toString();
+    }
+
+    // 4. Arrays: preserve order
+    if (Array.isArray(value)) {
+        return value.map(item => canonicalizeEMRData(item));
+    }
+
+    // 5. Objects: sort keys, strip Mongoose fields
+    if (typeof value === 'object') {
+        const sortedObj = {};
+        Object.keys(value).sort().forEach(key => {
+            // Strip Mongoose internal and hash/anchor fields
+            if (key === '_id' || key === 'id' || key === '__v' || key === 'createdAt' || key === 'updatedAt') {
+                return;
+            }
+            if (key === 'blockchainHash' || key === 'transactionHash' || key === 'dataHash' || key === 'recordHash') {
+                return;
+            }
+            
+            // Note: Mongoose defaults (like temperature: 98.6) will still appear here
+            // if the original create request relied on them. To be strictly compatible with 
+            // the historical hashes, we sort object keys.
+            sortedObj[key] = canonicalizeEMRData(value[key]);
+        });
+        return sortedObj;
+    }
+
+    return value;
+};
+
+/**
+ * Helper function to compute canonical SHA-256 hash of an EMR
+ */
+const computeEMRHash = (emr) => {
+    // Normalize vitalSigns to only the 3 canonical fields used at creation time.
+    // Mongoose schema defaults (respiratoryRate, oxygenSaturation) must NOT be included
+    // because they were not present in the plain object that was hashed during createEMR.
+    const rawVitals = emr.vitalSigns || emr.vitals || { bloodPressure: '120/80', heartRate: 72, temperature: 98.6 };
+    const vitalSigns = {
+        bloodPressure: rawVitals.bloodPressure || '120/80',
+        heartRate: rawVitals.heartRate !== undefined ? rawVitals.heartRate : 72,
+        temperature: rawVitals.temperature !== undefined ? rawVitals.temperature : 98.6,
+    };
+
+    const recordData = {
+        patient: emr.patient ? (emr.patient._id || emr.patient).toString() : '',
+        doctor: emr.doctor ? (emr.doctor._id || emr.doctor).toString() : '',
+        diagnosis: emr.diagnosis,
+        symptoms: emr.symptoms || [],
+        vitalSigns,
+        allergies: emr.allergies || [],
+        medications: emr.medications || [],
+        clinicalNotes: emr.clinicalNotes || '',
+        chiefComplaint: emr.chiefComplaint || emr.diagnosis,
+        treatmentPlan: emr.treatmentPlan || '',
+        visitDate: emr.visitDate ? new Date(emr.visitDate).toISOString() : new Date().toISOString(),
+    };
+    
+    // Canonicalize properly rather than relying on JSON.stringify replacer array
+    const canonicalData = canonicalizeEMRData(recordData);
+    const recordJSON = JSON.stringify(canonicalData);
+    
+    return crypto.createHash('sha256').update(recordJSON).digest('hex');
+};
+
+/**
  * resolvePatientId
  * @description Handles operations for resolvePatientId. Explains parameters, return values and usage.
  * @param {*} idInput - idInput parameter
@@ -51,7 +138,7 @@ const resolveDoctorId = async (idInput) => {
  */
 exports.createEMR = async (req, res, next) => {
     try {
-        const { patientId, patient, diagnosis, symptoms, vitalSigns, vitals, allergies, medications, clinicalNotes, chiefComplaint, treatmentPlan, visitDate, attachments } = req.body;
+        const { appointmentId, patientId, patient, diagnosis, symptoms, vitalSigns, vitals, allergies, medications, clinicalNotes, chiefComplaint, treatmentPlan, visitDate, attachments } = req.body;
 
         const targetPatientInput = patientId || patient;
         if (!targetPatientInput || !diagnosis) {
@@ -63,62 +150,112 @@ exports.createEMR = async (req, res, next) => {
 
         const vDate = visitDate ? new Date(visitDate) : new Date();
 
-        // 1. Convert record to JSON
-        const recordData = {
+        let appointment = null;
+        if (appointmentId) {
+            const Appointment = require('../../../models/Appointment');
+            appointment = await Appointment.findById(appointmentId);
+            if (!appointment) {
+                return res.status(404).json({ success: false, message: 'Appointment not found' });
+            }
+            if (appointment.doctor.toString() !== resolvedDoctorId.toString()) {
+                return res.status(403).json({ success: false, message: 'Cannot create EMR for an appointment assigned to another doctor' });
+            }
+            if (appointment.patient.toString() !== resolvedPatientId.toString()) {
+                return res.status(400).json({ success: false, message: 'Appointment patient does not match the provided patient' });
+            }
+        }
+
+        // 1. Build a plain object to hash (matching fields the DB will store with their defaults)
+        const vSigns = vitalSigns || vitals || { bloodPressure: '120/80', heartRate: 72, temperature: 98.6 };
+        const emrToHash = {
             patient: resolvedPatientId.toString(),
             doctor: resolvedDoctorId.toString(),
             diagnosis,
             symptoms: symptoms || [],
-            vitalSigns: vitalSigns || vitals || { bloodPressure: '120/80', heartRate: 72, temperature: 98.6 },
+            vitalSigns: vSigns,
             allergies: allergies || [],
             medications: medications || [],
             clinicalNotes: clinicalNotes || '',
             chiefComplaint: chiefComplaint || diagnosis,
             treatmentPlan: treatmentPlan || '',
-            visitDate: vDate.toISOString(),
+            visitDate: vDate,
         };
-        const recordJSON = JSON.stringify(recordData, Object.keys(recordData).sort());
 
-        // 2. Generate SHA256 hash
-        const dataHash = crypto.createHash('sha256').update(recordJSON).digest('hex');
+        // 2. Compute SHA-256 hash of the plain object
+        const dataHash = computeEMRHash(emrToHash);
 
-        // 3. Store record in MongoDB
-        const emr = await MedicalRecord.create({
+        // 3. Create and save Mongoose Document with all fields
+        const emr = new MedicalRecord({
             patient: resolvedPatientId,
             doctor: resolvedDoctorId,
+            appointment: appointment ? appointment._id : undefined,
             diagnosis,
             symptoms: symptoms || [],
-            vitalSigns: vitalSigns || vitals || { bloodPressure: '120/80', heartRate: 72, temperature: 98.6 },
-            vitals: vitals || vitalSigns,
+            vitalSigns: vSigns,
+            vitals: vitals || vSigns,
             allergies: allergies || [],
             medications: medications || [],
-            clinicalNotes,
+            clinicalNotes: clinicalNotes || '',
             chiefComplaint: chiefComplaint || diagnosis,
-            treatmentPlan,
+            treatmentPlan: treatmentPlan || '',
             visitDate: vDate,
             attachments: attachments || [],
             dataHash,
             recordHash: dataHash,
         });
+        await emr.save();
 
-        // 4. Store hash in blockchain
+        // 4. Store hash in blockchain via Commit-Reveal
         let transactionHash = null;
         try {
+            const crypto = require('crypto');
+            const { ethers } = require('ethers');
+
             const firstCid = (attachments && attachments.length > 0 && attachments[0].ipfsCid) ? attachments[0].ipfsCid : '';
-            const tx = await blockchainContract.storeEMRRecord(
+
+            // 4a. Generate cryptographically secure nonce
+            const nonceBuffer = crypto.randomBytes(32);
+            const nonce = '0x' + nonceBuffer.toString('hex');
+
+            // 4b. Calculate commitment matching Solidity: keccak256(abi.encodePacked(keccak256(abi.encodePacked(dataHash)), nonce, msg.sender))
+            const innerHash = ethers.solidityPackedKeccak256(['string'], [dataHash]);
+
+            // Determine backend signer address
+            let signerAddress = '0x0000000000000000000000000000000000000000';
+            if (blockchainContract.runner && typeof blockchainContract.runner.getAddress === 'function') {
+                signerAddress = await blockchainContract.runner.getAddress();
+            } else if (blockchainContract.signer && typeof blockchainContract.signer.getAddress === 'function') {
+                signerAddress = await blockchainContract.signer.getAddress();
+            }
+
+            const commitment = ethers.solidityPackedKeccak256(
+                ['bytes32', 'bytes32', 'address'],
+                [innerHash, nonce, signerAddress]
+            );
+
+            // 4c. Commit transaction
+            const currentNonce = await blockchainContract.runner.getNonce('latest');
+            const commitTx = await blockchainContract.commitHash(commitment, { nonce: currentNonce });
+            await commitTx.wait();
+
+            // 4d. Reveal transaction (must use same msg.sender, immediately after commit)
+            const revealTx = await blockchainContract.revealHash(
                 resolvedPatientId.toString(),
                 'MedicalRecord',
                 dataHash,
-                firstCid
+                firstCid,
+                nonce,
+                { nonce: currentNonce + 1 }
             );
-            await tx.wait();
-            transactionHash = tx.hash;
+            await revealTx.wait();
+
+            transactionHash = revealTx.hash;
 
             emr.transactionHash = transactionHash;
             emr.blockchainHash = transactionHash;
             await emr.save();
         } catch (contractError) {
-            console.error('Blockchain contract storeEMRRecord failed:', contractError.message);
+            console.error('Blockchain contract commit/reveal failed:', contractError.message);
         }
 
         const populatedEmr = await MedicalRecord.findById(emr._id)
@@ -247,6 +384,7 @@ exports.getPatientEMRs = async (req, res, next) => {
  */
 exports.getEMRById = async (req, res, next) => {
     try {
+        console.log("===> HITTING getEMRById", req.originalUrl, req.params);
         const emr = await MedicalRecord.findById(req.params.id)
             .populate({ path: 'patient', populate: { path: 'user', select: 'name email' } })
             .populate({ path: 'doctor', populate: { path: 'user', select: 'name email' } });
@@ -299,8 +437,9 @@ exports.updateEMR = async (req, res, next) => {
         if (diagnosis !== undefined) emr.diagnosis = diagnosis;
         if (symptoms !== undefined) emr.symptoms = symptoms;
         if (vitalSigns !== undefined || vitals !== undefined) {
-            emr.vitalSigns = { ...emr.vitalSigns, ...vitalSigns, ...vitals };
-            emr.vitals = { ...emr.vitals, ...vitals, ...vitalSigns };
+            const mergedVitals = { ...emr.vitalSigns, ...emr.vitals, ...vitals, ...vitalSigns };
+            emr.vitalSigns = mergedVitals;
+            emr.vitals = mergedVitals;
         }
         if (allergies !== undefined) emr.allergies = allergies;
         if (medications !== undefined) emr.medications = medications;
@@ -311,21 +450,7 @@ exports.updateEMR = async (req, res, next) => {
         if (attachments !== undefined) emr.attachments = attachments;
 
         // Recompute hash if needed
-        const recordData = {
-            patient: emr.patient.toString(),
-            doctor: emr.doctor.toString(),
-            diagnosis: emr.diagnosis,
-            symptoms: emr.symptoms,
-            vitalSigns: emr.vitalSigns,
-            allergies: emr.allergies,
-            medications: emr.medications,
-            clinicalNotes: emr.clinicalNotes || '',
-            chiefComplaint: emr.chiefComplaint || emr.diagnosis,
-            treatmentPlan: emr.treatmentPlan || '',
-            visitDate: emr.visitDate ? emr.visitDate.toISOString() : new Date().toISOString(),
-        };
-        const recordJSON = JSON.stringify(recordData, Object.keys(recordData).sort());
-        const dataHash = crypto.createHash('sha256').update(recordJSON).digest('hex');
+        const dataHash = computeEMRHash(emr);
 
         emr.dataHash = dataHash;
         emr.recordHash = dataHash;
@@ -398,6 +523,83 @@ exports.deleteEMR = async (req, res, next) => {
         });
     } catch (error) {
         console.error('Error in deleteEMR:', error);
+        next(error);
+    }
+};
+
+/**
+ * verifyEMR
+ * @description Verifies the integrity of an EMR (database vs blockchain).
+ */
+exports.verifyEMR = async (req, res, next) => {
+    try {
+        const emr = await MedicalRecord.findById(req.params.id);
+        if (!emr) {
+            return res.status(404).json({ success: false, message: 'EMR record not found' });
+        }
+
+        // Apply Authorization: Admins can verify all, Doctors must be the attending doctor, Patients must be the record owner.
+        if (req.user.role === 'general_user') {
+            const isAllowed = await hasActiveConsent({ patientInput: emr.patient, requestingUser: req.user });
+            if (!isAllowed) {
+                return res.status(403).json({ success: false, message: 'Access Denied: Patient active consent is required to view this medical record.' });
+            }
+        } else if (req.user.role === 'doctor') {
+            const doc = await Doctor.findOne({ user: req.user._id });
+            if (!doc || doc._id.toString() !== emr.doctor.toString()) {
+                // Alternatively, doctors with explicit consent might be able to view it.
+                const isAllowed = await hasActiveConsent({ patientInput: emr.patient, requestingUser: req.user });
+                if (!isAllowed && doc._id.toString() !== emr.doctor.toString()) {
+                    return res.status(403).json({ success: false, message: 'Access Denied: Not authorized to verify this EMR' });
+                }
+            }
+        }
+
+        const storedHash = emr.dataHash;
+        const emrObj = emr.toObject ? emr.toObject() : emr;
+        const recalculatedHash = computeEMRHash(emrObj);
+
+        const databaseIntegrity = (storedHash === recalculatedHash);
+        const hasBlockchainAnchor = !!(emr.transactionHash || emr.blockchainHash);
+
+        let blockchainExists = false;
+
+        // Only query the blockchain if database integrity holds and an anchor exists
+        if (databaseIntegrity && hasBlockchainAnchor) {
+            try {
+                // Read from blockchain mapping using stored dataHash
+                // Note: The smart contract uses dataHash as the lookup key. 
+                // It does not retrieve a stored hash for comparison, it merely confirms existence.
+                const result = await blockchainContract.verifyRecordHash(storedHash);
+                blockchainExists = result[0];
+            } catch (error) {
+                console.error('Blockchain verification read error:', error);
+            }
+        }
+
+        let finalStatus = '';
+        if (!databaseIntegrity) {
+            finalStatus = 'INTEGRITY MISMATCH';
+        } else if (!hasBlockchainAnchor) {
+            finalStatus = 'NOT BLOCKCHAIN VERIFIED';
+        } else if (blockchainExists) {
+            finalStatus = 'VERIFIED';
+        } else {
+            finalStatus = 'BLOCKCHAIN RECORD NOT FOUND';
+        }
+
+        return res.status(200).json({
+            verified: finalStatus === 'VERIFIED',
+            databaseIntegrity,
+            blockchainExists,
+            recordId: emr._id,
+            storedHash,
+            recalculatedHash,
+            transactionHash: emr.transactionHash || emr.blockchainHash,
+            message: finalStatus
+        });
+    } catch (error) {
+        console.error('Error in verifyEMR:', error);
         next(error);
     }
 };

@@ -6,7 +6,9 @@ const {
     approveDoctorAccess,
     requestCertificate,
     getAssignedDoctors,
-    getCertificates
+    getCertificates,
+    enrollPublicKey,
+    rotatePublicKey
 } = require('../controllers/patientController');
 const {
     registerPatient,
@@ -32,6 +34,8 @@ router.use(authorize('general_user'));
 // Get Patient Profile (Cached for 1 hour)
 router.get('/profile', cacheRoute('patient_profile', 3600), getPatientProfile);
 router.put('/profile', updatePatientProfile);
+router.put('/public-key', enrollPublicKey);
+router.put('/public-key/rotate', rotatePublicKey);
 router.get('/history', getPatientMedicalHistory);
 
 // Legacy/Existing Patient Endpoints (Preserved 100%)

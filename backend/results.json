@@ -1,0 +1,90 @@
+{
+  "100": {
+    "stream": {
+      "encTime": 0.24408770000000002,
+      "decTime": 0.15106819999999999,
+      "peakRamEnc": 67,
+      "peakRamDec": 98.05078125,
+      "cpuUserEnc": 0.204,
+      "cpuSystemEnc": 0.141,
+      "throughputEnc": 409.6888126685613,
+      "throughputDec": 661.9526809745532,
+      "integrity": "PASS"
+    },
+    "sync": {
+      "encTime": 0.2992555,
+      "decTime": 0.22035529999999995,
+      "peakRamEnc": 0,
+      "peakRamDec": 0,
+      "cpuUserEnc": 0.125,
+      "cpuSystemEnc": 0.14,
+      "throughputEnc": 334.1626135526331,
+      "throughputDec": 453.8125472815949,
+      "integrity": "PASS"
+    }
+  },
+  "500": {
+    "stream": {
+      "encTime": 1.4424172999999996,
+      "decTime": 0.9111391000000003,
+      "peakRamEnc": 134.9296875,
+      "peakRamDec": 319.94921875,
+      "cpuUserEnc": 0.812,
+      "cpuSystemEnc": 1.219,
+      "throughputEnc": 346.64032385080253,
+      "throughputDec": 548.7636300538521,
+      "integrity": "PASS"
+    },
+    "sync": {
+      "encTime": 1.6415248000000002,
+      "decTime": 2.531122400000001,
+      "peakRamEnc": 0,
+      "peakRamDec": 0,
+      "cpuUserEnc": 0.5,
+      "cpuSystemEnc": 0.86,
+      "throughputEnc": 304.5948498615433,
+      "throughputDec": 197.54082220599042,
+      "integrity": "PASS"
+    }
+  },
+  "1024": {
+    "stream": {
+      "encTime": 2.0594671,
+      "decTime": 1.601493199999999,
+      "peakRamEnc": 93.41015625,
+      "peakRamDec": 295.85546875,
+      "cpuUserEnc": 1.797,
+      "cpuSystemEnc": 1.297,
+      "throughputEnc": 497.2160031107076,
+      "throughputDec": 639.4032768918411,
+      "integrity": "PASS"
+    },
+    "sync": {
+      "encTime": 5.155703000000002,
+      "decTime": 4.195620000000003,
+      "peakRamEnc": 0,
+      "peakRamDec": 0,
+      "cpuUserEnc": 1.063,
+      "cpuSystemEnc": 2.125,
+      "throughputEnc": 198.6150094371223,
+      "throughputDec": 244.0640477450292,
+      "integrity": "PASS"
+    }
+  },
+  "2048": {
+    "stream": {
+      "encTime": 4.1936244000000045,
+      "decTime": 2.6763208000000014,
+      "peakRamEnc": 77.453125,
+      "peakRamDec": 816.9921875,
+      "cpuUserEnc": 3.313,
+      "cpuSystemEnc": 2.797,
+      "throughputEnc": 488.36037867387404,
+      "throughputDec": 765.2296391374304,
+      "integrity": "PASS"
+    },
+    "sync": {
+      "error": "File size (2147483648) is greater than 2 GiB"
+    }
+  }
+}

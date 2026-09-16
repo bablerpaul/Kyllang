@@ -98,6 +98,7 @@ export default function VerifyCertificate() {
     const [verifyResult,  setVerifyResult] = useState(null); // final verification data
     const pollTimerRef  = useRef(null);
     const countdownRef  = useRef(null);
+    const [copied, setCopied] = useState(false);
 
     // Patient state
     const [scannedChallenge, setScannedChallenge] = useState(null);
@@ -132,7 +133,7 @@ export default function VerifyCertificate() {
 
         try {
             addLog('Requesting ephemeral challenge nonce from server…');
-            const res = await api.get('/certificates/challenge');
+            const res = await api.get('/api/certificates/challenge');
             const { nonce, sessionId, expiresIn, callbackUrl } = res.data.data;
             setChallenge({ nonce, sessionId, expiresIn });
 
@@ -175,7 +176,7 @@ export default function VerifyCertificate() {
 
     async function pollForProof(sessionId, nonce) {
         try {
-            const res = await api.get(`/certificates/session/${sessionId}`);
+            const res = await api.get(`/api/certificates/session/${sessionId}`);
             const { status, valid, commitmentHash, issuerAddress, issuedAt, validFrom, validUntil } = res.data.data;
 
             if (status === 'pending') return; // Patient hasn't submitted yet
@@ -483,7 +484,7 @@ export default function VerifyCertificate() {
                     {error && <div style={styles.errorBox}>{error}</div>}
 
                     {/* Challenge QR Display */}
-                    {phase === PHASE.V_SHOWING_CHALLENGE && challengeQR && (
+                    {(phase === PHASE.V_SHOWING_CHALLENGE || phase === PHASE.V_WAITING) && challengeQR && (
                         <div style={styles.section}>
                             <label style={styles.label}>
                                 Challenge QR — Patient scans this with their device
@@ -502,6 +503,23 @@ export default function VerifyCertificate() {
                                     <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.7 }}>
                                         <div>Session: <code style={{ color: '#7dd3fc' }}>{challenge?.sessionId?.slice(0, 16)}…</code></div>
                                         <div>Nonce: <code style={{ color: '#a78bfa' }}>{challenge?.nonce?.slice(0, 16)}…</code></div>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', marginTop: 16 }}>
+                                        <button 
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(challengeQR);
+                                                setCopied(true);
+                                                setTimeout(() => setCopied(false), 2000);
+                                            }}
+                                            style={{ ...styles.btn, padding: '8px 16px', fontSize: 12 }}
+                                        >
+                                            Copy Challenge JSON
+                                        </button>
+                                        {copied && (
+                                            <span style={{ marginLeft: 12, color: '#4ade80', fontSize: 13, fontWeight: 'bold' }}>
+                                                ✓ Challenge copied
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             </div>

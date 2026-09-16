@@ -12,6 +12,8 @@ const nacl = require('tweetnacl');
 const util = require('tweetnacl-util');
 
 const blockchainContract = require('../../../blockchain');
+const Appointment = require('../../../models/Appointment');
+const mongoose = require('mongoose');
 
 /**
  * getAllDoctors
@@ -196,21 +198,48 @@ exports.loginDoctor = async (req, res, next) => {
  */
 exports.getDoctorPatients = async (req, res, next) => {
     try {
-        const userDoctor = await User.findById(req.user._id).populate('assignedPatients', 'name email role').lean();
+        const userDoctor = await User.findById(req.user._id).populate('assignedPatients', 'name email role publicKey').lean();
         const doctorProfile = await Doctor.findOne({ user: req.user._id }).populate({
-            path: 'patients',
+            path: 'assignedPatients',
             populate: { path: 'user', select: 'name email role publicKey' }
         }).lean();
 
-        // Combine legacy assignedPatients and Doctor assignedPatients
         const legacyPatients = userDoctor?.assignedPatients || [];
         const doctorPatients = doctorProfile?.assignedPatients || [];
 
-        res.status(200).json({ success: true, message: 'Operation successful', data: {
-            legacyPatients,
-            doctorPatients,
-            assignedPatients: legacyPatients.length > 0 ? legacyPatients : doctorPatients,
-        } });
+        const patientMap = new Map();
+
+        for (const user of legacyPatients) {
+            if (user) {
+                patientMap.set(user._id.toString(), {
+                    _id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    role: user.role,
+                    publicKey: user.publicKey,
+                });
+            }
+        }
+
+        for (const pat of doctorPatients) {
+            if (pat && pat.user) {
+                patientMap.set(pat.user._id.toString(), {
+                    _id: pat.user._id,
+                    name: pat.user.name,
+                    email: pat.user.email,
+                    role: pat.user.role,
+                    publicKey: pat.user.publicKey,
+                    dateOfBirth: pat.dateOfBirth,
+                    gender: pat.gender,
+                    bloodGroup: pat.bloodGroup,
+                    allergies: pat.allergies,
+                });
+            }
+        }
+
+        const normalizedPatients = Array.from(patientMap.values());
+
+        res.status(200).json({ success: true, message: 'Operation successful', data: normalizedPatients });
     } catch (error) {
         console.error('Error in getDoctorPatients:', error);
         next(error);
@@ -260,7 +289,9 @@ exports.getPatientEMR = async (req, res, next) => {
             $or: [{ patient: pId }, { patient: uId }]
         }).sort({ createdAt: -1 });
 
-        const certificates = await Certificate.find({ patient: uId }).sort({ createdAt: -1 });
+        const certificates = await Certificate.find({
+            patient: { $in: [pId, uId] }
+        }).select('-encryptedCredential').sort({ createdAt: -1 });
 
         res.status(200).json({ success: true, message: 'Operation successful', data: {
             patient: patientProfile,
@@ -505,5 +536,269 @@ exports.uploadPrescription = async (req, res, next) => {
     } catch (error) {
         console.error('Error in uploadPrescription:', error);
         next(error);
+    }
+};
+
+/**
+ * getDoctorProfile
+ * @description Retrieves the profile for the currently authenticated doctor.
+ * @param {Object} req - The Express request object
+ * @param {Object} res - The Express response object
+ * @param {Function} next - The Express next middleware function
+ */
+exports.getDoctorProfile = async (req, res, next) => {
+    try {
+        const user = req.user;
+        
+        // Find corresponding Doctor profile
+        const doctor = await Doctor.findOne({ user: user._id }).lean();
+        
+        if (!doctor) {
+            return res.status(404).json({ success: false, message: 'Doctor profile not found.' });
+        }
+
+        res.status(200).json({
+            success: true,
+            doctor: {
+                id: doctor._id,
+                name: user.name,
+                email: user.email,
+                contactNumber: user.contactNumber || 'Not provided',
+                specialty: doctor.specialty || 'Not provided',
+                licenseNumber: doctor.licenseNumber || 'Not provided',
+                department: doctor.department || 'Not provided',
+                consultationFee: doctor.consultationFee !== undefined ? doctor.consultationFee : 0
+            }
+        });
+    } catch (error) {
+        console.error('Error in getDoctorProfile:', error);
+        next(error);
+    }
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// AVAILABILITY MANAGEMENT
+// ────────────────────────────────────────────────────────────────────────────
+
+const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+/**
+ * getMyAvailability
+ * GET /api/doctor/me/availability
+ * Returns the authenticated doctor's availability schedule.
+ * @access doctor only
+ */
+exports.getMyAvailability = async (req, res, next) => {
+    try {
+        const doctor = await Doctor.findOne({ user: req.user._id })
+            .select('availability appointmentDuration')
+            .lean();
+        if (!doctor) {
+            return res.status(404).json({ success: false, message: 'Doctor profile not found.' });
+        }
+        res.status(200).json({
+            success: true,
+            data: {
+                availability: doctor.availability || null,
+                appointmentDuration: doctor.appointmentDuration ?? 30,
+            },
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+/**
+ * updateMyAvailability
+ * PUT /api/doctor/me/availability
+ * Updates the authenticated doctor's availability schedule.
+ * @access doctor only
+ */
+exports.updateMyAvailability = async (req, res, next) => {
+    try {
+        const { availability, appointmentDuration } = req.body;
+
+        // Validate appointmentDuration
+        if (appointmentDuration !== undefined) {
+            const dur = Number(appointmentDuration);
+            if (!Number.isFinite(dur) || !Number.isInteger(dur) || dur < 5 || dur > 480) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'appointmentDuration must be an integer between 5 and 480 minutes.',
+                });
+            }
+        }
+
+        // Validate each day
+        if (availability) {
+            for (const day of DAYS) {
+                const d = availability[day];
+                if (!d) continue;
+                if (d.enabled) {
+                    if (!d.startTime || !TIME_RE.test(d.startTime)) {
+                        return res.status(400).json({
+                            success: false,
+                            message: `${day}: startTime must be in HH:MM 24-hour format (e.g. "09:00").`,
+                        });
+                    }
+                    if (!d.endTime || !TIME_RE.test(d.endTime)) {
+                        return res.status(400).json({
+                            success: false,
+                            message: `${day}: endTime must be in HH:MM 24-hour format (e.g. "17:00").`,
+                        });
+                    }
+                    const [sh, sm] = d.startTime.split(':').map(Number);
+                    const [eh, em] = d.endTime.split(':').map(Number);
+                    if (sh * 60 + sm >= eh * 60 + em) {
+                        return res.status(400).json({
+                            success: false,
+                            message: `${day}: endTime must be after startTime.`,
+                        });
+                    }
+                }
+            }
+        }
+
+        const update = {};
+        if (availability !== undefined) update.availability = availability;
+        if (appointmentDuration !== undefined) update.appointmentDuration = Number(appointmentDuration);
+
+        const doctor = await Doctor.findOneAndUpdate(
+            { user: req.user._id },
+            { $set: update },
+            { new: true, runValidators: true }
+        ).select('availability appointmentDuration');
+
+        if (!doctor) {
+            return res.status(404).json({ success: false, message: 'Doctor profile not found.' });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Availability updated successfully.',
+            data: {
+                availability: doctor.availability,
+                appointmentDuration: doctor.appointmentDuration,
+            },
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+/**
+ * getAvailableSlots
+ * GET /api/doctor/:doctorId/slots?date=YYYY-MM-DD
+ * Returns available (not yet booked) appointment slots for a doctor on a given date.
+ * @access any authenticated user
+ */
+exports.getAvailableSlots = async (req, res, next) => {
+    try {
+        const { doctorId } = req.params;
+        const { date } = req.query;
+
+        // ── Input validation ──────────────────────────────────────────────
+        if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            return res.status(400).json({
+                success: false,
+                message: 'date query parameter is required in YYYY-MM-DD format.',
+            });
+        }
+        if (!mongoose.Types.ObjectId.isValid(doctorId)) {
+            return res.status(400).json({ success: false, message: 'Invalid doctorId.' });
+        }
+
+        // ── Load doctor availability ──────────────────────────────────────
+        const doctor = await Doctor.findById(doctorId)
+            .select('availability appointmentDuration')
+            .lean();
+        if (!doctor) {
+            return res.status(404).json({ success: false, message: 'Doctor not found.' });
+        }
+
+        const avail = doctor.availability;
+        const anyDayEnabled = avail && DAYS.some(d => avail[d] && avail[d].enabled);
+        if (!avail || !anyDayEnabled) {
+            return res.status(200).json({
+                success: true,
+                date,
+                configured: false,
+                slots: [],
+                message: 'Doctor availability is not configured.',
+            });
+        }
+
+        // ── Determine day of week ─────────────────────────────────────────
+        // Interpret date as local calendar date by splitting YYYY-MM-DD
+        const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const [yStr, mStr, dStr] = date.split('-');
+        const reqYear = parseInt(yStr, 10);
+        const reqMonth = parseInt(mStr, 10) - 1;
+        const reqDate = parseInt(dStr, 10);
+        
+        // Create date object strictly in local timezone using Date components
+        const dateObj = new Date(reqYear, reqMonth, reqDate);
+        const dayName = DAY_NAMES[dateObj.getDay()];
+        const dayConfig = avail[dayName];
+
+        if (!dayConfig || !dayConfig.enabled) {
+            return res.status(200).json({
+                success: true,
+                date,
+                configured: true,
+                slots: [],
+                message: `Doctor is not available on ${dayName.charAt(0).toUpperCase() + dayName.slice(1)}s.`,
+            });
+        }
+
+        // ── Generate all slots for the day ───────────────────────────────
+        const [startH, startM] = dayConfig.startTime.split(':').map(Number);
+        const [endH,   endM]   = dayConfig.endTime.split(':').map(Number);
+        const startMinutes = startH * 60 + startM;
+        const endMinutes   = endH   * 60 + endM;
+        const duration = doctor.appointmentDuration || 30;
+
+        const allSlots = [];
+        for (let m = startMinutes; m + duration <= endMinutes; m += duration) {
+            const h = Math.floor(m / 60);
+            const min = m % 60;
+            const period = h < 12 ? 'AM' : 'PM';
+            const displayH = h % 12 === 0 ? 12 : h % 12;
+            const label = `${String(displayH).padStart(2, '0')}:${String(min).padStart(2, '0')} ${period}`;
+            allSlots.push({ label, minutes: m });
+        }
+
+        // ── Find already-booked slots ─────────────────────────────────────
+        // Strictly define start and end of the requested local day
+        const dayStart = new Date(reqYear, reqMonth, reqDate, 0, 0, 0, 0);
+        const dayEnd   = new Date(reqYear, reqMonth, reqDate, 23, 59, 59, 999);
+
+        const booked = await Appointment.find({
+            doctor: doctorId,
+            appointmentDate: { $gte: dayStart, $lte: dayEnd },
+            status: { $in: ['scheduled', 'completed'] },
+        }).select('timeSlot').lean();
+
+        const bookedSet = new Set(booked.map(a => a.timeSlot));
+
+        // ── Filter: remove booked + past slots (for today) ────────────────
+        const now = new Date();
+        const isToday = dateObj.toDateString() === now.toDateString();
+        const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+        const availableSlots = allSlots
+            .filter(s => !bookedSet.has(s.label))
+            .filter(s => !isToday || s.minutes > nowMinutes)
+            .map(s => s.label);
+
+        res.status(200).json({
+            success: true,
+            date,
+            configured: true,
+            slots: availableSlots,
+        });
+    } catch (err) {
+        next(err);
     }
 };

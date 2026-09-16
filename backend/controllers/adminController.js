@@ -1,4 +1,7 @@
 const User = require('../models/User');
+const Doctor = require('../models/Doctor');
+const Patient = require('../models/Patient');
+const MedicalRecord = require('../models/MedicalRecord');
 const Certificate = require('../models/Certificate');
 const AuditLog = require('../models/AuditLog');
 const blockchainContract = require('../blockchain');
@@ -86,10 +89,20 @@ const util = require('tweetnacl-util');
  */
 exports.createUser = async (req, res, next) => {
     try {
-        const { name, email, password, role, specialty } = req.body;
+        const { 
+            name, email, password, role, specialty, contactNumber, licenseNumber, department,
+            dateOfBirth, gender, address, emergencyName, emergencyRelation, emergencyPhone,
+            bloodGroup, allergies, chronicConditions, insuranceProvider, policyNumber
+        } = req.body;
 
         if (!name || !email || !password || !role) {
             return res.status(400).json({ success: false, message: 'Please provide name, email, password, and role' , error: 'Please provide name, email, password, and role'  });
+        }
+
+        if (role === 'doctor') {
+            if (!specialty || !licenseNumber) {
+                return res.status(400).json({ success: false, message: 'Please provide specialty and licenseNumber for doctors', error: 'Missing doctor fields' });
+            }
         }
 
         const userExists = await User.findOne({ email });
@@ -108,8 +121,46 @@ exports.createUser = async (req, res, next) => {
             password,
             role,
             specialty: role === 'doctor' ? specialty : undefined,
+            contactNumber,
             publicKey, // Store public key in DB
         });
+
+        if (role === 'doctor') {
+            try {
+                const existingDoctor = await Doctor.findOne({ user: user._id });
+                if (!existingDoctor) {
+                    await Doctor.create({
+                        user: user._id,
+                        specialty,
+                        licenseNumber,
+                        department: department || undefined
+                    });
+                }
+            } catch (docError) {
+                await User.findByIdAndDelete(user._id);
+                return res.status(400).json({ success: false, message: 'Failed to create doctor profile', error: docError.message });
+            }
+        } else if (role === 'general_user') {
+            try {
+                const existingPatient = await Patient.findOne({ user: user._id });
+                if (!existingPatient) {
+                    await Patient.create({
+                        user: user._id,
+                        dateOfBirth,
+                        gender,
+                        contactNumber,
+                        address: address ? { street: address } : undefined,
+                        emergencyContact: (emergencyName || emergencyPhone) ? { name: emergencyName, relationship: emergencyRelation, phone: emergencyPhone } : undefined,
+                        bloodGroup: bloodGroup || 'Unknown',
+                        allergies: allergies ? allergies.split(',').map(a => a.trim()).filter(Boolean) : [],
+                        chronicConditions: chronicConditions ? chronicConditions.split(',').map(c => c.trim()).filter(Boolean) : []
+                    });
+                }
+            } catch (patientError) {
+                await User.findByIdAndDelete(user._id);
+                return res.status(400).json({ success: false, message: 'Failed to create patient profile', error: patientError.message });
+            }
+        }
 
         // Send private key to the admin ONCE to give to the user
 

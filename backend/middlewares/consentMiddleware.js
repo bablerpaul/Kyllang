@@ -28,32 +28,51 @@ const hasActiveConsent = async ({ patientInput, requestingUser, requiredScope = 
             return true;
         }
 
-        // Search for active consent record
+        const Doctor = require('../models/Doctor');
+        let doctorDoc = null;
+        if (requestingUser.role === 'doctor') {
+            doctorDoc = await Doctor.findOne({ user: requestingUser._id });
+        }
+
+        // Search for active consent record using $and to avoid object key overwrite
         const now = new Date();
         const activeConsent = await Consent.findOne({
-            $or: [{ patient: pId }, { patientUser: pUserId }, { patient: patientInput }],
-            status: 'active',
-            $or: [
-                { grantedTo: requestingUser._id },
-                { grantedToDoctor: requestingUser._id },
-                { grantedToRole: requestingUser.role },
-                { grantedToEntityName: new RegExp(requestingUser.name || '', 'i') }
-            ],
-            $or: [
-                { expiresAt: { $gt: now } },
-                { expiresAt: null },
-                { expiresAt: { $exists: false } }
+            $and: [
+                {
+                    $or: [
+                        { patient: pId }, 
+                        { patientUser: pUserId }, 
+                        { patient: patientInput }
+                    ]
+                },
+                { status: 'active' },
+                {
+                    $or: [
+                        { grantedTo: requestingUser._id },
+                        { grantedToDoctor: doctorDoc ? doctorDoc._id : requestingUser._id },
+                        { grantedToEntityName: new RegExp(requestingUser.name || '', 'i') }
+                    ]
+                },
+                {
+                    $or: [
+                        { expiresAt: { $gt: now } },
+                        { expiresAt: { $gt: new Date() } },
+                        { expiresAt: null },
+                        { expiresAt: { $exists: false } }
+                    ]
+                }
             ]
         });
+        console.log("Consent Query Results:", activeConsent ? 'FOUND' : 'NOT FOUND', "for pId:", pId, "doc:", requestingUser._id);
 
         if (activeConsent) {
             return true;
         }
 
-        // Fallback: Check if assigned doctor in Patient model
-        if (requestingUser.role === 'doctor' && patientDoc && patientDoc.assignedDoctors) {
+        // Fallback: Check if assigned doctor in Patient model using correct Doctor ID
+        if (requestingUser.role === 'doctor' && patientDoc && patientDoc.assignedDoctors && doctorDoc) {
             const isAssigned = patientDoc.assignedDoctors.some(
-                docId => docId.toString() === requestingUser._id.toString()
+                docId => docId.toString() === doctorDoc._id.toString()
             );
             if (isAssigned) return true;
         }

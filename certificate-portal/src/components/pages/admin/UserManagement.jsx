@@ -33,20 +33,19 @@ import {
   VerifiedUser as VerifiedUserIcon,
   People as PeopleIcon,
   ContentCopy as ContentCopyIcon,
-  Download as DownloadIcon
+  Download as DownloadIcon,
+  PersonAdd as PersonAddIcon
 } from '@mui/icons-material';
 import { apiFetch } from '../../../utils/api';
 import { QRCodeCanvas as QRCode } from 'qrcode.react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
+import UserRegistrationModal from './UserRegistrationModal';
+
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
-  const [newUserType, setNewUserType] = useState('general_user');
-  const [newUserName, setNewUserName] = useState('');
-  const [newUserEmail, setNewUserEmail] = useState('');
-  const [newUserPassword, setNewUserPassword] = useState('');
-  const [newUserParams, setNewUserParams] = useState('');
+  const [modalOpen, setModalOpen] = useState(false);
 
   const [deleteDialog, setDeleteDialog] = useState({ open: false, type: '', id: null, name: '' });
   const [privateKeyDialog, setPrivateKeyDialog] = useState({ open: false, key: '', email: '', name: '', role: '' });
@@ -66,47 +65,17 @@ const UserManagement = () => {
     fetchUsers();
   }, []);
 
-  const handleAddUser = async () => {
-    if (!newUserName.trim() || !newUserEmail.trim() || !newUserPassword.trim()) {
-      alert('Please enter a name, email, and password.');
-      return;
-    }
-
-    try {
-      const payload = {
-        name: newUserName,
-        email: newUserEmail,
-        password: newUserPassword,
-        role: newUserType,
-        specialty: newUserType === 'doctor' ? newUserParams || 'General Physician' : undefined,
-      };
-
-      const res = await apiFetch('/api/admin/users', {
-        method: 'POST',
-        body: JSON.stringify(payload)
-      });
-
-      const payloadData = res.data || res;
-
-      // Show the private key to the admin to give to the user
-      setPrivateKeyDialog({ 
-        open: true, 
-        key: payloadData.privateKey, 
-        email: payloadData.user?.email || newUserEmail, 
-        name: payloadData.user?.name || newUserName, 
-        role: payloadData.user?.role || newUserType 
-      });
-
-      // Reset form
-      setNewUserName('');
-      setNewUserEmail('');
-      setNewUserPassword('');
-      setNewUserParams('');
-
-      fetchUsers();
-    } catch (error) {
-      alert(`Error adding user: ${error.message}`);
-    }
+  const handleRegistrationSuccess = (payloadData, form, role) => {
+    // Show the private key to the admin to give to the user
+    setPrivateKeyDialog({ 
+      open: true, 
+      key: payloadData.privateKey, 
+      email: payloadData.user?.email || form.email, 
+      name: payloadData.user?.name || form.name, 
+      role: payloadData.user?.role || role 
+    });
+    setModalOpen(false);
+    fetchUsers();
   };
 
   const handleDelete = (type, id, name) => {
@@ -230,98 +199,27 @@ const UserManagement = () => {
           </Button>
         </DialogActions>
       </Dialog>
-      <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <PeopleIcon /> User Management
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h5" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <PeopleIcon color="primary" /> User Management
+        </Typography>
+        <Button 
+          variant="contained" 
+          startIcon={<PersonAddIcon />} 
+          onClick={() => setModalOpen(true)}
+          sx={{ fontWeight: 600 }}
+        >
+          Register New User
+        </Button>
+      </Box>
 
-      {/* Add User Form */}
-      <Card elevation={2} sx={{ mb: 4 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Add New User
-          </Typography>
+      <UserRegistrationModal 
+        open={modalOpen} 
+        onClose={() => setModalOpen(false)} 
+        onSuccess={handleRegistrationSuccess} 
+      />
 
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={2}>
-              <FormControl fullWidth>
-                <InputLabel>User Type</InputLabel>
-                <Select
-                  value={newUserType}
-                  label="User Type"
-                  onChange={(e) => setNewUserType(e.target.value)}
-                >
-                  <MenuItem value="general_user">
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <PersonIcon fontSize="small" /> Patient
-                    </Box>
-                  </MenuItem>
-                  <MenuItem value="doctor">
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <MedicalServicesIcon fontSize="small" /> Doctor
-                    </Box>
-                  </MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
 
-            <Grid item xs={12} md={2}>
-              <TextField
-                fullWidth
-                label="Full Name"
-                value={newUserName}
-                onChange={(e) => setNewUserName(e.target.value)}
-                placeholder="Enter full name"
-              />
-            </Grid>
-
-            <Grid item xs={12} md={2}>
-              <TextField
-                fullWidth
-                label="Email"
-                type="email"
-                value={newUserEmail}
-                onChange={(e) => setNewUserEmail(e.target.value)}
-                placeholder="user@example.com"
-              />
-            </Grid>
-
-            <Grid item xs={12} md={2}>
-              <TextField
-                fullWidth
-                label="Password"
-                type="password"
-                value={newUserPassword}
-                onChange={(e) => setNewUserPassword(e.target.value)}
-                placeholder="secret123"
-              />
-            </Grid>
-
-            {newUserType === 'doctor' && (
-              <Grid item xs={12} md={2}>
-                <TextField
-                  fullWidth
-                  label="Specialty"
-                  value={newUserParams}
-                  onChange={(e) => setNewUserParams(e.target.value)}
-                  placeholder="Cardiology"
-                />
-              </Grid>
-            )}
-
-            <Grid item xs={12} md={newUserType === 'doctor' ? 2 : 4}>
-              <Button
-                variant="contained"
-                fullWidth
-                startIcon={<AddIcon />}
-                onClick={handleAddUser}
-                sx={{ height: '56px' }}
-              >
-                Add {newUserType === 'general_user' ? 'Patient' : 'Doctor'}
-              </Button>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
 
       <Grid container spacing={3}>
         {/* Patients List */}

@@ -1,6 +1,8 @@
 const PatientDocument = require('../models/PatientDocument');
 const CertificateRequest = require('../models/CertificateRequest');
 const AuditLog = require('../models/AuditLog');
+const nacl = require('tweetnacl');
+const util = require('tweetnacl-util');
 
 /**
  * getDocuments
@@ -84,6 +86,69 @@ exports.approveDoctorAccess = async (req, res, next) => {
 };
 
 const User = require('../models/User');
+
+exports.enrollPublicKey = async (req, res, next) => {
+    try {
+        const { publicKey } = req.body || {};
+        if (!publicKey || typeof publicKey !== 'string') {
+            return res.status(400).json({ success: false, message: 'publicKey is required' });
+        }
+
+        let decoded;
+        try {
+            decoded = util.decodeBase64(publicKey);
+        } catch (_) {
+            return res.status(400).json({ success: false, message: 'publicKey must be valid base64' });
+        }
+        if (decoded.length !== nacl.box.publicKeyLength) {
+            return res.status(400).json({ success: false, message: 'publicKey must be a 32-byte X25519 public key' });
+        }
+
+        const user = await User.findById(req.user._id).select('publicKey');
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+        if (user.publicKey) {
+            return res.status(409).json({ success: false, message: 'Public key is already enrolled' });
+        }
+        await User.findByIdAndUpdate(req.user._id, { $set: { publicKey } });
+        res.status(200).json({ success: true, message: 'Public key enrolled' });
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.rotatePublicKey = async (req, res, next) => {
+    try {
+        const { publicKey } = req.body || {};
+        if (!publicKey || typeof publicKey !== 'string') {
+            return res.status(400).json({ success: false, message: 'publicKey is required' });
+        }
+
+        let decoded;
+        try {
+            decoded = util.decodeBase64(publicKey);
+        } catch (_) {
+            return res.status(400).json({ success: false, message: 'publicKey must be valid base64' });
+        }
+        if (decoded.length !== nacl.box.publicKeyLength) {
+            return res.status(400).json({ success: false, message: 'publicKey must be a 32-byte X25519 public key' });
+        }
+
+        const user = await User.findById(req.user._id).select('publicKey');
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+        
+        await User.findByIdAndUpdate(req.user._id, { $set: { publicKey } });
+        
+        await AuditLog.create({
+            actor: req.user._id,
+            action: 'OTHER',
+            details: { type: 'rotate_public_key' }
+        });
+        
+        res.status(200).json({ success: true, message: 'Public key rotated successfully' });
+    } catch (error) {
+        next(error);
+    }
+};
 
 /**
  * requestCertificate
@@ -175,7 +240,14 @@ exports.getAssignedDoctors = async (req, res, next) => {
  */
 exports.getCertificates = async (req, res, next) => {
     try {
-        const certificates = await Certificate.find({ patient: req.user._id })
+        const Patient = require('../models/Patient');
+        const Certificate = require('../models/Certificate');
+        const patient = await Patient.findOne({ user: req.user._id }).select('_id').lean();
+        const patientIdentities = [req.user._id];
+        if (patient) patientIdentities.push(patient._id);
+
+        const certificates = await Certificate.find({ patient: { $in: patientIdentities } })
+            .select('+encryptedCredential')
             .populate('issuedBy', 'name email specialty');
         res.status(200).json({ success: true, message: 'Operation successful', data: certificates });
     } catch (error) {

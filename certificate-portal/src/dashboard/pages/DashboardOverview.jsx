@@ -4,6 +4,7 @@ import {
   Avatar, Chip, Button, Skeleton, Divider, Tooltip,
   IconButton, LinearProgress,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  Alert,
 } from '@mui/material';
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
 import MedicalServicesIcon from '@mui/icons-material/MedicalServices';
@@ -21,6 +22,9 @@ import EventIcon from '@mui/icons-material/Event';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
+import DoctorDashboard from '../../components/pages/doctor/DoctorDashboard';
+import PatientKeyEnrollment from '../../components/pages/user/PatientKeyEnrollment';
+import { hasStoredPrivateKey } from '../../utils/patientKeyVault';
 
 function StatCard({ icon, label, value, sub, color = 'primary', loading }) {
   return (
@@ -58,6 +62,28 @@ function PatientDashboardOverview() {
   const [documents, setDocuments] = useState([]);
   const [certificates, setCertificates] = useState([]);
   const [lastUpdated, setLastUpdated] = useState(null);
+  // Key enrollment state: null = unknown, 'unregistered' = no public key, 'missing_local' = has public key but no local private key, 'enrolled' = all good
+  const [keyMissing, setKeyMissing] = useState(null);
+
+  // Check whether the authenticated patient already has a public key enrolled
+  const checkPublicKey = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/auth/me');
+      const user = res.data || res;
+      const hasLocalKey = await hasStoredPrivateKey();
+      
+      if (!user.publicKey) {
+        setKeyMissing('unregistered');
+      } else if (!hasLocalKey) {
+        setKeyMissing('missing_local');
+      } else {
+        setKeyMissing('enrolled');
+      }
+    } catch (_) {
+      // Non-blocking: do not block the dashboard if this check fails
+      setKeyMissing('enrolled');
+    }
+  }, []);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -90,7 +116,8 @@ function PatientDashboardOverview() {
 
   useEffect(() => {
     fetchAll();
-  }, [fetchAll]);
+    checkPublicKey();
+  }, [fetchAll, checkPublicKey]);
 
   const upcomingAppointments = appointments.filter(a => a.status === 'scheduled');
   const completedAppointments = appointments.filter(a => a.status === 'completed');
@@ -108,6 +135,44 @@ function PatientDashboardOverview() {
 
   return (
     <Box sx={{ display: 'grid', gap: 3 }}>
+      {/* Key Enrollment Banner — shown only when patient has no public key */}
+      {keyMissing === 'unregistered' && (
+        <Alert
+          severity="warning"
+          sx={{ borderRadius: 2 }}
+          action={
+            <PatientKeyEnrollment
+              onEnrolled={() => setKeyMissing('enrolled')}
+              compact
+            />
+          }
+        >
+          <strong>Action Required:</strong> Your encryption key is not set up. You must enroll your
+          encryption key before a doctor can issue you a secure ZK certificate.
+        </Alert>
+      )}
+      {/* Key Rotation Banner — shown when patient has public key on server but no private key locally */}
+      {keyMissing === 'missing_local' && (
+        <Alert
+          severity="error"
+          sx={{ borderRadius: 2 }}
+          action={
+            <PatientKeyEnrollment
+              onEnrolled={() => setKeyMissing('enrolled')}
+              compact
+              isRotation
+            />
+          }
+        >
+          <strong>Security Alert:</strong> Your browser is missing the private key needed to decrypt credentials. You must re-enroll your key to receive future certificates.
+        </Alert>
+      )}
+      {keyMissing === 'enrolled' && (
+        <Alert severity="success" sx={{ borderRadius: 2 }}>
+          ✓ Encryption key enrolled. Your X25519 public key is registered and credential delivery is ready.
+        </Alert>
+      )}
+
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Box>
@@ -556,6 +621,10 @@ export default function DashboardOverview() {
 
   if (role === 'general_user') {
     return <PatientDashboardOverview />;
+  }
+
+  if (role === 'doctor') {
+    return <DoctorDashboard />;
   }
 
   return <AdminDashboardOverview />;

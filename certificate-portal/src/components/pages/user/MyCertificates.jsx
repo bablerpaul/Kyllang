@@ -10,18 +10,27 @@ import {
     DialogTitle,
     DialogContent,
     DialogActions,
-    Alert
+    Alert,
+    Chip,
+    TextField
 } from '@mui/material';
-import { QRCodeSVG } from 'qrcode.react';
-import html2canvas from 'html2canvas';
+import { QRCodeCanvas } from 'qrcode.react';
 import jsPDF from 'jspdf';
 import { apiFetch } from '../../../utils/api';
+import PrivateKeyDialog from '../../shared/PrivateKeyDialog';
+import { decryptKeyWithX25519 } from '../../../utils/cryptoUtils';
+import { commitmentToBytes32, computeCommitment } from '../../../utils/poseidonUtils';
+import { storeCredential } from '../../../utils/credentialVault';
+import { retrievePatientPrivateKey } from '../../../utils/patientKeyVault';
 
 const MyCertificates = () => {
     const [certificates, setCertificates] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [selectedCert, setSelectedCert] = useState(null);
+    const [passphraseDialogOpen, setPassphraseDialogOpen] = useState(false);
+    const [passphraseInput, setPassphraseInput] = useState('');
+    const [credentialImporting, setCredentialImporting] = useState(false);
 
     useEffect(() => {
         const fetchCertificates = async () => {
@@ -41,6 +50,40 @@ const MyCertificates = () => {
 
     const handleViewQR = (cert) => {
         setSelectedCert(cert);
+    };
+
+    const handleImportCredentialClick = () => {
+        if (!selectedCert?.encryptedCredential) return;
+        setPassphraseInput('');
+        setPassphraseDialogOpen(true);
+    };
+
+    const handleImportCredentialSubmit = async () => {
+        if (!selectedCert?.encryptedCredential) return;
+        const passphrase = passphraseInput;
+        if (!passphrase) return;
+        
+        setPassphraseDialogOpen(false);
+        setCredentialImporting(true);
+        try {
+            const privateKey = await retrievePatientPrivateKey(passphrase);
+            const credential = JSON.parse(decryptKeyWithX25519(selectedCert.encryptedCredential, privateKey));
+            const recomputed = await computeCommitment(
+                credential.patientId,
+                credential.diagnosisCode,
+                credential.validFrom,
+                credential.secretSalt,
+            );
+            if (commitmentToBytes32(recomputed).toLowerCase() !== String(selectedCert.publicCommitmentHash).toLowerCase()) {
+                throw new Error('Credential commitment does not match this certificate.');
+            }
+            await storeCredential(credential, passphrase);
+            alert('ZKP credential imported into the encrypted local vault.');
+        } catch (error) {
+            alert(`Credential import failed: ${error.message}`);
+        } finally {
+            setCredentialImporting(false);
+        }
     };
 
     const getQRCodeData = (cert) => {
@@ -68,21 +111,36 @@ const MyCertificates = () => {
     };
 
     const handleDownloadPDF = async () => {
-        const element = document.getElementById('certificate-print-area');
-        if (!element) return;
+        if (!selectedCert) return;
 
         try {
-            const canvas = await html2canvas(element, { scale: 2 });
-            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const patientId = typeof selectedCert.patient === 'object'
+                ? selectedCert.patient._id
+                : selectedCert.patient;
+            const issuer = selectedCert.issuedBy?.name || 'Unknown Issuer';
+            const qrCanvas = document.querySelector('#certificate-print-area canvas');
 
-            // Format to fit the canvas dimensions relative to an A4 if desired, or exact size
-            const pdf = new jsPDF({
-                orientation: 'portrait',
-                unit: 'px',
-                format: [canvas.width, canvas.height]
-            });
+            pdf.setFontSize(20);
+            pdf.text('MEDICAL CERTIFICATE', 105, 25, { align: 'center' });
+            pdf.setFontSize(11);
+            pdf.text(`Patient ID: ${patientId || 'Patient'}`, 20, 45);
+            pdf.text(`Issued By: Dr. ${issuer}`, 20, 55);
+            pdf.text(`Valid: ${new Date(selectedCert.validFrom).toLocaleDateString()} - ${new Date(selectedCert.validUntil).toLocaleDateString()}`, 20, 65);
+            pdf.text(`Remarks: ${selectedCert.remarks || 'None'}`, 20, 75);
+            pdf.text(`Certificate ID: ${selectedCert._id}`, 20, 85);
+            pdf.text(`Commitment: ${selectedCert.publicCommitmentHash || selectedCert.verificationHash || 'Unavailable'}`, 20, 95, { maxWidth: 170 });
 
-            pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+            if (selectedCert.status === 'revoked') {
+                pdf.setTextColor(190, 30, 30);
+                pdf.setFontSize(15);
+                pdf.text('REVOKED - NOT VALID', 105, 115, { align: 'center' });
+                pdf.setTextColor(0, 0, 0);
+            }
+
+            if (qrCanvas) {
+                pdf.addImage(qrCanvas.toDataURL('image/png'), 'PNG', 75, 130, 60, 60);
+            }
             pdf.save(`certificate-${selectedCert._id}.pdf`);
         } catch (error) {
             console.error('Error generating PDF:', error);
@@ -111,8 +169,11 @@ const MyCertificates = () => {
                         <Grid item xs={12} sm={6} md={4} key={cert._id}>
                             <Card>
                                 <CardContent>
-                                    <Typography variant="h6" gutterBottom sx={{ fontWeight: 700 }}>
+                                    <Typography variant="h6" gutterBottom sx={{ fontWeight: 700, display: 'flex', justifyContent: 'space-between' }}>
                                         Certificate
+                                        {cert.status === 'revoked' && (
+                                            <Chip label="REVOKED" color="error" size="small" />
+                                        )}
                                     </Typography>
                                     <Typography variant="body2" color="text.secondary" gutterBottom>
                                         <strong>Diagnosis:</strong> {cert.diagnosis}
@@ -149,7 +210,7 @@ const MyCertificates = () => {
                     {selectedCert && (
                         <Box id="certificate-print-area" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 2, bgcolor: 'background.paper' }}>
                             <Box sx={{ p: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', mb: 3, borderRadius: 2 }}>
-                                <QRCodeSVG
+                                <QRCodeCanvas
                                     value={getQRCodeData(selectedCert)}
                                     size={256}
                                     level="H"
@@ -159,6 +220,13 @@ const MyCertificates = () => {
                             <Typography variant="body2" color="text.secondary" align="center" gutterBottom>
                                 Scan this QR code to verify the authenticity securely without querying standard records (ZKP HMAC concept).
                             </Typography>
+                            {selectedCert.status === 'revoked' && (
+                                <Box sx={{ mt: 2, p: 2, width: '100%', bgcolor: '#ffebee', color: '#c62828', textAlign: 'center', border: '1px solid #c62828', borderRadius: 1 }}>
+                                    <Typography variant="h6" sx={{ fontWeight: 'bold' }}>REVOKED — NOT VALID</Typography>
+                                    <Typography variant="body2">This certificate was revoked by the issuer.</Typography>
+                                    {selectedCert.revokedAt && <Typography variant="caption">Revoked on: {new Date(selectedCert.revokedAt).toLocaleDateString()}</Typography>}
+                                </Box>
+                            )}
 
                             <Box sx={{ width: '100%', mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
                                 <Typography variant="subtitle2" gutterBottom>Raw Certificate Data</Typography>
@@ -173,8 +241,37 @@ const MyCertificates = () => {
                     )}
                 </DialogContent>
                 <DialogActions>
+                    {selectedCert?.encryptedCredential && (
+                        <Button onClick={handleImportCredentialClick} disabled={credentialImporting} variant="outlined">
+                            Import ZK Credential
+                        </Button>
+                    )}
                     <Button onClick={handleDownloadPDF} variant="outlined" color="primary">Download as PDF</Button>
                     <Button onClick={() => setSelectedCert(null)}>Close</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Passphrase Dialog */}
+            <Dialog open={passphraseDialogOpen} onClose={() => setPassphraseDialogOpen(false)} maxWidth="xs" fullWidth>
+                <DialogTitle>Unlock Local Vault</DialogTitle>
+                <DialogContent dividers>
+                    <Typography variant="body2" gutterBottom>
+                        Enter your vault passphrase to securely decrypt your local private key.
+                    </Typography>
+                    <TextField
+                        autoFocus
+                        margin="dense"
+                        label="Vault Passphrase"
+                        type="password"
+                        fullWidth
+                        variant="outlined"
+                        value={passphraseInput}
+                        onChange={(e) => setPassphraseInput(e.target.value)}
+                    />
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setPassphraseDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={handleImportCredentialSubmit} variant="contained" color="primary">Unlock & Import</Button>
                 </DialogActions>
             </Dialog>
         </Box>

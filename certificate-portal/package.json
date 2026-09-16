@@ -16,6 +16,7 @@
     "@mui/material": "^9.2.0",
     "@react-pdf/renderer": "^4.3.2",
     "@yudiel/react-qr-scanner": "^2.6.0",
+    "buffer": "^6.0.3",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.0",
     "jsqr": "^1.4.0",

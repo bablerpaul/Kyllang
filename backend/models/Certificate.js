@@ -66,10 +66,18 @@ const certificateSchema = new mongoose.Schema(
             type: String,
             sparse: true,
         },
+        // Encrypted patient-only ZKP credential envelope. Never plaintext.
+        encryptedCredential: {
+            type: String,
+            select: false,
+        },
 
         // ── Blockchain Anchoring ──────────────────────────────────────────
         blockchainTxHash: {
             type: String,   // Transaction hash of on-chain registerCertificate() call
+        },
+        revocationTxHash: {
+            type: String,   // Transaction hash of on-chain revokeCertificate() call
         },
         issuerAddress: {
             type: String,   // The doctor's on-chain wallet address (anti-forgery audit)
@@ -80,6 +88,19 @@ const certificateSchema = new mongoose.Schema(
             type: String,
             enum: ['zk_proof', 'hmac_legacy'],
             default: 'zk_proof',
+        },
+
+        // ── Certificate Status ────────────────────────────────────────────
+        status: {
+            type: String,
+            enum: ['active', 'expired', 'revoked'],
+            default: 'active',
+        },
+        revokedAt: {
+            type: Date,
+        },
+        revokeReason: {
+            type: String,
         },
 
         // ── Access Control ────────────────────────────────────────────────
@@ -101,11 +122,10 @@ certificateSchema.index({ issuedBy: 1 });
 certificateSchema.index({ publicCommitmentHash: 1 }, { unique: true });
 
 // ── Pre-save hook: sync legacy alias ──────────────────────────────────────
-certificateSchema.pre('save', function (next) {
+certificateSchema.pre('save', function () {
     if (this.publicCommitmentHash && !this.verificationHash) {
         this.verificationHash = this.publicCommitmentHash;
     }
-    next();
 });
 
 module.exports = mongoose.model('Certificate', certificateSchema);

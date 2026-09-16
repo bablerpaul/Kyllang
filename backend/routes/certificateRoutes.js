@@ -15,6 +15,7 @@ const {
     pollVerificationSession,
     verifyCertificate,
     lookupCertificate,
+    revokeCertificate,
 } = require('../controllers/certificateController');
 
 // ── Rate limiters ──────────────────────────────────────────────────────────
@@ -41,6 +42,8 @@ router
     .route('/')
     .post(protect, authorize('doctor', 'hospital_admin'), certificateIssueRules(), validate, createCertificate)
     .get(protect, getMyCertificates);
+
+router.put('/:id/revoke', protect, authorize('doctor', 'hospital_admin'), revokeCertificate);
 
 // ── ZK Challenge-Response Endpoints ───────────────────────────────────────
 

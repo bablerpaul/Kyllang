@@ -40,6 +40,10 @@ const userSchema = new mongoose.Schema(
         publicKey: {
             type: String,
         },
+        contactNumber: {
+            type: String,
+            trim: true,
+        },
         assignedPatients: [
             {
                 type: mongoose.Schema.Types.ObjectId,

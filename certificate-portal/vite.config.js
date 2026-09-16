@@ -80,12 +80,18 @@ export default defineConfig({
         },
     ],
 
+    resolve: {
+        alias: {
+            buffer: 'buffer/',
+        },
+    },
+
     server: {
         port: 5173,
         headers: SECURITY_HEADERS,
         proxy: {
             '/api': {
-                target: 'http://localhost:5000',
+                target: 'http://127.0.0.1:5000',
                 changeOrigin: true,
                 // Do NOT proxy Ganache RPC — let frontend call it directly (trustless)
             },
@@ -110,6 +116,7 @@ export default defineConfig({
     optimizeDeps: {
         // Exclude snarkjs and circomlibjs from pre-bundling
         // (they contain WASM and must be loaded asynchronously)
+        include: ['blake2b', 'blake-hash'],
         exclude: ['snarkjs', 'circomlibjs'],
     },
 

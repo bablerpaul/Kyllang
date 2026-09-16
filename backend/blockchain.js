@@ -18,7 +18,8 @@ require('dotenv').config();
 // ── Test Mode Mock ─────────────────────────────────────────────────────────
 if (process.env.TEST_MODE === 'true') {
     module.exports = {
-        storeEMRRecord: async () => ({ wait: async () => {}, hash: `mock_tx_${Date.now()}` }),
+        commitHash: async () => ({ wait: async () => {}, hash: `mock_commit_tx_${Date.now()}` }),
+        revealHash: async () => ({ wait: async () => {}, hash: `mock_reveal_tx_${Date.now()}` }),
         verifyRecordHash: async (hash) => {
             if (hash === 'corrupted_hash' || String(hash).includes('corrupted')) return [false];
             return [true, Date.now(), 'mock_patient', 'mock_type', 'mock_cid', '0x123'];
@@ -60,8 +61,8 @@ if (process.env.TEST_MODE === 'true') {
         'constructor()',
         'event HashAnchored(string batchHash, uint256 timestamp)',
         'event RecordAnchored(string indexed patientId, string recordType, string dataHash, string ipfsCid, uint256 timestamp, address indexed recordOwner)',
-        'function storeHash(string memory _batchHash) public',
-        'function storeEMRRecord(string memory _patientId, string memory _recordType, string memory _dataHash, string memory _ipfsCid) public',
+        'function commitHash(bytes32 commitment) external',
+        'function revealHash(string memory _patientId, string memory _recordType, string memory _dataHash, string memory _ipfsCid, bytes32 nonce) external',
         'function getEMRRecord(uint256 index) public view returns (string memory patientId, string memory recordType, string memory dataHash, uint256 timestamp, string memory ipfsCid, address recordOwner)',
         'function getTotalEMRRecords() public view returns (uint256)',
         'function getPatientRecordIndices(string memory _patientId) public view returns (uint256[] memory)',
@@ -72,7 +73,7 @@ if (process.env.TEST_MODE === 'true') {
     ];
 
     const emrContract = new ethers.Contract(
-        process.env.CONTRACT_ADDRESS || '0x4cB06b7850239d5CcDCA04FddEc75772A5a573Ec',
+        process.env.CONTRACT_ADDRESS || '0xDA0bab807633f07f013f94DD0E6A4F96F8742B53',
         emrAbi,
         wallet
     );

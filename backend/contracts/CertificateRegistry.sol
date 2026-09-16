@@ -203,8 +203,9 @@ contract CertificateRegistry {
         uint256[2]    calldata _pC,
         uint256[3]    calldata pubSignals
     ) external returns (bool) {
-        bytes32 sessionCommitment = bytes32(pubSignals[0]);
-        bytes32 commitmentHash    = bytes32(pubSignals[1]);
+        // MATCH SNARKJS OUTPUT ORDER: [expectedCommitment, sessionCommitment, nonce]
+        bytes32 commitmentHash    = bytes32(pubSignals[0]);
+        bytes32 sessionCommitment = bytes32(pubSignals[1]);
 
         // ① Certificate must exist and not be revoked
         CertificateRecord storage record = registeredCertificates[commitmentHash];

@@ -1,0 +1,14 @@
+{
+  "name": "kyllang-enclave",
+  "version": "1.0.0",
+  "description": "KYLLANG_V4: Tauri Native Enclave for Clinical Workstations",
+  "scripts": {
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^1.4.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^1.4.0"
+  }
+}

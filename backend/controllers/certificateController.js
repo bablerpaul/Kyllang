@@ -89,6 +89,7 @@ exports.createCertificate = async (req, res, next) => {
             remarks,
             medicalRecordId,
             insuranceClaimId,
+            encryptedCredential,
         } = req.body;
 
         // ── Input Validation ───────────────────────────────────────────────
@@ -167,6 +168,7 @@ exports.createCertificate = async (req, res, next) => {
             blockchainTxHash,
             issuerAddress:        issuerAddress || req.user.walletAddress || null,
             accessList:           [req.user._id],
+            encryptedCredential,
         });
 
         // ── Audit Log ──────────────────────────────────────────────────────
@@ -441,7 +443,7 @@ exports.verifyCertificate = async (req, res, next) => {
             });
         }
 
-        const [commitmentDecStr, nonceDecStr, sessionCommitmentDecStr] = publicSignals;
+        const [sessionCommitmentDecStr, commitmentDecStr, nonceDecStr] = publicSignals;
 
         // ── Derive nonce hex for challengeService lookup ───────────────────
         const nonceHex = '0x' + BigInt(nonceDecStr).toString(16).padStart(62, '0');
@@ -459,12 +461,12 @@ exports.verifyCertificate = async (req, res, next) => {
         // ── Step 2: Build on-chain calldata ────────────────────────────────
         const { pA, pB, pC } = proofToCalldata(proof);
         const pubSignalsOnChain = [
+            BigInt(sessionCommitmentDecStr),
             BigInt(commitmentDecStr),
             BigInt(nonceDecStr),
-            BigInt(sessionCommitmentDecStr),
         ];
 
-        // ── Step 3: On-chain atomic verification + nonce consumption ───────
+        // ── Step 3: On-chain static verification ───────
         const registry = blockchainContract.getContract('CertificateRegistry');
 
         if (!registry) {
@@ -472,10 +474,14 @@ exports.verifyCertificate = async (req, res, next) => {
             console.warn('[verifyCertificate] CertificateRegistry not connected — dev mode bypass');
         } else {
             try {
-                // verifyCertificateProof is state-changing (atomically consumes session on-chain)
-                const tx = await registry.verifyCertificateProof(pA, pB, pC, pubSignalsOnChain);
-                await tx.wait();
-                console.log('[CertificateRegistry] Proof verified on-chain. TX:', tx.hash || tx);
+                const [valid, certExists, certRevoked, sessionConsumed] = await registry.verifyCertificateProofStatic(pA, pB, pC, pubSignalsOnChain);
+                
+                if (!certExists) throw new Error('not registered');
+                if (certRevoked) throw new Error('revoked');
+                if (sessionConsumed) throw new Error('session already consumed');
+                if (!valid) throw new Error('Groth16 proof verification failed');
+
+                console.log('[CertificateRegistry] Proof statically verified on-chain. TX: (static call)');
             } catch (contractErr) {
                 // Parse revert reason for structured error response
                 const reason = contractErr.reason || contractErr.message || 'Unknown contract error';
@@ -511,6 +517,18 @@ exports.verifyCertificate = async (req, res, next) => {
         if (!certificate) {
             // Certificate is valid on-chain but not in our DB — issue a soft warning
             console.warn('[verifyCertificate] Hash verified on-chain but not found in MongoDB:', commitmentBytes32);
+        } else if (certificate.validUntil) {
+            // Expiration Validation
+            const now = new Date();
+            const validUntil = new Date(certificate.validUntil);
+            if (validUntil <= now) {
+                return res.status(400).json({
+                    success: false,
+                    valid: false,
+                    message: 'Certificate has expired.',
+                    error: 'CERTIFICATE_EXPIRED'
+                });
+            }
         }
 
         // ── Step 6: Build safe response (zero plaintext leakage) ──────────
@@ -551,3 +569,59 @@ exports.verifyCertificate = async (req, res, next) => {
         next(error);
     }
 };
+
+exports.revokeCertificate = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const certificate = await Certificate.findById(id);
+
+        if (!certificate) {
+            return res.status(404).json({ success: false, message: 'Certificate not found' });
+        }
+
+        if (certificate.revoked) {
+            return res.status(400).json({ success: false, message: 'Certificate is already revoked' });
+        }
+
+        // Verify caller is authorized doctor/admin
+        // Patient cannot revoke. If doctor, must match issuedBy. If hospital_admin, must match hospital.
+        if (req.user.role === 'doctor' && certificate.issuedBy.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ success: false, message: 'Not authorized to revoke this certificate' });
+        }
+
+        const registry = blockchainContract.getContract('CertificateRegistry');
+        if (!registry) {
+            return res.status(500).json({ success: false, message: 'Blockchain registry not connected' });
+        }
+
+        const commitmentBytes32 = certificate.publicCommitmentHash;
+        
+        // Ensure we send tx using the backend admin wallet
+        const tx = await registry.revokeCertificate(commitmentBytes32);
+        const receipt = await tx.wait();
+
+        certificate.revoked = true;
+        certificate.status = 'revoked';
+        certificate.revokedAt = new Date();
+        await certificate.save();
+
+        await AuditLog.create({
+            actor: req.user._id,
+            action: 'REVOKE_CERTIFICATE',
+            details: { certificateId: id, txHash: receipt.hash }
+        }).catch(() => {});
+
+        return res.status(200).json({
+            success: true,
+            message: 'Certificate successfully revoked',
+            data: {
+                txHash: receipt.hash,
+                status: certificate.status
+            }
+        });
+    } catch (error) {
+        console.error('[revokeCertificate] Error:', error);
+        next(error);
+    }
+};
+

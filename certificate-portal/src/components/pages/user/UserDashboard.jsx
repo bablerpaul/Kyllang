@@ -31,6 +31,9 @@ import ApproveRequests from './ApproveRequests';
 import CertificateViewerDialog from './CertificateViewerDialog';
 import MyDocuments from './MyDocuments';
 import { apiFetch } from '../../../utils/api';
+import nacl from 'tweetnacl';
+import util from 'tweetnacl-util';
+import { storePatientPrivateKey } from '../../../utils/patientKeyVault';
 
 const UserDashboard = () => {
   const [activeTab, setActiveTab] = useState(0);
@@ -44,6 +47,28 @@ const UserDashboard = () => {
     doctorsAccessed: 0
   });
   const [recentActivity, setRecentActivity] = useState([]);
+
+  const enrollEncryptionKey = async () => {
+    const passphrase = window.prompt('Create a passphrase to protect your local encryption key:');
+    if (!passphrase) return;
+    if (passphrase.length < 12) {
+      alert('Use a passphrase of at least 12 characters.');
+      return;
+    }
+    try {
+      const keyPair = nacl.box.keyPair();
+      const publicKey = util.encodeBase64(keyPair.publicKey);
+      const privateKey = util.encodeBase64(keyPair.secretKey);
+      await apiFetch('/api/patient/public-key', {
+        method: 'PUT',
+        body: JSON.stringify({ publicKey }),
+      });
+      await storePatientPrivateKey(privateKey, passphrase);
+      alert('Encryption key enrolled. The private key is protected in this browser only.');
+    } catch (error) {
+      alert(`Encryption key enrollment failed: ${error.message}`);
+    }
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -132,6 +157,9 @@ const UserDashboard = () => {
             onClick={() => alert('Help: You can generate certificates and approve/deny doctor access requests.')}
           >
             Help
+          </Button>
+          <Button variant="contained" startIcon={<Security />} onClick={enrollEncryptionKey}>
+            Set Up Encryption Key
           </Button>
         </Box>
       </Paper>

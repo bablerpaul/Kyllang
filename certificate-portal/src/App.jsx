@@ -47,6 +47,7 @@ import MyCertificates from './components/pages/user/MyCertificates';
 import MyDocuments from './components/pages/user/MyDocuments';
 import GenerateCertificate from './components/pages/user/GenerateCertificate';
 import ApproveRequests from './components/pages/user/ApproveRequests';
+import PatientKeyEnrollment from './components/pages/user/PatientKeyEnrollment';
 
 // ── EMR module pages (shared across roles) ──────────────────────────────────
 import HealthRecords from './modules/emr/pages/HealthRecords';
@@ -116,6 +117,7 @@ function App() {
           <Route path="generate-certificate" element={<GenerateCertificate />} />
           <Route path="approve-requests" element={<ApproveRequests />} />
           <Route path="profile" element={<PatientProfile />} />
+          <Route path="key-enrollment" element={<PatientKeyEnrollment />} />
 
           {/* Settings placeholder */}
           <Route path="settings" element={

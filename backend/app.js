@@ -11,7 +11,7 @@ const signer = new ethers.Wallet(
 );
 
 // contract address from remix
-const contractAddress = process.env.CONTRACT_ADDRESS || "0x4cB06b7850239d5CcDCA04FddEc75772A5a573Ec";
+const contractAddress = process.env.CONTRACT_ADDRESS || "0xDA0bab807633f07f013f94DD0E6A4F96F8742B53";
 
 // ABI from remix
 const abi = [

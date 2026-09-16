@@ -43,6 +43,12 @@ exports.getPatientDocuments = async (req, res, next) => {
     try {
         const { patientId } = req.params;
         const doctorId = req.user._id;
+        
+        const { hasActiveConsent } = require('../middlewares/consentMiddleware');
+        const isAllowed = await hasActiveConsent({ patientInput: patientId, requestingUser: req.user });
+        if (!isAllowed) {
+            return res.status(403).json({ success: false, message: 'Access Denied: Patient active consent is required to view documents.' });
+        }
 
         const documents = await PatientDocument.find({ patient: patientId });
 
