@@ -4,9 +4,12 @@ const { ethers } = require("ethers");
 // connect to ganache
 const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || "http://127.0.0.1:7545");
 
-// ganache private key
+// ganache private key — must be set via PRIVATE_KEY environment variable
+if (!process.env.PRIVATE_KEY) {
+    throw new Error('[CONFIG ERROR] PRIVATE_KEY environment variable is required but not set. Cannot initialize blockchain wallet.');
+}
 const signer = new ethers.Wallet(
-    process.env.PRIVATE_KEY || "0x712fac96b41c7df01136bad90dbd1ae957ecdfc169bf88c8a59f650bc9a9f388",
+    process.env.PRIVATE_KEY,
     provider
 );
 

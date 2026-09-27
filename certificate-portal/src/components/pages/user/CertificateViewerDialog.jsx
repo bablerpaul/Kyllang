@@ -15,6 +15,13 @@ import { Download as DownloadIcon } from '@mui/icons-material';
 import { QRCodeCanvas } from 'qrcode.react';
 import { jsPDF } from 'jspdf';
 
+// Status precedence: revoked > expired > active. Expiry is derived from validUntil, never persisted.
+const getCertStatus = (cert) => {
+    if (cert?.status === 'revoked') return 'revoked';
+    if (cert?.validUntil && new Date(cert.validUntil) < new Date()) return 'expired';
+    return 'active';
+};
+
 const CertificateViewerDialog = ({ open, onClose, certificate }) => {
     const printRef = useRef();
 
@@ -39,10 +46,16 @@ const CertificateViewerDialog = ({ open, onClose, certificate }) => {
             pdf.text(`Certificate ID: ${certificate._id}`, 20, 85);
             pdf.text(`Commitment: ${certificate.publicCommitmentHash || certificate.verificationHash || 'Unavailable'}`, 20, 95, { maxWidth: 170 });
 
-            if (certificate.status === 'revoked') {
+            const pdfStatus = getCertStatus(certificate);
+            if (pdfStatus === 'revoked') {
                 pdf.setTextColor(190, 30, 30);
                 pdf.setFontSize(15);
                 pdf.text('REVOKED - NOT VALID', 105, 115, { align: 'center' });
+                pdf.setTextColor(0, 0, 0);
+            } else if (pdfStatus === 'expired') {
+                pdf.setTextColor(230, 81, 0);
+                pdf.setFontSize(15);
+                pdf.text('EXPIRED - NOT VALID', 105, 115, { align: 'center' });
                 pdf.setTextColor(0, 0, 0);
             }
 
@@ -105,11 +118,18 @@ const CertificateViewerDialog = ({ open, onClose, certificate }) => {
                         <Typography variant="subtitle1" color="text.secondary">
                             Official Medical Document
                         </Typography>
-                        {certificate.status === 'revoked' && (
+                        {getCertStatus(certificate) === 'revoked' && (
                             <Box sx={{ mt: 2, p: 2, bgcolor: '#ffebee', color: '#c62828', textAlign: 'center', border: '2px solid #c62828', borderRadius: 1 }}>
                                 <Typography variant="h5" sx={{ fontWeight: 'bold' }}>REVOKED — NOT VALID</Typography>
                                 <Typography variant="body1">This certificate was permanently revoked by the issuer.</Typography>
                                 {certificate.revokedAt && <Typography variant="body2">Revoked on: {new Date(certificate.revokedAt).toLocaleDateString()}</Typography>}
+                            </Box>
+                        )}
+                        {getCertStatus(certificate) === 'expired' && (
+                            <Box sx={{ mt: 2, p: 2, bgcolor: '#fff3e0', color: '#e65100', textAlign: 'center', border: '2px solid #e65100', borderRadius: 1 }}>
+                                <Typography variant="h5" sx={{ fontWeight: 'bold' }}>EXPIRED — NOT VALID</Typography>
+                                <Typography variant="body1">This certificate's validity period has ended.</Typography>
+                                <Typography variant="body2">Valid Until: {new Date(certificate.validUntil).toLocaleDateString()}</Typography>
                             </Box>
                         )}
                     </Box>

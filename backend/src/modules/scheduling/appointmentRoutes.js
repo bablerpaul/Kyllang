@@ -1,9 +1,11 @@
 const express = require('express');
-const { getAppointments, createAppointment, updateAppointmentStatus, rescheduleAppointment } = require('./appointmentController');
+const { getAppointments, createAppointment, updateAppointmentStatus, rescheduleAppointment, getAvailableGlobalSlots } = require('./appointmentController');
 // Path resolves to: backend/middlewares/authMiddleware.js (verified correct)
 const { protect, authorize } = require('../../../middlewares/authMiddleware');
 
 const router = express.Router();
+
+router.get('/available-slots', protect, authorize('general_user'), getAvailableGlobalSlots);
 
 router.route('/')
     .get(protect, getAppointments)

@@ -12,24 +12,35 @@ export const AuthProvider = ({ children }) => {
   });
   const [loading, setLoading] = useState(true);
 
-  // Check backend for valid token on initial load
+  // Fire-and-forget: GET /api/patient/profile lazily creates the backend Patient
+  // profile document if one doesn't exist yet for this user. Priming it once here
+  // (on initial session load and right after login/register) means Patient pages
+  // that require the Patient profile to already exist (Appointments, Health
+  // Records) don't race a brand-new patient's first, profile-less load and surface
+  // a spurious "Patient profile not found" error. This never suppresses genuine
+  // errors from those pages' own real fetches — it only pre-warms the record.
+  const ensurePatientProfile = (role) => {
+    if (role !== 'general_user') return;
+    apiFetch('/api/patient/profile', { redirectOnAuthFailure: false }).catch(() => {});
+  };
+
+  // Check backend for valid session on initial load
   useEffect(() => {
     const verifyToken = async () => {
-      const token = localStorage.getItem('certificate_portal_token');
-      if (token) {
-        try {
-          const response = await apiFetch('/api/auth/me');
-          const user = response.data || response;
-          setAuthState({
-            user: user.email,
-            role: user.role,
-            name: user.name,
-            userId: user._id,
-          });
-        } catch (error) {
-          console.error('Invalid or expired token', error);
-          localStorage.removeItem('certificate_portal_token');
-        }
+      try {
+        // Passive probe: a logged-out visitor on a public route (e.g. /verify) must NOT be redirected to /login.
+        // Protected routes are guarded by <ProtectedRoute>; every other apiFetch call keeps the redirect-on-failure default.
+        const response = await apiFetch('/api/auth/me', { redirectOnAuthFailure: false });
+        const user = response.data || response;
+        setAuthState({
+          user: user.email,
+          role: user.role,
+          name: user.name,
+          userId: user._id,
+        });
+        ensurePatientProfile(user.role);
+      } catch (error) {
+        console.log('No active session found.');
       }
       setLoading(false);
     };
@@ -46,13 +57,13 @@ export const AuthProvider = ({ children }) => {
       
       const userPayload = response.data || response;
 
-      localStorage.setItem('certificate_portal_token', userPayload.token);
       setAuthState({
         user: userPayload.email,
         role: userPayload.role,
         name: userPayload.name,
         userId: userPayload._id,
       });
+      ensurePatientProfile(userPayload.role);
 
       return { success: true, role: userPayload.role };
     } catch (error) {
@@ -70,13 +81,13 @@ export const AuthProvider = ({ children }) => {
 
       const userPayload = response.data || response;
 
-      localStorage.setItem('certificate_portal_token', userPayload.token);
       setAuthState({
         user: userPayload.email,
         role: userPayload.role,
         name: userPayload.name,
         userId: userPayload._id,
       });
+      ensurePatientProfile(userPayload.role);
 
       return { success: true, role: userPayload.role, user: userPayload };
     } catch (error) {
@@ -84,9 +95,14 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    } catch (err) {
+      console.error('Logout request failed:', err);
+    }
+
     setAuthState({ user: null, role: null, name: null, userId: null });
-    localStorage.removeItem('certificate_portal_token');
 
     // Clear any role-specific data
     localStorage.removeItem('system_patients');

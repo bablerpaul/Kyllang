@@ -7,6 +7,7 @@ const MedicalRecord = require('../models/MedicalRecord');
 const Doctor = require('../models/Doctor');
 
 const blockchainContract = require('../blockchain');
+const { resolvePatientProfile } = require('../services/certificatePatientService');
 const storageService = require('../src/modules/secure-storage/services/storageService');
 
 /**
@@ -138,133 +139,23 @@ const crypto = require('crypto');
  * @param {Function} next - The Express next middleware function
  * @returns {Promise<void>} Resolves when the operation is complete
  */
-exports.issueCertificate = async (req, res, next) => {
-    try {
-        const { patientId, diagnosis, remarks, validFrom, validUntil, medicalRecordId, emrId, insuranceClaimId } = req.body;
-
-        if (!patientId || !diagnosis || !validFrom || !validUntil) {
-            return res.status(400).json({ success: false, message: 'Please provide all required fields' , error: 'Please provide all required fields'  });
-        }
-
-        const patient = await User.findById(patientId);
-        if (!patient || patient.role !== 'general_user') {
-            return res.status(404).json({ success: false, message: 'Patient not found' , error: 'Patient not found'  });
-        }
-
-        // Connect certificate to an existing EMR
-        const targetEmrId = medicalRecordId || emrId;
-        let emrRecord = null;
-
-        if (targetEmrId) {
-            emrRecord = await MedicalRecord.findById(targetEmrId);
-        }
-
-        if (!emrRecord) {
-            emrRecord = await MedicalRecord.findOne({ patient: patientId }).sort({ createdAt: -1 });
-            if (!emrRecord) {
-                let doctorDoc = await Doctor.findOne({ user: req.user._id });
-                if (!doctorDoc) {
-                    doctorDoc = await Doctor.create({
-                        user: req.user._id,
-                        specialty: 'General Medicine',
-                        licenseNumber: `DOC-${req.user._id.toString().substring(18)}`,
-                    });
-                }
-                emrRecord = await MedicalRecord.create({
-                    patient: patientId,
-                    doctor: doctorDoc._id,
-                    diagnosis,
-                    chiefComplaint: 'Medical Certificate Evaluation',
-                    visitDate: new Date(validFrom),
-                });
-            }
-        }
-
-        let doctorProfile = await Doctor.findOne({ user: req.user._id });
-        if (!doctorProfile) {
-            doctorProfile = await Doctor.create({
-                user: req.user._id,
-                specialty: 'General Medicine',
-                licenseNumber: `DOC-${req.user._id.toString().substring(18)}`,
-            });
-        }
-
-        // Generate a HMAC verification hash (Zero-Knowledge Proof concept)
-        const hashString = `${patientId}|${diagnosis}|${validFrom}|${validUntil}`;
-        const secret = process.env.JWT_SECRET || 'supersecretkey123';
-        const verificationHash = crypto.createHmac('sha256', secret).update(hashString).digest('hex');
-
-        let transactionHash = null;
-        try {
-            const tx = await blockchainContract.storeEMRRecord(
-                patientId.toString(),
-                'MedicalCertificate',
-                verificationHash,
-                ''
-            );
-            await tx.wait();
-            transactionHash = tx.hash;
-        } catch (contractError) {
-            console.error('Blockchain storeEMRRecord failed:', contractError.message);
-        }
-
-        const certificate = await Certificate.create({
-            patient: patientId,
-            issuedBy: req.user._id,
-            doctor: doctorProfile._id,
-            medicalRecord: emrRecord._id,
-            insuranceClaim: insuranceClaimId || undefined,
-            diagnosis,
-            remarks,
-            validFrom,
-            validUntil,
-            verificationHash,
-            blockchainHash: transactionHash || verificationHash,
-            transactionHash: transactionHash,
-            accessList: [req.user._id],
-        });
-
-        await AuditLog.create({
-            actor: req.user._id,
-            action: 'ISSUE_CERTIFICATE',
-            details: { certificateId: certificate._id, patientId, emrId: emrRecord._id, transactionHash }
-        });
-
-        // Handle physical file upload securely
-        if (req.file) {
-            try {
-                const filePath = req.file.path;
-                const { secureFile } = await storageService.uploadSecurePayload({
-                    filePath,
-                    fileName: req.file.originalname,
-                    mimeType: req.file.mimetype,
-                    patientId,
-                    uploaderId: req.user._id,
-                    documentType: 'MedicalCertificate',
-                    linkedCertificate: certificate._id
-                });
-                certificate.secureFileId = secureFile._id;
-                await certificate.save();
-            } catch (storageError) {
-                console.error('Secure storage error during certificate issuance:', storageError);
-                // Optionally handle failure, but for now we log it so certificate creation succeeds
-                if (req.file && req.file.path) {
-                    fs.promises.unlink(req.file.path).catch(err => console.error('Error deleting temp file:', err));
-                }
-            }
-        }
-
-        res.status(201).json({ success: true, message: 'Certificate issued successfully', data: {
-            certificateId: certificate._id,
-            verificationHash,
-            blockchainHash: transactionHash || verificationHash,
-            transactionHash,
-            medicalRecordId: emrRecord._id,
-            certificate,
-        } });
-    } catch (error) {
-        next(error);
-    }
+/**
+ * issueCertificate — RETIRED (Step 78).
+ * This legacy HMAC-based issuance path predates the current ZK/CertificateRegistry architecture and was found
+ * (Step 77 audit) to be permanently broken end-to-end: it called a nonexistent blockchainContract.storeEMRRecord
+ * method (silently swallowed) and then always failed Certificate schema validation (publicCommitmentHash is
+ * required and was never set), while still creating a stray MedicalRecord before that failure. It also never
+ * enforced the current certificate consent model. No frontend caller uses this route (confirmed by repo-wide
+ * search) — the canonical path is POST /api/certificates -> certificateController.js::createCertificate, which
+ * this change does not touch. The route stays authenticated/reachable but now performs NO database, blockchain,
+ * or file-system work — it only reports that it is retired.
+ */
+exports.issueCertificate = async (req, res) => {
+    return res.status(410).json({
+        success: false,
+        error: 'LEGACY_CERTIFICATE_ENDPOINT_RETIRED',
+        message: 'This certificate issuance endpoint has been retired. Use POST /api/certificates instead.',
+    });
 };
 /**
  * getDocument
@@ -373,6 +264,12 @@ exports.approveCertificateRequest = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'Please provide all required fields' , error: 'Please provide all required fields'  });
         }
 
+        // Certificate.patient is the Patient-profile _id (request.patient is a User _id). Never create a profile here.
+        const patientProfile = await resolvePatientProfile(request.patient);
+        if (!patientProfile) {
+            return res.status(400).json({ success: false, message: 'A Patient profile is required to issue a certificate for this patient.', error: 'PATIENT_PROFILE_REQUIRED' });
+        }
+
         if (request.certificateType === 'vaccine') {
             const vaccineDoc = await PatientDocument.findOne({
                 patient: request.patient,
@@ -394,11 +291,11 @@ exports.approveCertificateRequest = async (req, res, next) => {
 
         // Issue the certificate
         const hashString = `${request.patient.toString()}|${diagnosis}|${validFrom}|${validUntil}`;
-        const secret = process.env.JWT_SECRET || 'supersecretkey123';
+        const secret = process.env.JWT_SECRET;
         const verificationHash = crypto.createHmac('sha256', secret).update(hashString).digest('hex');
 
         const certificate = await Certificate.create({
-            patient: request.patient,
+            patient: patientProfile._id,
             issuedBy: req.user._id,
             diagnosis,
             remarks,

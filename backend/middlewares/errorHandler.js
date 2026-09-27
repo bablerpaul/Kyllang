@@ -10,7 +10,10 @@
 const errorHandler = (err, req, res, next) => {
     let statusCode = res.statusCode === 200 ? 500 : res.statusCode;
     
-    if (err.statusCode) {
+    if (err.name === 'CastError') {
+        statusCode = 400;
+        err.message = 'Invalid Resource ID';
+    } else if (err.statusCode) {
         statusCode = err.statusCode;
     }
 

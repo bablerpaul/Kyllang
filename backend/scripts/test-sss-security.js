@@ -45,8 +45,8 @@ async function main() {
     const adminKey = process.env.PRIVATE_KEY || '0x4f3edf983ac636a65a842ce7c78d9aa706d3b113bce9c46f30d7d21715b23b1d';
     const adminWallet = new ethers.Wallet(adminKey, provider);
     
-    const registryAddress = process.env.KEY_ESCROW_REGISTRY_ADDRESS;
-    if (!registryAddress) throw new Error("KEY_ESCROW_REGISTRY_ADDRESS not set in .env");
+    const registryAddress = process.env.KEY_ESCROW_ADDRESS;
+    if (!registryAddress) throw new Error("KEY_ESCROW_ADDRESS not set in .env");
 
     const abi = [
         "function depositEscrow(bytes32 patientPubKey, bytes calldata encryptedShare, tuple(uint256 x, uint256 y) c0, tuple(uint256 x, uint256 y) c1, tuple(uint256 x, uint256 y) c2, address trustee) external",

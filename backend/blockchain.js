@@ -15,6 +15,11 @@ const path = require('path');
 const fs   = require('fs');
 require('dotenv').config();
 
+// ── Prevent TEST_MODE in Production ──────────────────────────────────────
+if (process.env.NODE_ENV === 'production' && process.env.TEST_MODE === 'true') {
+    throw new Error('CRITICAL SECURITY ALERT: TEST_MODE cannot be enabled in production.');
+}
+
 // ── Test Mode Mock ─────────────────────────────────────────────────────────
 if (process.env.TEST_MODE === 'true') {
     module.exports = {
@@ -44,6 +49,42 @@ if (process.env.TEST_MODE === 'true') {
                     setMCI:      async () => ({ wait: async () => {} }),
                 };
             }
+            if (name === 'ConsentRegistry') {
+                return {
+                    grantConsent: async () => ({ wait: async () => {}, hash: 'mock_grant_tx' }),
+                    revokeConsent: async () => ({ wait: async () => {}, hash: 'mock_revoke_tx' }),
+                    isConsentActive: async () => true,
+                };
+            }
+            if (name === 'BreakGlassRegistry') {
+                return {
+                    declareEmergency: async () => ({ wait: async () => {}, hash: 'mock_break_glass_tx' }),
+                    attestShareRelease: async () => ({ wait: async () => {}, hash: 'mock_attest_tx' }),
+                    logDecryption: async () => ({ wait: async () => {}, hash: 'mock_log_tx' }),
+                    closeEmergency: async () => ({ wait: async () => {}, hash: 'mock_close_tx' })
+                };
+            }
+            if (name === 'ForensicSentinelRegistry') {
+                return {
+                    isSystemOperational: async () => true,
+                    submitHeartbeat: async () => ({ wait: async () => {}, hash: 'mock_heartbeat_tx' }),
+                    triggerEmergencyLockdown: async () => ({ wait: async () => {}, hash: 'mock_lockdown_tx' })
+                };
+            }
+            if (name === 'EmergencyAuditRegistry') {
+                return {
+                    recordEmergencyAudit: async () => ({ wait: async () => {}, hash: 'mock_audit_tx' }),
+                    verifyAuditCommitment: async () => true
+                };
+            }
+            if (name === 'KeyEscrowRegistry') {
+                return {
+                    depositEscrow: async () => ({ wait: async () => {}, hash: 'mock_escrow_tx' }),
+                    approveEmergencyUnlock: async () => ({ wait: async () => {}, hash: 'mock_unlock_tx' }),
+                    getFeldmanCommitments: async () => ([{x:0, y:0}, {x:0, y:0}, {x:0, y:0}]),
+                    getEncryptedShare: async () => "0x"
+                };
+            }
             return null;
         },
     };
@@ -51,8 +92,12 @@ if (process.env.TEST_MODE === 'true') {
     // ── Live Mode ──────────────────────────────────────────────────────────
 
     const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || 'http://127.0.0.1:7545');
+
+    if (!process.env.PRIVATE_KEY) {
+        throw new Error('[CONFIG ERROR] PRIVATE_KEY environment variable is required but not set. Cannot initialize blockchain wallet.');
+    }
     const wallet   = new ethers.Wallet(
-        process.env.PRIVATE_KEY || '0x712fac96b41c7df01136bad90dbd1ae957ecdfc169bf88c8a59f650bc9a9f388',
+        process.env.PRIVATE_KEY,
         provider
     );
 
@@ -128,11 +173,63 @@ if (process.env.TEST_MODE === 'true') {
         ? new ethers.Contract(process.env.EMERGENCY_ESCROW_ADDRESS, escrowAbi, wallet)
         : null;
 
+    // ── Additional Core Registries ────────────────────────────────────────
+    const consentAbi = [
+        'function grantConsent(bytes32 consentId, bytes32 patientCommitment, string memory grantedTo, string memory scope, string memory recordId, string memory purpose, uint256 expiresAt) external',
+        'function revokeConsent(bytes32 consentId) external',
+        'function isConsentActive(bytes32 consentId) external view returns (bool)'
+    ];
+    const consentContract = process.env.CONSENT_REGISTRY_ADDRESS
+        ? new ethers.Contract(process.env.CONSENT_REGISTRY_ADDRESS, consentAbi, wallet)
+        : null;
+
+    const breakGlassAbi = [
+        'function declareEmergency(bytes32 patientId, bytes32 admissionTicketHash, string calldata ephemeralSessionPubKey) external returns (bytes32)',
+        'function attestShareRelease(bytes32 sessionId, bytes32 shareCommitmentHash) external',
+        'function logDecryption(bytes32 sessionId) external',
+        'function closeEmergency(bytes32 sessionId, string calldata reason) external'
+    ];
+    const breakGlassContract = process.env.BREAK_GLASS_REGISTRY_ADDRESS
+        ? new ethers.Contract(process.env.BREAK_GLASS_REGISTRY_ADDRESS, breakGlassAbi, wallet)
+        : null;
+
+    const sentinelAbi = [
+        'function isSystemOperational() public view returns (bool)',
+        'function submitHeartbeat(bytes32 observedRoot, uint256 sequenceNumber) external',
+        'function triggerEmergencyLockdown(bytes32 observedRoot, bytes memory proofOfMismatch) external'
+    ];
+    const sentinelContract = process.env.SENTINEL_REGISTRY_ADDRESS
+        ? new ethers.Contract(process.env.SENTINEL_REGISTRY_ADDRESS, sentinelAbi, wallet)
+        : null;
+
+    const auditAbi = [
+        'function recordEmergencyAudit(bytes32 sessionNonce, bytes32 commitmentHash, bytes calldata doctorSig, bytes calldata custodianSig, bytes calldata enclaveSig) external',
+        'function verifyAuditCommitment(bytes32 sessionNonce, bytes32 computedHash) external view returns (bool)'
+    ];
+    const auditContract = process.env.EMERGENCY_AUDIT_ADDRESS
+        ? new ethers.Contract(process.env.EMERGENCY_AUDIT_ADDRESS, auditAbi, wallet)
+        : null;
+
+    const keyEscrowAbi = [
+        'function depositEscrow(bytes32 patientPubKey, bytes calldata encryptedShare, tuple(uint256 x, uint256 y) c0, tuple(uint256 x, uint256 y) c1, tuple(uint256 x, uint256 y) c2, address trustee) external',
+        'function approveEmergencyUnlock(bytes32 patientPubKey) external',
+        'function getFeldmanCommitments(bytes32 patientPubKey) external view returns (tuple(uint256 x, uint256 y) c0, tuple(uint256 x, uint256 y) c1, tuple(uint256 x, uint256 y) c2)',
+        'function getEncryptedShare(bytes32 patientPubKey) external view returns (bytes memory)'
+    ];
+    const keyEscrowContract = process.env.KEY_ESCROW_ADDRESS
+        ? new ethers.Contract(process.env.KEY_ESCROW_ADDRESS, keyEscrowAbi, wallet)
+        : null;
+
     // ── Contract Registry ──────────────────────────────────────────────────
     const contracts = {
-        EMRRegistry:         emrContract,
-        CertificateRegistry: registryContract,
-        EmergencyEscrow:     escrowContract,
+        EMRRegistry:              emrContract,
+        CertificateRegistry:      registryContract,
+        EmergencyEscrow:          escrowContract,
+        ConsentRegistry:          consentContract,
+        BreakGlassRegistry:       breakGlassContract,
+        ForensicSentinelRegistry: sentinelContract,
+        EmergencyAuditRegistry:   auditContract,
+        KeyEscrowRegistry:        keyEscrowContract,
     };
 
     // Attach getContract to the default export (backward-compat)

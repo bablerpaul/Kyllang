@@ -81,7 +81,10 @@ router.post('/prescriptions', uploadPrescription);
 router.get('/patients/:patientId/documents', getPatientDocuments);
 router.get('/documents/:docId', getDocument);
 router.post('/documents/:docId/request', requestDocumentAccess);
-router.post('/certificates', uploadLimiter, upload.single('file'), certificateIssueRules(), validate, issueCertificate);
+// RETIRED (Step 78): this legacy handler no longer processes an upload or the old certificate body —
+// it only returns 410 Gone — so the upload/rate-limit/validation middleware built for the old body is
+// removed too. Auth (protect + authorize('doctor')) still applies via the router.use(...) above.
+router.post('/certificates', issueCertificate);
 router.get('/certificate-requests', getCertificateRequests);
 router.post('/certificate-requests/:id/approve', approveCertificateRequest);
 

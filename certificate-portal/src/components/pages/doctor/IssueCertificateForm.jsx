@@ -28,8 +28,17 @@ const IssueCertificateForm = ({ open, onClose, patient }) => {
         setError('');
     };
 
+    // Certificates are bound to the Patient-profile _id. A User record (no `user` link) or a profile-less
+    // fallback (no `_id`) must never be used — there is no User-ID fallback.
+    const hasPatientProfile = Boolean(patient?._id && patient?.user);
+    const PROFILE_REQUIRED_MESSAGE = 'A Patient profile is required to issue a certificate for this patient. The patient has no profile yet, so no certificate can be issued.';
+
     const handleNext = () => {
         if (activeStep === 0) {
+            if (!hasPatientProfile) {
+                setError(PROFILE_REQUIRED_MESSAGE);
+                return;
+            }
             if (!formData.diagnosis || !formData.validFrom || !formData.validUntil) {
                 setError('Please fill in all required fields.');
                 return;
@@ -53,7 +62,7 @@ const IssueCertificateForm = ({ open, onClose, patient }) => {
         setError('');
 
         try {
-            if (!patient?._id) throw new Error("Patient context is missing.");
+            if (!hasPatientProfile) throw new Error(PROFILE_REQUIRED_MESSAGE);
 
             // 1. Generate cryptographic salt
             const saltHex = generateSalt();
@@ -143,7 +152,7 @@ const IssueCertificateForm = ({ open, onClose, patient }) => {
                     <Grid container spacing={3}>
                         <Grid item xs={12}>
                             <Typography variant="body2" color="text.secondary" gutterBottom>
-                                Patient: <strong>{patient?.name}</strong> ({patient?._id})
+                                Patient: <strong>{patient?.user?.name || patient?.name}</strong> ({patient?._id})
                             </Typography>
                         </Grid>
                         <Grid item xs={12}>
@@ -200,7 +209,7 @@ const IssueCertificateForm = ({ open, onClose, patient }) => {
                         <Paper variant="outlined" sx={{ p: 2, bgcolor: '#fafafa' }}>
                             <Grid container spacing={2}>
                                 <Grid item xs={4}><Typography variant="subtitle2" color="text.secondary">Patient:</Typography></Grid>
-                                <Grid item xs={8}><Typography variant="body2">{patient?.name}</Typography></Grid>
+                                <Grid item xs={8}><Typography variant="body2">{patient?.user?.name || patient?.name}</Typography></Grid>
                                 
                                 <Grid item xs={4}><Typography variant="subtitle2" color="text.secondary">Diagnosis:</Typography></Grid>
                                 <Grid item xs={8}><Typography variant="body2">{formData.diagnosis}</Typography></Grid>

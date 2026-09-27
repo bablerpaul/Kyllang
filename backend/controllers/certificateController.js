@@ -20,11 +20,18 @@
 const Certificate   = require('../models/Certificate');
 const MedicalRecord = require('../models/MedicalRecord');
 const Doctor        = require('../models/Doctor');
+const User          = require('../models/User');
 const AuditLog      = require('../models/AuditLog');
 const { ethers }    = require('ethers');
 
 const blockchainContract = require('../blockchain');
 const challengeService   = require('../services/challengeService');
+const {
+    resolvePatientProfile,
+    patientCertificateIds,
+    describeCertificatePatients,
+    withCertificatePatients,
+} = require('../services/certificatePatientService');
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -109,13 +116,36 @@ exports.createCertificate = async (req, res, next) => {
 
         const commitmentBytes32 = toBytes32(publicCommitmentHash);
 
+        // ── Resolve Patient Profile (canonical Certificate.patient) ────────
+        // Accepts a Patient-profile _id or a User _id and stores ONLY the Patient-profile _id.
+        // Never creates a profile: a patient without one cannot be issued a certificate.
+        const patientProfile = await resolvePatientProfile(patientId);
+        if (!patientProfile) {
+            return res.status(400).json({
+                success: false,
+                message: 'A Patient profile is required to issue a certificate. No Patient profile exists for the supplied patientId.',
+                error: 'PATIENT_PROFILE_REQUIRED',
+            });
+        }
+        const patientUser = await User.findById(patientProfile.user).select('name email role').lean();
+        if (!patientUser || patientUser.role !== 'general_user') {
+            return res.status(404).json({
+                success: false,
+                message: 'Patient account not found for this Patient profile.',
+                error: 'PATIENT_NOT_FOUND',
+            });
+        }
+
         // ── Resolve Doctor Profile ─────────────────────────────────────────
-        let doctorProfile = await Doctor.findOne({ user: req.user._id });
+        // The issuer's EXISTING Doctor profile. Never created here: a profile (with real specialty / license) comes only from
+        // the explicit provisioning paths (admin user creation, doctor registration). A caller without one is refused BEFORE
+        // any consent check, on-chain call or certificate is written.
+        const doctorProfile = await Doctor.findOne({ user: req.user._id });
         if (!doctorProfile) {
-            doctorProfile = await Doctor.create({
-                user: req.user._id,
-                specialty: 'General Medicine',
-                licenseNumber: `DOC-${req.user._id.toString().substring(18)}`,
+            return res.status(403).json({
+                success: false,
+                message: 'A Doctor profile is required to issue a certificate.',
+                error: 'DOCTOR_PROFILE_REQUIRED',
             });
         }
 
@@ -125,7 +155,24 @@ exports.createCertificate = async (req, res, next) => {
             emrRecord = await MedicalRecord.findById(medicalRecordId);
         }
         if (!emrRecord) {
-            emrRecord = await MedicalRecord.findOne({ patient: patientId }).sort({ createdAt: -1 });
+            emrRecord = await MedicalRecord.findOne({ patient: patientProfile._id }).sort({ createdAt: -1 });
+        }
+
+        // ── Verify Patient Consent / Authorization ─────────────────────────
+        const { hasActiveConsent } = require('../middlewares/consentMiddleware');
+        if (req.user.role === 'doctor') {
+            const isAllowed = await hasActiveConsent({
+                patientInput: patientProfile._id,
+                requestingUser: req.user,
+                requiredScope: 'certificates'
+            });
+            if (!isAllowed) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Access Denied: Patient active consent or assignment is required to issue a certificate.',
+                    error: 'AUTHORIZATION_DENIED'
+                });
+            }
         }
 
         // ── On-Chain Registration ──────────────────────────────────────────
@@ -154,7 +201,7 @@ exports.createCertificate = async (req, res, next) => {
 
         // ── MongoDB Document ───────────────────────────────────────────────
         const certificate = await Certificate.create({
-            patient:              patientId,
+            patient:              patientProfile._id,
             issuedBy:             req.user._id,
             doctor:               doctorProfile._id,
             medicalRecord:        emrRecord?._id,
@@ -177,7 +224,7 @@ exports.createCertificate = async (req, res, next) => {
             action: 'ISSUE_ZK_CERTIFICATE',
             details: {
                 certificateId: certificate._id,
-                patientId,
+                patientId: patientProfile._id,
                 commitmentHash: commitmentBytes32,
                 blockchainTxHash,
                 issuerAddress,
@@ -185,8 +232,8 @@ exports.createCertificate = async (req, res, next) => {
         });
 
         // ── Populate for Response ──────────────────────────────────────────
+        // (`patient` is the Patient-profile _id — described from the resolved profile/user, not populated as a User.)
         const populatedCert = await Certificate.findById(certificate._id)
-            .populate('patient',      'name email')
             .populate('issuedBy',     'name')
             .populate('doctor',       'specialty licenseNumber')
             .populate('medicalRecord','visitDate')
@@ -203,7 +250,12 @@ exports.createCertificate = async (req, res, next) => {
                 publicCommitmentHash: populatedCert.publicCommitmentHash,
                 blockchainTxHash:     populatedCert.blockchainTxHash,
                 issuerAddress:        populatedCert.issuerAddress,
-                patient:              populatedCert.patient,
+                patient: {
+                    _id:       patientProfile._id,
+                    patientId: String(patientProfile._id),
+                    name:      patientUser.name,
+                    email:     patientUser.email,
+                },
                 doctor:               populatedCert.doctor,
                 createdAt:            populatedCert.createdAt,
             },
@@ -219,16 +271,17 @@ exports.createCertificate = async (req, res, next) => {
 // ═══════════════════════════════════════════════════════════════════════════
 exports.getMyCertificates = async (req, res, next) => {
     try {
+        // Patients: match the canonical Patient-profile _id and the legacy User _id.
         const query = req.user.role === 'doctor'
             ? { issuedBy: req.user._id }
-            : { patient: req.user._id };
+            : { patient: { $in: await patientCertificateIds(req.user._id) } };
 
-        const certificates = await Certificate.find(query)
-            .populate('patient', 'name email')
+        const found = await Certificate.find(query)
             .populate('issuedBy', 'name')
             .populate('doctor', 'specialty licenseNumber')
             .sort({ createdAt: -1 })
             .lean();
+        const certificates = await withCertificatePatients(found);
 
         // Strip any legacy fields with medical data before sending
         const safe = certificates.map(cert => ({
@@ -294,7 +347,6 @@ exports.lookupCertificate = async (req, res, next) => {
         }
 
         const cert = await Certificate.findOne({ $or: conditions })
-            .populate('patient',  'name')       // name only — no email
             .populate('issuedBy', 'name')
             .populate('doctor',   'specialty licenseNumber')
             .lean();
@@ -307,13 +359,39 @@ exports.lookupCertificate = async (req, res, next) => {
             });
         }
 
+        // Patient name only — no email. Handles Patient-profile ids, legacy User ids and orphans (falls back to 'Patient').
+        const patientInfo = (await describeCertificatePatients([cert.patient])).get(String(cert.patient));
+
+        // A revoked certificate must never be reported as simply "verified".
+        const isRevoked = cert.status === 'revoked';
+        let lookupStatus = 'verified';
+        
+        if (isRevoked) {
+            lookupStatus = 'revoked';
+        } else if (cert.validUntil && new Date(cert.validUntil) < new Date()) {
+            lookupStatus = 'expired';
+        }
+
         // Return safe fields only
         return res.status(200).json({
             success: true,
-            status: 'verified',
+            status: lookupStatus,
+            ...(isRevoked && { message: 'This certificate has been revoked and is no longer valid.' }),
+            ...(lookupStatus === 'expired' && { message: 'This certificate has expired.' }),
             data: {
+                ...(isRevoked && {
+                    status:    'revoked',
+                    revoked:   true,
+                    revokedAt: cert.revokedAt,
+                    message:   'This certificate has been revoked and is no longer valid.',
+                }),
+                ...(lookupStatus === 'expired' && {
+                    status:    'expired',
+                    expired:   true,
+                    message:   'This certificate has expired.',
+                }),
                 _id:                  cert._id,
-                patientName:          cert.patient?.name || 'Patient',
+                patientName:          patientInfo?.name || 'Patient',
                 doctorName:           cert.issuedBy?.name || 'Unknown Issuer',
                 specialty:            cert.doctor?.specialty,
                 licenseNumber:        cert.doctor?.licenseNumber,
@@ -474,14 +552,19 @@ exports.verifyCertificate = async (req, res, next) => {
             console.warn('[verifyCertificate] CertificateRegistry not connected — dev mode bypass');
         } else {
             try {
+                // First static verification for precise error messages
                 const [valid, certExists, certRevoked, sessionConsumed] = await registry.verifyCertificateProofStatic(pA, pB, pC, pubSignalsOnChain);
                 
                 if (!certExists) throw new Error('not registered');
                 if (certRevoked) throw new Error('revoked');
-                if (sessionConsumed) throw new Error('session already consumed');
+                if (sessionConsumed) throw new Error('session already consumed (static check)');
                 if (!valid) throw new Error('Groth16 proof verification failed');
 
-                console.log('[CertificateRegistry] Proof statically verified on-chain. TX: (static call)');
+                // Now execute the state-changing call to consume the session permanently on-chain
+                const tx = await registry.verifyCertificateProof(pA, pB, pC, pubSignalsOnChain);
+                const receipt = await tx.wait();
+
+                console.log('[CertificateRegistry] Proof verified and session consumed on-chain. TX:', receipt.hash || tx.hash);
             } catch (contractErr) {
                 // Parse revert reason for structured error response
                 const reason = contractErr.reason || contractErr.message || 'Unknown contract error';
@@ -509,10 +592,14 @@ exports.verifyCertificate = async (req, res, next) => {
         const certificate = await Certificate.findOne({
             publicCommitmentHash: commitmentBytes32,
         })
-            .populate('patient',  'name email')
             .populate('issuedBy', 'name')
             .populate('doctor',   'specialty licenseNumber')
             .lean();
+
+        // The audit actor must be a User: resolve it from the stored Patient-profile / legacy User id (null for orphans).
+        const patientInfo = certificate
+            ? (await describeCertificatePatients([certificate.patient])).get(String(certificate.patient))
+            : null;
 
         if (!certificate) {
             // Certificate is valid on-chain but not in our DB — issue a soft warning
@@ -550,7 +637,7 @@ exports.verifyCertificate = async (req, res, next) => {
 
         // ── Audit Log ──────────────────────────────────────────────────────
         await AuditLog.create({
-            actor:  certificate?.patient || null,
+            actor:  patientInfo?.userId || null,
             action: 'VERIFY_ZK_CERTIFICATE',
             details: {
                 commitmentHash: commitmentBytes32,
@@ -579,8 +666,9 @@ exports.revokeCertificate = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Certificate not found' });
         }
 
-        if (certificate.revoked) {
-            return res.status(400).json({ success: false, message: 'Certificate is already revoked' });
+        // The schema tracks revocation via `status` / `revokedAt` (there is no `revoked` field).
+        if (certificate.status === 'revoked') {
+            return res.status(400).json({ success: false, message: 'Certificate is already revoked.', error: 'Certificate is already revoked.' });
         }
 
         // Verify caller is authorized doctor/admin
@@ -600,7 +688,6 @@ exports.revokeCertificate = async (req, res, next) => {
         const tx = await registry.revokeCertificate(commitmentBytes32);
         const receipt = await tx.wait();
 
-        certificate.revoked = true;
         certificate.status = 'revoked';
         certificate.revokedAt = new Date();
         await certificate.save();

@@ -151,7 +151,9 @@ function VerificationResult({ result, onReset }) {
                   ? 'Verification Inconclusive'
                   : isValid
                     ? 'Cryptographically Verified ✓'
-                    : 'Verification Failed ✗'}
+                    : result.status === 'revoked'
+                      ? 'Certificate Revoked ✗'
+                      : 'Verification Failed ✗'}
               </Typography>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                 {result.message || (isValid ? 'Hash matches on-chain registry' : 'Hash not found in registry')}
@@ -262,11 +264,16 @@ export default function QRVerificationManager() {
         status: data.status || res.status || 'verified',
       });
     } catch (err) {
-      if (err.message?.includes('404') || err.message?.toLowerCase().includes('not found')) {
+      // apiFetch attaches the real HTTP status + parsed body to the thrown error,
+      // so branch on that instead of fragile string-matching against err.message
+      // (the backend's actual 404 text, "No certificate found matching this
+      // hash...", doesn't literally contain "404" or "not found").
+      const isNotFound = err.status === 404 || err.data?.status === 'not_found';
+      if (isNotFound) {
         setResult({
           status: 'invalid',
           hash: hash.trim(),
-          message: 'This hash is not registered in the Kyllang certificate registry.',
+          message: err.data?.message || 'This hash is not registered in the Kyllang certificate registry.',
         });
       } else {
         setResult({

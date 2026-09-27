@@ -1,0 +1,133 @@
+[
+  {
+    "_id": {
+      "$oid": "6a953b9248f65f31e8296df0"
+    },
+    "fileName": "claim.pdf",
+    "fileType": "InsuranceClaim",
+    "mimeType": "application/pdf",
+    "encryptionMethod": "AES-256-CBC",
+    "patient": {
+      "$oid": "6a953b9248f65f31e8296de0"
+    },
+    "doctor": {
+      "$oid": "6a953b9248f65f31e8296de2"
+    },
+    "linkedInsurance": {
+      "$oid": "6a953b9248f65f31e8296de7"
+    },
+    "isActive": true,
+    "createdAt": {
+      "$date": "2026-08-31T08:30:10.745Z"
+    },
+    "updatedAt": {
+      "$date": "2026-08-31T08:30:37.577Z"
+    },
+    "__v": 0,
+    "patientSalt": "2f327ef8bfc8f75f01b0e06f9dedecbffc67c90407a572313ca5f76ea7b10526"
+  },
+  {
+    "_id": {
+      "$oid": "6aab5daa0657914859ec089e"
+    },
+    "fileName": "test-a.txt",
+    "fileType": "General",
+    "mimeType": "text/plain",
+    "encryptionMethod": "AES-256-CBC",
+    "patient": {
+      "$oid": "6aab5daa0657914859ec089c"
+    },
+    "doctor": {
+      "$oid": "6aab5daa0657914859ec089b"
+    },
+    "linkedEMR": {
+      "$oid": "6aab5daa0657914859ec089d"
+    },
+    "isActive": true,
+    "createdAt": {
+      "$date": "2026-09-17T03:25:30.195Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-17T03:25:30.195Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6aab5daa0657914859ec08a1"
+    },
+    "fileName": "test-b.txt",
+    "fileType": "General",
+    "mimeType": "text/plain",
+    "encryptionMethod": "AES-256-CBC",
+    "patient": {
+      "$oid": "6aab5daa0657914859ec089c"
+    },
+    "doctor": {
+      "$oid": "6aab5daa0657914859ec089b"
+    },
+    "linkedEMR": {
+      "$oid": "6aab5daa0657914859ec089d"
+    },
+    "isActive": true,
+    "createdAt": {
+      "$date": "2026-09-17T03:25:30.215Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-17T03:25:30.215Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6aab5dcdf8abc5122ad838c0"
+    },
+    "fileName": "test-a.txt",
+    "fileType": "General",
+    "mimeType": "text/plain",
+    "encryptionMethod": "AES-256-CBC",
+    "patient": {
+      "$oid": "6aab5dcdf8abc5122ad838be"
+    },
+    "doctor": {
+      "$oid": "6aab5dcdf8abc5122ad838bd"
+    },
+    "linkedEMR": {
+      "$oid": "6aab5dcdf8abc5122ad838bf"
+    },
+    "isActive": true,
+    "createdAt": {
+      "$date": "2026-09-17T03:26:05.641Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-17T03:26:05.641Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6aab5dcdf8abc5122ad838c3"
+    },
+    "fileName": "test-b.txt",
+    "fileType": "General",
+    "mimeType": "text/plain",
+    "encryptionMethod": "AES-256-CBC",
+    "patient": {
+      "$oid": "6aab5dcdf8abc5122ad838be"
+    },
+    "doctor": {
+      "$oid": "6aab5dcdf8abc5122ad838bd"
+    },
+    "linkedEMR": {
+      "$oid": "6aab5dcdf8abc5122ad838bf"
+    },
+    "isActive": true,
+    "createdAt": {
+      "$date": "2026-09-17T03:26:05.768Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-17T03:26:05.768Z"
+    },
+    "__v": 0
+  }
+]

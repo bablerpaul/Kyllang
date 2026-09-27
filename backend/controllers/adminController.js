@@ -6,6 +6,16 @@ const Certificate = require('../models/Certificate');
 const AuditLog = require('../models/AuditLog');
 const blockchainContract = require('../blockchain');
 const SecureFile = require('../src/modules/secure-storage/models/SecureFile');
+const SecureDocument = require('../src/modules/secure-storage/models/SecureDocument');
+const FileVersion = require('../src/modules/secure-storage/models/FileVersion');
+const Appointment = require('../models/Appointment');
+const LabReport = require('../models/LabReport');
+const Prescription = require('../models/Prescription');
+const Consent = require('../models/Consent');
+const InsuranceClaim = require('../models/InsuranceClaim');
+const CertificateRequest = require('../models/CertificateRequest');
+const RefreshToken = require('../models/RefreshToken');
+const { withCertificatePatients } = require('../services/certificatePatientService');
 const os = require('os');
 const { getMetrics } = require('../src/middlewares/metricsMiddleware');
 
@@ -194,6 +204,105 @@ exports.createUser = async (req, res, next) => {
  * @param {Function} next - The Express next middleware function
  * @returns {Promise<void>} Resolves when the operation is complete
  */
+const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/;
+
+/**
+ * deleteUser
+ * @description Deletes a non-admin user together with their own Doctor/Patient profile and sessions,
+ * and unassigns them from doctor/patient assignment lists. Refuses (409) when the user still owns or
+ * issued clinical/certificate records, so no orphaned records are created and nothing is cascade-deleted.
+ * Audit logs are never touched.
+ * DELETE /api/admin/users/:id
+ */
+exports.deleteUser = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+
+        if (!OBJECT_ID_RE.test(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid user ID', error: 'Invalid user ID' });
+        }
+
+        if (String(req.user._id) === id) {
+            return res.status(400).json({ success: false, message: 'You cannot delete your own account', error: 'You cannot delete your own account' });
+        }
+
+        const target = await User.findById(id);
+        if (!target) {
+            return res.status(404).json({ success: false, message: 'User not found', error: 'User not found' });
+        }
+
+        // Admin accounts are not managed through this endpoint (they are also hidden from getAllUsers).
+        if (target.role === 'hospital_admin') {
+            return res.status(403).json({ success: false, message: 'Admin accounts cannot be deleted', error: 'Admin accounts cannot be deleted' });
+        }
+
+        const doctorProfile = await Doctor.findOne({ user: target._id }).select('_id');
+        const patientProfile = await Patient.findOne({ user: target._id }).select('_id');
+        const dId = doctorProfile ? doctorProfile._id : null;
+        const pId = patientProfile ? patientProfile._id : null;
+
+        // Records that belong to / were issued by this user. If any exist, refuse instead of orphaning them.
+        const or = (...conds) => ({ $or: conds.filter(Boolean) });
+        const dependents = [
+            ['appointments', Appointment, or(pId && { patient: pId }, dId && { doctor: dId })],
+            ['medicalRecords', MedicalRecord, or(pId && { patient: pId }, dId && { doctor: dId })],
+            ['labReports', LabReport, or(pId && { patient: pId }, dId && { orderedBy: dId }, dId && { doctor: dId })],
+            ['prescriptions', Prescription, or(pId && { patient: pId }, dId && { doctor: dId })],
+            ['consents', Consent, or(pId && { patient: pId }, { patientUser: target._id }, { grantedTo: target._id }, dId && { grantedToDoctor: dId })],
+            ['insuranceClaims', InsuranceClaim, or(pId && { patient: pId }, { user: target._id }, { processedBy: target._id }, dId && { doctor: dId })],
+            ['secureFiles', SecureFile, or(pId && { patient: pId }, dId && { doctor: dId })],
+            ['secureDocuments', SecureDocument, or({ patient: target._id }, { uploader: target._id })],
+            ['fileVersions', FileVersion, { uploadedBy: target._id }],
+            ['patientDocuments', PatientDocument, { patient: target._id }],
+            // Certificate.patient is canonically the Patient-profile _id; legacy records may hold the User _id.
+            // Check both so a certificate can never slip past this guard.
+            ['certificates', Certificate, or({ patient: target._id }, pId && { patient: pId }, { issuedBy: target._id }, dId && { doctor: dId })],
+            ['certificateRequests', CertificateRequest, or({ patient: target._id }, { doctorRequested: target._id })],
+        ];
+
+        const blocking = {};
+        for (const [label, Model, filter] of dependents) {
+            const count = await Model.countDocuments(filter);
+            if (count > 0) blocking[label] = count;
+        }
+
+        if (Object.keys(blocking).length > 0) {
+            return res.status(409).json({
+                success: false,
+                message: 'User still has associated records and cannot be deleted. Remove or reassign them first.',
+                error: 'User has associated records',
+                data: { blockingRecords: blocking },
+            });
+        }
+
+        // Unassign from assignment lists, then remove sessions, profile and the user.
+        await User.updateMany({ assignedPatients: target._id }, { $pull: { assignedPatients: target._id } });
+        if (pId) await Doctor.updateMany({ assignedPatients: pId }, { $pull: { assignedPatients: pId } });
+        if (dId) await Patient.updateMany({ assignedDoctors: dId }, { $pull: { assignedDoctors: dId } });
+        await RefreshToken.deleteMany({ user: target._id });
+        if (dId) await Doctor.deleteOne({ _id: dId });
+        if (pId) await Patient.deleteOne({ _id: pId });
+        await User.deleteOne({ _id: target._id });
+
+        await AuditLog.create({
+            actor: req.user._id,
+            action: 'DELETE_USER',
+            details: {
+                deletedUserId: target._id,
+                role: target.role,
+                name: target.name,
+                email: target.email,
+                removedProfiles: { doctor: !!dId, patient: !!pId },
+            }
+        });
+
+        res.status(200).json({ success: true, message: 'User deleted successfully', data: { deletedUserId: target._id, role: target.role } });
+    } catch (error) {
+        console.error('Error deleting user:', error);
+        next(error);
+    }
+};
+
 exports.assignDoctor = async (req, res, next) => {
     try {
         console.log("assignDoctor: 1 - Start");
@@ -441,6 +550,45 @@ exports.getMonitoringDashboard = async (req, res, next) => {
                 }
             }
         });
+    } catch (error) {
+        next(error);
+    }
+};
+
+
+exports.getAllCertificates = async (req, res, next) => {
+    try {
+        const found = await Certificate.find().select('-secretSalt -encryptedCredential').populate('issuedBy', 'name email').sort({ createdAt: -1 }).lean();
+        // `patient` is the Patient-profile _id (legacy records may hold a User _id) — describe it instead of populating as a User.
+        const certificates = await withCertificatePatients(found);
+
+        // Enrich with on-chain status
+        const blockchainContract = require('../blockchain');
+        const registry = blockchainContract.getContract ? blockchainContract.getContract('CertificateRegistry') : null;
+        
+        const enrichedCertificates = await Promise.all(certificates.map(async (cert) => {
+            let onChainRevoked = false;
+            let onChainStatusAvailable = false;
+            
+            if (registry && cert.publicCommitmentHash) {
+                try {
+                    const record = await registry.getCertificateRecord(cert.publicCommitmentHash);
+                    // record returns: [issuer, issuedAt, revoked, exists]
+                    onChainRevoked = record[2];
+                    onChainStatusAvailable = true;
+                } catch (err) {
+                    console.error(`Blockchain lookup failed for ${cert._id}:`, err.message);
+                }
+            }
+            
+            return {
+                ...cert,
+                onChainRevoked,
+                onChainStatusAvailable
+            };
+        }));
+
+        res.status(200).json({ success: true, message: 'Certificates retrieved successfully', data: enrichedCertificates });
     } catch (error) {
         next(error);
     }

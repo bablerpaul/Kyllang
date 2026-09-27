@@ -1,0 +1,37 @@
+{
+  "WARNING": "DO NOT EXECUTE. PENDING USER APPROVAL.",
+  "delete_secure_files": [
+    "6a953b9248f65f31e8296df0",
+    "6aab5daa0657914859ec089e",
+    "6aab5daa0657914859ec08a1",
+    "6aab5dcdf8abc5122ad838c0",
+    "6aab5dcdf8abc5122ad838c3"
+  ],
+  "delete_file_versions": [
+    "6a953b9248f65f31e8296df1",
+    "6aab5daa0657914859ec089f",
+    "6aab5daa0657914859ec08a2",
+    "6aab5dcdf8abc5122ad838c1",
+    "6aab5dcdf8abc5122ad838c4"
+  ],
+  "delete_file_access_logs": [
+    "6a953b9248f65f31e8296df2",
+    "6aab5daa0657914859ec08a0",
+    "6aab5daa0657914859ec08a3",
+    "6aab5dcdf8abc5122ad838c2",
+    "6aab5dcdf8abc5122ad838c5"
+  ],
+  "delete_fallback_blobs": [
+    "mock_ipfs_cid_1789615530213",
+    "mock_ipfs_cid_1789615565766"
+  ],
+  "leave_untouched": {
+    "real_ipfs_cids": [
+      "QmaVfGFuHyrpVzkUjeu56c5jM2SADzPGr223qCpQcVKEzt",
+      "Qmb6KiL7pxr1BpnUf6ojrcnmotehsNh2BZtjsuw1sM2PC2"
+    ],
+    "missing_cids": [
+      "mock_ipfs_cid_1788165010744"
+    ]
+  }
+}

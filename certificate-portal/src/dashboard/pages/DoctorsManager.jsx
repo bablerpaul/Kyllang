@@ -275,10 +275,14 @@ export default function DoctorsManager() {
                     </TableCell>
                     
                     <TableCell align="right">
-                      <Tooltip title="View Profile">
-                        <IconButton size="small" sx={{ color: '#94a3b8', '&:hover': { color: '#0ea5e9', bgcolor: '#f0f9ff' } }}>
-                          <MoreVertIcon fontSize="small" />
-                        </IconButton>
+                      {/* No Doctor detail page/route exists anywhere in the app (T3-R1 Bug 5) — disabled
+                          with an explanation instead of a control that silently does nothing. */}
+                      <Tooltip title="A detailed Doctor profile view is not available yet">
+                        <span>
+                          <IconButton size="small" disabled sx={{ color: '#cbd5e1' }}>
+                            <MoreVertIcon fontSize="small" />
+                          </IconButton>
+                        </span>
                       </Tooltip>
                     </TableCell>
                   </TableRow>

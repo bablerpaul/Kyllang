@@ -51,7 +51,7 @@ const UserLayout = () => {
   const menuItems = [
     { text: 'Dashboard', icon: <Dashboard />, path: '/user/dashboard' },
     { text: 'My Profile & History', icon: <VerifiedUser />, path: '/user/profile' },
-    { text: 'Health Records (EHR)', icon: <VerifiedUser />, path: '/user/health-records' },
+    { text: 'Health Records (EHR)', icon: <VerifiedUser />, path: '/dashboard/emr' },
     { text: 'Appointments', icon: <History />, path: '/user/appointments' },
     { text: 'Prescriptions', icon: <AddCircle />, path: '/user/prescriptions' },
     { text: 'Lab Reports', icon: <CheckCircle />, path: '/user/lab-reports' },

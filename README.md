@@ -22,11 +22,13 @@ Data is siloed in centralized databases controlled by institutions, making it vu
 - **Node.js, Express.js, MongoDB (Mongoose)**, and **Ethers.js**.
 - Acts as a stateless cryptographic relay and indexer rather than a traditional trusted server.
 - Handles REST APIs, smart contract interactions, background batching (Merkle, Canary, Backup jobs), and TPRE Proxy Node management.
+- Includes new Secure Scheduling & Appointments modules.
 
 ### 3. Blockchain (Ethereum/Ganache Smart Contracts)
 - **`EMRRegistry.sol`**: Manages patient records and access control lists (ACLs).
 - **`ZKVerifier.sol`**: On-chain verification of Zero-Knowledge proofs.
 - **`EmergencyEscrow.sol`**: Manages Break-Glass MCI (Mass Casualty Incident) Emergency Mode with strict immutable audit logging.
+- **`ForensicSentinel.sol`**: Real-time forensic monitoring and security enforcement mechanisms.
 
 ### 4. Native Enclave (v4 Security)
 - A **Tauri-based Rust sidecar** designed to protect against browser memory dumping.
@@ -58,9 +60,10 @@ Kyllang/
 ├── certificate-portal/       # React 18 Frontend
 │   ├── src/workers/          # ZK Web Worker and Bridge for crypto offloading
 │   ├── src/dashboard/        # Dashboard specific views
-│   └── src/modules/          # Domain-specific modules (EMR)
-└── native-enclave/           # Tauri (Rust) sidecar for secure key management
-    └── src-tauri/src/crypto/ # mlock, zeroize, TPRE ops
+│   └── src/modules/          # Domain-specific modules (EMR, Scheduling)
+├── native-enclave/           # Tauri (Rust) sidecar for secure key management
+│   └── src-tauri/src/crypto/ # mlock, zeroize, TPRE ops
+└── proxy-service/            # TPRE Proxy Node Service and Session Proof Verifier
 ```
 
 ## 🚀 Getting Started
@@ -85,6 +88,9 @@ Kyllang/
    
    # Frontend
    cd ../certificate-portal && npm install
+
+   # Proxy Service
+   cd ../proxy-service && npm install
    ```
 3. **Environment Variables:**
    - Copy `.env.example` to `.env` in both the `backend` and `certificate-portal` directories and configure your localized settings (RPC URLs, database URIs, etc).
@@ -95,6 +101,9 @@ Kyllang/
    
    # Start frontend
    cd ../certificate-portal && npm run dev
+
+   # Start proxy service
+   cd ../proxy-service && npm start
    ```
 
 ## 🤝 Contributing

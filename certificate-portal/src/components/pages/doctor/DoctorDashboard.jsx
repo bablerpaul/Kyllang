@@ -161,6 +161,12 @@ const DoctorDashboard = () => {
               </Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mt: 2, justifyContent: { xs: 'center', md: 'flex-start' } }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <PersonIcon color="action" fontSize="small" />
+                  <Typography variant="body1" color="text.secondary" sx={{ userSelect: 'all' }}>
+                    <strong>Doctor ID:</strong> {doctorProfile.id || '—'}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <HospitalIcon color="action" fontSize="small" />
                   <Typography variant="body1" color="text.secondary">
                     <strong>Specialty:</strong> {doctorProfile.specialty} • {doctorProfile.department}

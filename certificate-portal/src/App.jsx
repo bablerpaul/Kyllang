@@ -23,6 +23,7 @@ import DoctorsManager from './dashboard/pages/DoctorsManager';
 import EMRManager from './dashboard/pages/EMRManager';
 import AppointmentsManager from './dashboard/pages/AppointmentsManager';
 import LabReportsManager from './dashboard/pages/LabReportsManager';
+import SecureStorageDashboard from './dashboard/pages/SecureStorageDashboard';
 import CertificatesManager from './dashboard/pages/CertificatesManager';
 import InsuranceManager from './dashboard/pages/InsuranceManager';
 import AuditLogsManager from './dashboard/pages/AuditLogsManager';
@@ -37,7 +38,9 @@ import SystemAnalytics from './components/pages/admin/SystemAnalytics';
 // ── Doctor-specific pages ───────────────────────────────────────────────────
 import DoctorPatients from './components/pages/doctor/DoctorPatients';
 import PatientDetail from './components/pages/doctor/PatientDetail';
+import DoctorProfile from './components/pages/doctor/DoctorProfile';
 import DocumentViewer from './components/pages/doctor/DocumentViewer';
+import DocumentBrowser from './components/pages/doctor/DocumentBrowser';
 import IssueCertificates from './components/pages/doctor/IssueCertificates';
 import DoctorRequests from './components/pages/doctor/DoctorRequests';
 import CertificateRequests from './components/pages/doctor/CertificateRequests';
@@ -48,6 +51,7 @@ import MyDocuments from './components/pages/user/MyDocuments';
 import GenerateCertificate from './components/pages/user/GenerateCertificate';
 import ApproveRequests from './components/pages/user/ApproveRequests';
 import PatientKeyEnrollment from './components/pages/user/PatientKeyEnrollment';
+import DoctorConsent from './components/pages/user/DoctorConsent';
 
 // ── EMR module pages (shared across roles) ──────────────────────────────────
 import HealthRecords from './modules/emr/pages/HealthRecords';
@@ -92,32 +96,46 @@ function App() {
           <Route path="health-records" element={<HealthRecords />} />
 
           {/* Admin pages */}
-          <Route path="users" element={<UserManagement />} />
-          <Route path="assignments" element={<DoctorAssignment />} />
-          <Route path="documents" element={<DocumentUpload />} />
-          <Route path="analytics" element={<SystemAnalytics />} />
-          <Route path="patients" element={<PatientsManager />} />
-          <Route path="doctors" element={<DoctorsManager />} />
-          <Route path="certificates" element={<CertificatesManager />} />
-          <Route path="insurance" element={<InsuranceManager />} />
-          <Route path="audit-logs" element={<AuditLogsManager />} />
+          <Route element={<ProtectedRoute allowedRoles={['hospital_admin', 'admin']} />}>
+            <Route path="users" element={<UserManagement />} />
+            <Route path="assignments" element={<DoctorAssignment />} />
+            <Route path="documents" element={<DocumentUpload />} />
+            <Route path="analytics" element={<SystemAnalytics />} />
+            <Route path="patients" element={<PatientsManager />} />
+            <Route path="doctors" element={<DoctorsManager />} />
+            <Route path="certificates" element={<CertificatesManager />} />
+            <Route path="insurance" element={<InsuranceManager />} />
+            <Route path="audit-logs" element={<AuditLogsManager />} />
+          </Route>
 
           {/* Doctor pages */}
-          <Route path="my-patients" element={<DoctorPatients />} />
-          <Route path="patient/:id" element={<PatientDetail />} />
-          <Route path="view-documents" element={<DocumentViewer />} />
-          <Route path="document/:docId" element={<DocumentViewer />} />
-          <Route path="issue" element={<IssueCertificates />} />
-          <Route path="requests" element={<CertificateRequests />} />
-          <Route path="emergency-access" element={<EmergencyAccess />} />
+          <Route element={<ProtectedRoute allowedRoles={['doctor']} />}>
+            <Route path="my-patients" element={<DoctorPatients />} />
+            <Route path="patient/:id" element={<PatientDetail />} />
+            <Route path="view-documents" element={<DocumentBrowser />} />
+            <Route path="document/:docId" element={<DocumentViewer />} />
+            <Route path="issue" element={<IssueCertificates />} />
+            <Route path="requests" element={<CertificateRequests />} />
+            <Route path="emergency-access" element={<EmergencyAccess />} />
+            <Route path="profile" element={<DoctorProfile />} />
+          </Route>
 
           {/* Patient pages */}
-          <Route path="my-documents" element={<MyDocuments />} />
-          <Route path="my-certificates" element={<MyCertificates />} />
-          <Route path="generate-certificate" element={<GenerateCertificate />} />
-          <Route path="approve-requests" element={<ApproveRequests />} />
-          <Route path="profile" element={<PatientProfile />} />
-          <Route path="key-enrollment" element={<PatientKeyEnrollment />} />
+          <Route element={<ProtectedRoute allowedRoles={['general_user']} />}>
+            <Route path="my-documents" element={<MyDocuments />} />
+            <Route path="my-certificates" element={<MyCertificates />} />
+            <Route path="generate-certificate" element={<GenerateCertificate />} />
+            <Route path="approve-requests" element={<ApproveRequests />} />
+            <Route path="consent" element={<DoctorConsent />} />
+            <Route path="profile" element={<PatientProfile />} />
+            <Route path="key-enrollment" element={<PatientKeyEnrollment />} />
+          </Route>
+
+          {/* Secure Storage — exactly the roles /api/secure-storage list/stats serve (insurance_officer gets 403 there).
+              Every file operation is still authorized server-side (consent / ownership). */}
+          <Route element={<ProtectedRoute allowedRoles={['hospital_admin', 'doctor', 'general_user']} />}>
+            <Route path="secure-storage" element={<SecureStorageDashboard />} />
+          </Route>
 
           {/* Settings placeholder */}
           <Route path="settings" element={

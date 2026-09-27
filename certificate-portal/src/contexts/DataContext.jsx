@@ -24,9 +24,10 @@ export const DataProvider = ({ children }) => {
     try {
       if (role === 'hospital_admin') {
         const users = await apiFetch('/api/admin/users');
-        setPatients(users.filter(u => u.role === 'general_user'));
-        setDoctors(users.filter(u => u.role === 'doctor'));
-        setAdmins(users.filter(u => u.role === 'hospital_admin')); // We might not get admins from this route right now, but we can filter safely
+        const userArray = users?.data || users || [];
+        setPatients(userArray.filter(u => u.role === 'general_user'));
+        setDoctors(userArray.filter(u => u.role === 'doctor'));
+        setAdmins(userArray.filter(u => u.role === 'hospital_admin')); // We might not get admins from this route right now, but we can filter safely
 
         const stats = await apiFetch('/api/admin/analytics');
         setSystemStats(stats);
@@ -55,15 +56,7 @@ export const DataProvider = ({ children }) => {
 
   // User CRUD operations via Auth Route (Registering creates them)
   const addPatient = async (patientData) => {
-    try {
-      await apiFetch('/api/auth/register', {
-        method: 'POST',
-        body: JSON.stringify({ ...patientData, role: 'general_user', password: 'password123' })
-      });
-      fetchData(); // Refresh list
-    } catch (e) {
-      console.error(e);
-    }
+    console.warn("Legacy addPatient method called. Please use UserManagement UI.");
   };
 
   const updatePatient = (id, patientData) => {
@@ -75,15 +68,7 @@ export const DataProvider = ({ children }) => {
   };
 
   const addDoctor = async (doctorData) => {
-    try {
-      await apiFetch('/api/auth/register', {
-        method: 'POST',
-        body: JSON.stringify({ ...doctorData, role: 'doctor', password: 'password123' })
-      });
-      fetchData();
-    } catch (e) {
-      console.error(e);
-    }
+    console.warn("Legacy addDoctor method called. Please use UserManagement UI.");
   };
 
   const updateDoctor = (id, doctorData) => {
@@ -138,15 +123,7 @@ export const DataProvider = ({ children }) => {
   };
 
   const addAdmin = async (adminData) => {
-    try {
-      await apiFetch('/api/auth/register', {
-        method: 'POST',
-        body: JSON.stringify({ ...adminData, role: 'hospital_admin', password: 'password123' })
-      });
-      fetchData();
-    } catch (e) {
-      console.error(e);
-    }
+    console.warn("Legacy addAdmin method called. Please use UserManagement UI.");
   };
 
   const deleteAdmin = (id) => {

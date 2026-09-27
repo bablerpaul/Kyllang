@@ -147,7 +147,7 @@ export default function PatientsManager() {
             ) : filtered.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={4} align="center" sx={{ py: 6, color: 'text.secondary' }}>
-                  {searchTerm ? 'No patients match your search.' : 'No patients registered yet. Click "Register New Patient" to add one.'}
+                  {searchTerm ? 'No patients match your search.' : 'No patients registered yet. Use "Register New User" on the User Management page to add one.'}
                 </TableCell>
               </TableRow>
             ) : (

@@ -3,3 +3,8 @@ certificate-portal/node_modules/
 backend/node_modules/
 .env
 backend/.env
+backend/uploads/
+journal
+kyllang report
+*journal*
+*report*

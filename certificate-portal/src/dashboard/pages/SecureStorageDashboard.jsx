@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { 
+import React, { useState, useEffect, useCallback } from 'react';
+import {
     Box, Typography, Grid, Card, CardContent, CircularProgress, Alert,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-    TextField, MenuItem, Button, TablePagination, Divider
+    TextField, MenuItem, Button, TablePagination, Chip, Tooltip
 } from '@mui/material';
 import LockIcon from '@mui/icons-material/Lock';
 import LinkIcon from '@mui/icons-material/Link';
@@ -11,13 +11,25 @@ import StorageIcon from '@mui/icons-material/Storage';
 
 import SecureUploadForm from '../../components/secure-storage/SecureUploadForm';
 import SecureVerifyForm from '../../components/secure-storage/SecureVerifyForm';
+import { verificationLabel, anchorLabel, providerLabel } from '../../components/secure-storage/storageLabels';
+import { apiFetch } from '../../utils/api';
+
+// Human-readable byte count for a REAL size reported by the API (never an estimate).
+const formatBytes = (n) => {
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+};
 
 const SecureStorageDashboard = () => {
     const [stats, setStats] = useState(null);
     const [files, setFiles] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    
+    // Per-file result of the last real integrity check (GET /verify/:id): { status } or { error }
+    const [verifications, setVerifications] = useState({});
+    const [verifying, setVerifying] = useState({});
+
     // Pagination & Search & Filter
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -25,24 +37,18 @@ const SecureStorageDashboard = () => {
     const [search, setSearch] = useState('');
     const [filterType, setFilterType] = useState('All');
 
-    const fetchStats = async () => {
+    const fetchStats = useCallback(async () => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/secure-storage/stats', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (!res.ok) throw new Error('Failed to fetch storage statistics');
-            const dataRes = await res.json();
+            const dataRes = await apiFetch('/api/secure-storage/stats');
             setStats(dataRes.data);
         } catch (err) {
             console.error(err);
         }
-    };
+    }, []);
 
-    const fetchFiles = async () => {
+    const fetchFiles = useCallback(async () => {
         try {
             setLoading(true);
-            const token = localStorage.getItem('token');
             const query = new URLSearchParams({
                 page: page + 1,
                 limit: rowsPerPage,
@@ -50,30 +56,25 @@ const SecureStorageDashboard = () => {
                 documentType: filterType
             }).toString();
 
-            const res = await fetch(`/api/secure-storage/?${query}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (!res.ok) throw new Error('Failed to fetch secure files');
-            const dataRes = await res.json();
+            const dataRes = await apiFetch(`/api/secure-storage/?${query}`);
             const data = dataRes.data;
             setFiles(data.files || []);
             setTotalFiles(data.total || 0);
             setError(null);
         } catch (err) {
-            setError(err.message);
+            setError(err.message || 'Failed to fetch secure files');
         } finally {
             setLoading(false);
         }
-    };
+    }, [page, rowsPerPage, search, filterType]);
 
     useEffect(() => {
         fetchStats();
-    }, []);
+    }, [fetchStats]);
 
     useEffect(() => {
         fetchFiles();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [page, rowsPerPage, search, filterType]);
+    }, [fetchFiles]);
 
     const handleSearchChange = (e) => {
         setSearch(e.target.value);
@@ -85,11 +86,24 @@ const SecureStorageDashboard = () => {
         setPage(0);
     };
 
-    const handleDownload = (id) => {
-        const token = localStorage.getItem('token');
-        fetch(`/api/secure-storage/download/${id}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        })
+    const recordVerification = useCallback((id, report) => {
+        setVerifications((v) => ({ ...v, [id]: { status: report && report.status } }));
+    }, []);
+
+    const handleVerify = async (id) => {
+        setVerifying((v) => ({ ...v, [id]: true }));
+        try {
+            const res = await apiFetch(`/api/secure-storage/verify/${id}`);
+            recordVerification(id, res && res.data);
+        } catch (err) {
+            setVerifications((v) => ({ ...v, [id]: { error: err.message || 'Verification failed' } }));
+        } finally {
+            setVerifying((v) => ({ ...v, [id]: false }));
+        }
+    };
+
+    const handleDownload = (row) => {
+        fetch(`/api/secure-storage/download/${row._id}`, { credentials: 'include' })
         .then(res => {
             if (!res.ok) throw new Error('Download failed');
             return res.blob();
@@ -99,12 +113,22 @@ const SecureStorageDashboard = () => {
             const a = document.createElement('a');
             a.style.display = 'none';
             a.href = url;
-            a.download = `secure_file_${id}`;
+            a.download = row.fileName || `secure_file_${row._id}`;
             document.body.appendChild(a);
             a.click();
+            a.remove();
             window.URL.revokeObjectURL(url);
         })
         .catch(err => alert(err.message));
+    };
+
+    const renderVerification = (row) => {
+        const v = verifications[row._id];
+        if (verifying[row._id]) return <CircularProgress size={16} />;
+        if (!v) return <Typography variant="caption" color="text.secondary">Not verified yet</Typography>;
+        if (v.error) return <Tooltip title={v.error}><Chip size="small" color="error" variant="outlined" label="ERROR" /></Tooltip>;
+        const l = verificationLabel(v.status);
+        return <Chip size="small" color={l.color} label={l.label} />;
     };
 
     return (
@@ -115,8 +139,8 @@ const SecureStorageDashboard = () => {
 
             {/* Status Cards */}
             <Grid container spacing={3} sx={{ mb: 4 }}>
-                <Grid item xs={12} sm={6} md={3}>
-                    <Card sx={{ bgcolor: '#e0f2fe', border: '1px solid #bae6fd' }}>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                    <Card sx={{ bgcolor: '#e0f2fe', border: '1px solid #bae6fd', height: '100%' }}>
                         <CardContent sx={{ textAlign: 'center' }}>
                             <StorageIcon sx={{ fontSize: 40, color: '#0284c7', mb: 1 }} />
                             <Typography variant="h4" sx={{ fontWeight: 700, color: '#0369a1' }}>
@@ -125,32 +149,35 @@ const SecureStorageDashboard = () => {
                             <Typography variant="body2" sx={{ color: '#0c4a6e', fontWeight: 500 }}>
                                 Total Files Stored
                             </Typography>
-                            <Typography variant="caption" sx={{ color: '#0c4a6e' }}>
-                                Approx {stats?.encryptedSizeApproximation || '0 MB'} Encrypted
+                            <Typography variant="caption" sx={{ color: '#0c4a6e' }} display="block">
+                                Original size: {stats && Number.isFinite(stats.originalSizeBytes) ? formatBytes(stats.originalSizeBytes) : 'Not available'}
                             </Typography>
-                        </CardContent>
-                    </Card>
-                </Grid>
-                
-                <Grid item xs={12} sm={6} md={3}>
-                    <Card sx={{ bgcolor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
-                        <CardContent sx={{ textAlign: 'center' }}>
-                            <LockIcon sx={{ fontSize: 40, color: '#16a34a', mb: 1 }} />
-                            <Typography variant="h4" sx={{ fontWeight: 700, color: '#15803d' }}>
-                                100%
-                            </Typography>
-                            <Typography variant="body2" sx={{ color: '#14532d', fontWeight: 500 }}>
-                                AES-256 Encrypted
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: '#14532d' }}>
-                                Zero-Knowledge Protected
+                            <Typography variant="caption" sx={{ color: '#0c4a6e' }} display="block">
+                                Encrypted stored size: {stats && Number.isFinite(stats.encryptedSizeBytes) ? formatBytes(stats.encryptedSizeBytes) : 'Not available'}
                             </Typography>
                         </CardContent>
                     </Card>
                 </Grid>
 
-                <Grid item xs={12} sm={6} md={3}>
-                    <Card sx={{ bgcolor: '#fdf4ff', border: '1px solid #fbcfe8' }}>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                    <Card sx={{ bgcolor: '#f0fdf4', border: '1px solid #bbf7d0', height: '100%' }}>
+                        <CardContent sx={{ textAlign: 'center' }}>
+                            <LockIcon sx={{ fontSize: 40, color: '#16a34a', mb: 1 }} />
+                            <Typography variant="h4" sx={{ fontWeight: 700, color: '#15803d' }}>
+                                AES-256
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: '#14532d', fontWeight: 500 }}>
+                                Encrypted at Rest
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: '#14532d' }}>
+                                Server-side encryption before storage
+                            </Typography>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                    <Card sx={{ bgcolor: '#fdf4ff', border: '1px solid #fbcfe8', height: '100%' }}>
                         <CardContent sx={{ textAlign: 'center' }}>
                             <LinkIcon sx={{ fontSize: 40, color: '#c026d3', mb: 1 }} />
                             <Typography variant="h4" sx={{ fontWeight: 700, color: '#a21caf' }}>
@@ -160,24 +187,24 @@ const SecureStorageDashboard = () => {
                                 Blockchain Anchored
                             </Typography>
                             <Typography variant="caption" sx={{ color: '#701a75' }}>
-                                Immutable SHA-256 Hashes
+                                Ciphertext SHA-256 committed on-chain
                             </Typography>
                         </CardContent>
                     </Card>
                 </Grid>
 
-                <Grid item xs={12} sm={6} md={3}>
-                    <Card sx={{ bgcolor: '#fef3c7', border: '1px solid #fde68a' }}>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                    <Card sx={{ bgcolor: '#fef3c7', border: '1px solid #fde68a', height: '100%' }}>
                         <CardContent sx={{ textAlign: 'center' }}>
                             <CloudQueueIcon sx={{ fontSize: 40, color: '#d97706', mb: 1 }} />
                             <Typography variant="h4" sx={{ fontWeight: 700, color: '#b45309' }}>
-                                {stats ? stats.ipfsCount : <CircularProgress size={24} />}
+                                {stats ? `${stats.ipfsCount ?? 0} / ${stats.localFallbackCount ?? 0}` : <CircularProgress size={24} />}
                             </Typography>
                             <Typography variant="body2" sx={{ color: '#78350f', fontWeight: 500 }}>
-                                IPFS Hosted
+                                IPFS / Local Fallback
                             </Typography>
                             <Typography variant="caption" sx={{ color: '#78350f' }}>
-                                Decentralized Storage
+                                Where encrypted payloads are stored
                             </Typography>
                         </CardContent>
                     </Card>
@@ -186,11 +213,11 @@ const SecureStorageDashboard = () => {
 
             {/* Tools Section */}
             <Grid container spacing={4} sx={{ mb: 4 }}>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                     <SecureUploadForm onUploadSuccess={() => { fetchStats(); fetchFiles(); }} />
                 </Grid>
-                <Grid item xs={12} md={6}>
-                    <SecureVerifyForm />
+                <Grid size={{ xs: 12, md: 6 }}>
+                    <SecureVerifyForm onVerified={recordVerification} />
                 </Grid>
             </Grid>
 
@@ -199,7 +226,7 @@ const SecureStorageDashboard = () => {
                 <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                     Stored Files Directory
                 </Typography>
-                
+
                 <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
                     <TextField
                         label="Search Files"
@@ -235,13 +262,13 @@ const SecureStorageDashboard = () => {
                         <TableHead>
                             <TableRow sx={{ bgcolor: '#f8fafc' }}>
                                 <TableCell sx={{ fontWeight: 600 }}>File Name</TableCell>
-                                <TableCell sx={{ fontWeight: 600 }}>Storage Type</TableCell>
+                                <TableCell sx={{ fontWeight: 600 }}>Document Type</TableCell>
                                 <TableCell sx={{ fontWeight: 600 }}>Owner</TableCell>
                                 <TableCell sx={{ fontWeight: 600 }}>Upload Date</TableCell>
-                                <TableCell sx={{ fontWeight: 600 }}>Encryption Status</TableCell>
-                                <TableCell sx={{ fontWeight: 600 }}>IPFS Status</TableCell>
-                                <TableCell sx={{ fontWeight: 600 }}>Blockchain Status</TableCell>
-                                <TableCell sx={{ fontWeight: 600 }}>Verification Status</TableCell>
+                                <TableCell sx={{ fontWeight: 600 }}>Encryption</TableCell>
+                                <TableCell sx={{ fontWeight: 600 }}>Storage</TableCell>
+                                <TableCell sx={{ fontWeight: 600 }}>Blockchain</TableCell>
+                                <TableCell sx={{ fontWeight: 600 }}>Verification</TableCell>
                                 <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
                             </TableRow>
                         </TableHead>
@@ -259,38 +286,56 @@ const SecureStorageDashboard = () => {
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                files.map((row) => (
-                                    <TableRow key={row._id} hover>
-                                        <TableCell>{row.fileName}</TableCell>
-                                        <TableCell>{row.fileType}</TableCell>
-                                        <TableCell>{row.patient?.name || 'Unknown'}</TableCell>
-                                        <TableCell>{new Date(row.createdAt).toLocaleDateString()}</TableCell>
-                                        <TableCell>
-                                            <Typography variant="caption" sx={{ bgcolor: '#e0f2fe', color: '#0369a1', px: 1, py: 0.5, borderRadius: 1 }}>
-                                                {row.encryptionMethod || 'AES-256-CBC'}
-                                            </Typography>
-                                        </TableCell>
-                                        <TableCell sx={{ maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                            {row.ipfsCid ? <Typography variant="caption" sx={{ color: '#059669' }}>Hosted</Typography> : <Typography variant="caption" color="text.secondary">Pending</Typography>}
-                                        </TableCell>
-                                        <TableCell sx={{ maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                            {row.transactionHash ? <Typography variant="caption" sx={{ color: '#d97706' }}>Anchored</Typography> : <Typography variant="caption" color="text.secondary">Pending</Typography>}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Typography variant="caption" color="text.secondary">Requires Verification</Typography>
-                                        </TableCell>
-                                        <TableCell align="right">
-                                            <Button size="small" variant="outlined" onClick={() => handleDownload(row._id)}>
-                                                Download
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
+                                files.map((row) => {
+                                    const provider = providerLabel(row.storageProvider);
+                                    const anchor = anchorLabel(row.blockchainStatus);
+                                    return (
+                                        <TableRow key={row._id} hover>
+                                            <TableCell>
+                                                <Typography variant="body2">{row.fileName}</Typography>
+                                                {row.linkedCertificate && (
+                                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, userSelect: 'all' }}>
+                                                        Linked Cert ID: {row.linkedCertificate}
+                                                    </Typography>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>{row.fileType}</TableCell>
+                                            <TableCell>{row.ownerName || '—'}</TableCell>
+                                            <TableCell>{new Date(row.createdAt).toLocaleDateString()}</TableCell>
+                                            <TableCell>
+                                                <Typography variant="caption" sx={{ bgcolor: '#e0f2fe', color: '#0369a1', px: 1, py: 0.5, borderRadius: 1 }}>
+                                                    {row.encryptionMethod || '—'}
+                                                </Typography>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Chip size="small" variant="outlined" color={provider.color} label={provider.label} />
+                                            </TableCell>
+                                            <TableCell>
+                                                {row.transactionHash ? (
+                                                    <Tooltip title={`Tx ${row.transactionHash}`}>
+                                                        <Chip size="small" color={anchor.color} label={anchor.label} />
+                                                    </Tooltip>
+                                                ) : (
+                                                    <Chip size="small" color={anchor.color} label={anchor.label} />
+                                                )}
+                                            </TableCell>
+                                            <TableCell>{renderVerification(row)}</TableCell>
+                                            <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                                                <Button size="small" onClick={() => handleVerify(row._id)} disabled={!!verifying[row._id]} sx={{ mr: 1 }}>
+                                                    Verify
+                                                </Button>
+                                                <Button size="small" variant="outlined" onClick={() => handleDownload(row)}>
+                                                    Download
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })
                             )}
                         </TableBody>
                     </Table>
                 </TableContainer>
-                
+
                 <TablePagination
                     component="div"
                     count={totalFiles}

@@ -42,10 +42,16 @@ const ApproveRequests = () => {
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [privateKeyDialogOpen, setPrivateKeyDialogOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
+  const [error, setError] = useState('');
 
   const fetchDocuments = async () => {
     try {
-      const docs = await apiFetch('/api/patient/documents');
+      const res = await apiFetch('/api/patient/documents');
+      // GET /api/patient/documents responds { success, message, data: [...] } —
+      // unwrap `.data` rather than iterating the envelope itself, which previously
+      // threw (docs.forEach is not a function) and was silently swallowed below,
+      // permanently hiding real pending doctor access requests.
+      const docs = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
 
       let pending = [];
       let approved = [];
@@ -91,8 +97,12 @@ const ApproveRequests = () => {
 
       setRequests(pending);
       setApprovedRequests(approved);
+      setError('');
     } catch (err) {
       console.error(err);
+      // A genuine API failure must be shown to the patient, not silently
+      // converted into "No pending access requests".
+      setError(err.message || 'Failed to load access requests.');
     }
   };
 
@@ -231,11 +241,17 @@ const ApproveRequests = () => {
             </Box>
           </Box>
 
-          {requests.length === 0 ? (
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+              {error}
+            </Alert>
+          )}
+
+          {!error && requests.length === 0 ? (
             <Alert severity="info">
               No pending access requests. Doctors will appear here when they request access to your certificates.
             </Alert>
-          ) : (
+          ) : !error && (
             <List>
               {requests.map((request) => (
                 <ListItem

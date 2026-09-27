@@ -9,7 +9,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import api from '../../utils/api';
 
 // ── Mode Constants ─────────────────────────────────────────────────────────
-const MODE = { IDLE: 'IDLE', VERIFIER: 'VERIFIER', PATIENT: 'PATIENT' };
+const MODE = { IDLE: 'IDLE', VERIFIER: 'VERIFIER', PATIENT: 'PATIENT', LOOKUP: 'LOOKUP' };
 const PHASE = {
     // Verifier phases
     V_REQUESTING: 'V_REQUESTING',
@@ -65,7 +65,9 @@ function StatusBadge({ status }) {
     const cfg = {
         valid:    { bg: '#052e16', border: '#16a34a', color: '#4ade80', icon: '✓', label: 'VALID — Certificate Verified' },
         revoked:  { bg: '#2d1515', border: '#dc2626', color: '#f87171', icon: '⊗', label: 'REVOKED — Certificate Revoked' },
+        expired:  { bg: '#2d240c', border: '#d97706', color: '#fbbf24', icon: '⚠', label: 'EXPIRED — Certificate Expired' },
         invalid:  { bg: '#1c1010', border: '#dc2626', color: '#f87171', icon: '✗', label: 'INVALID — Proof Failed' },
+        not_found:{ bg: '#1c1010', border: '#dc2626', color: '#f87171', icon: '?', label: 'NOT FOUND — Certificate does not exist' },
         replay:   { bg: '#1c1209', border: '#f59e0b', color: '#fbbf24', icon: '⚡', label: 'REPLAY BLOCKED — Nonce Consumed' },
         pending:  { bg: '#0f172a', border: '#3b82f6', color: '#93c5fd', icon: '⏳', label: 'Pending Proof Submission…' },
     }[status] || { bg: '#111', border: '#475569', color: '#94a3b8', icon: '?', label: 'Unknown' };
@@ -90,6 +92,10 @@ export default function VerifyCertificate() {
     const [phase, setPhase] = useState(null);
     const [error, setError] = useState(null);
     const [logs,  setLogs]  = useState([]);
+
+    // Lookup state
+    const [lookupHash, setLookupHash] = useState('');
+    const [lookupResult, setLookupResult] = useState(null);
 
     // Verifier state
     const [challenge,     setChallenge]    = useState(null); // { nonce, sessionId, expiresIn }
@@ -289,6 +295,13 @@ export default function VerifyCertificate() {
     async function handleQRScan(rawText) {
         try {
             const payload = JSON.parse(rawText);
+            
+            // If payload has a hash, it's a Certificate QR
+            if (payload.hash) {
+                await handleCertificateLookup(payload.hash);
+                return;
+            }
+
             if (payload.type !== 'kyllang_challenge' || payload.version !== 'zkv1') {
                 throw new Error('Not a valid Kyllang Challenge QR');
             }
@@ -302,9 +315,47 @@ export default function VerifyCertificate() {
         }
     }
 
-    async function handleManualChallengeInput(jsonText) {
+    async function handleManualChallengeInput(text) {
         await stopQRScanner();
-        await handleQRScan(jsonText);
+        
+        let isJson = false;
+        try { JSON.parse(text); isJson = true; } catch (e) {}
+
+        if (isJson) {
+            await handleQRScan(text);
+        } else {
+            // Treat as raw hash
+            await handleCertificateLookup(text);
+        }
+    }
+
+    async function handleCertificateLookup(hash) {
+        const trimmed = hash?.trim();
+        if (!trimmed) {
+            setError('Please enter a valid certificate hash');
+            return;
+        }
+        
+        await stopQRScanner();
+        setMode(MODE.LOOKUP);
+        setPhase('L_LOADING');
+        setError(null);
+        setLookupResult(null);
+
+        try {
+            const res = await api.get(`/api/certificates/lookup/${encodeURIComponent(trimmed)}`);
+            setLookupResult(res.data.data || res.data);
+            setPhase('L_DONE');
+        } catch (err) {
+            const isNotFound = err.response?.status === 404 || err.response?.data?.status === 'not_found';
+            if (isNotFound) {
+                setLookupResult({ status: 'not_found' });
+                setPhase('L_DONE');
+            } else {
+                setError(`Lookup failed: ${err.response?.data?.message || err.message}`);
+                setPhase('L_ERROR');
+            }
+        }
     }
 
     async function handleGenerateProof() {
@@ -338,8 +389,6 @@ export default function VerifyCertificate() {
                 (msg) => addLog(msg)
             );
 
-            addLog(`Proof generated. publicSignals[0..2]: [${publicSignals.map(s => s.slice(0,8)+'…').join(', ')}]`);
-
             // Optional: local pre-verification before submitting
             try {
                 const vKey = await fetchVerificationKey();
@@ -355,8 +404,6 @@ export default function VerifyCertificate() {
             }
 
             setPhase(PHASE.P_SUBMITTING);
-            addLog('Submitting proof to Verifier callback URL…');
-
             // Submit to the backend relayer (patient device → backend → on-chain)
             const res = await api.post(scannedChallenge.callbackUrl.replace(/^.*\/api/, '/api'), {
                 proof,
@@ -462,6 +509,28 @@ export default function VerifyCertificate() {
                     </div>
                     <div style={{ fontSize: 12, color: '#334155', lineHeight: 1.6 }}>
                         🔒 Your medical data stays on your device. Only cryptographic proofs are transmitted.
+                    </div>
+                    
+                    <div style={{ marginTop: 32, paddingTop: 32, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                        <h3 style={{ fontSize: 18, marginBottom: 8, color: '#e2e8f0', fontWeight: 600 }}>Verify Certificate by Hash</h3>
+                        <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>
+                            Enter a certificate hash to check its validity on the public registry.
+                        </p>
+                        {error && <div style={{...styles.errorBox, marginBottom: 16}}>{error}</div>}
+                        <div style={{ display: 'flex', gap: 12 }}>
+                            <input
+                                style={{ ...styles.input, flex: 1 }}
+                                placeholder="Enter certificate hash..."
+                                value={lookupHash}
+                                onChange={(e) => setLookupHash(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleCertificateLookup(lookupHash);
+                                }}
+                            />
+                            <button style={styles.btn} onClick={() => handleCertificateLookup(lookupHash)}>
+                                Verify
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -591,10 +660,10 @@ export default function VerifyCertificate() {
                             <label style={styles.label}>Step 1 — Scan the Verifier's Challenge QR</label>
                             <div id={scannerDivId} style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(59,130,246,0.3)' }} />
                             <div style={{ marginTop: 16 }}>
-                                <label style={styles.label}>Or paste Challenge JSON manually:</label>
+                                <label style={styles.label}>Or paste Challenge JSON or Certificate Hash manually:</label>
                                 <textarea
                                     style={{ ...styles.input, height: 80, resize: 'vertical' }}
-                                    placeholder='{"type":"kyllang_challenge","version":"zkv1","nonce":"0x...","sessionId":"...","callbackUrl":"..."}'
+                                    placeholder='Enter Challenge JSON or Certificate Hash...'
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter' && e.ctrlKey) {
                                             handleManualChallengeInput(e.target.value);
@@ -691,6 +760,62 @@ export default function VerifyCertificate() {
                             <label style={styles.label}>Protocol Log (local only)</label>
                             <ProgressLog messages={logs} />
                         </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    // ── Lookup UI ──────────────────────────────────────────────────────────
+    if (mode === MODE.LOOKUP) {
+        return (
+            <div style={styles.container}>
+                <div style={styles.card}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                        <h2 style={{ ...styles.title, fontSize: 22 }}>Certificate Verification</h2>
+                        <button
+                            onClick={() => { setMode(MODE.IDLE); setLookupResult(null); setLookupHash(''); setError(null); }}
+                            style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 13 }}
+                        >← Back</button>
+                    </div>
+
+                    {error && <div style={styles.errorBox}>{error}</div>}
+
+                    {phase === 'L_LOADING' && (
+                        <div style={{ textAlign: 'center', padding: '24px 0', color: '#60a5fa' }}>
+                            <div style={{ fontSize: 32, marginBottom: 8, animation: 'spin 2s linear infinite' }}>⟳</div>
+                            Looking up certificate…
+                        </div>
+                    )}
+
+                    {phase === 'L_DONE' && lookupResult && (
+                        <>
+                            {lookupResult.status === 'not_found' ? (
+                                <StatusBadge status="not_found" />
+                            ) : lookupResult.status === 'revoked' ? (
+                                <StatusBadge status="revoked" />
+                            ) : lookupResult.status === 'expired' ? (
+                                <StatusBadge status="expired" />
+                            ) : lookupResult.status === 'verified' ? (
+                                <StatusBadge status="valid" />
+                            ) : (
+                                <StatusBadge status="invalid" />
+                            )}
+                            
+                            {lookupResult.status !== 'not_found' && (
+                                <div style={{ marginTop: 16, fontSize: 13, color: '#e2e8f0', lineHeight: 1.8, background: 'rgba(0,0,0,0.2)', padding: 16, borderRadius: 8 }}>
+                                    {lookupResult.doctorName && <div><strong style={{ color: '#94a3b8' }}>Issuer:</strong> {lookupResult.doctorName}</div>}
+                                    {lookupResult.diagnosis && <div><strong style={{ color: '#94a3b8' }}>Diagnosis:</strong> {lookupResult.diagnosis}</div>}
+                                    {lookupResult.validFrom && <div><strong style={{ color: '#94a3b8' }}>Valid From:</strong> {new Date(lookupResult.validFrom).toLocaleDateString()}</div>}
+                                    {lookupResult.validUntil && <div><strong style={{ color: '#94a3b8' }}>Valid Until:</strong> {new Date(lookupResult.validUntil).toLocaleDateString()}</div>}
+                                    {lookupResult.remarks && <div><strong style={{ color: '#94a3b8' }}>Remarks:</strong> {lookupResult.remarks}</div>}
+                                </div>
+                            )}
+
+                            <button style={{ ...styles.btn, marginTop: 24, width: '100%' }} onClick={() => { setMode(MODE.IDLE); setLookupHash(''); setLookupResult(null); setError(null); }}>
+                                Verify Another Certificate
+                            </button>
+                        </>
                     )}
                 </div>
             </div>

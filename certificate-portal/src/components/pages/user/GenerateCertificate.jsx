@@ -35,13 +35,17 @@ const GenerateCertificate = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [docsData, docsDocsData] = await Promise.all([
+        const [doctorsRes, documentsRes] = await Promise.all([
           apiFetch('/api/patient/doctors'),
           apiFetch('/api/patient/documents')
         ]);
-        setDoctors(docsData || []);
-        setDocuments(docsDocsData || []);
-        if (docsData && docsData.length > 0) setSelectedDoctor(docsData[0]._id);
+        // Both endpoints respond { success, message, data: [...] } — unwrap `.data`
+        // rather than storing the envelope itself (see GenerateCertificate T1 Bug 3).
+        const doctorsList = Array.isArray(doctorsRes) ? doctorsRes : (Array.isArray(doctorsRes?.data) ? doctorsRes.data : []);
+        const documentsList = Array.isArray(documentsRes) ? documentsRes : (Array.isArray(documentsRes?.data) ? documentsRes.data : []);
+        setDoctors(doctorsList);
+        setDocuments(documentsList);
+        if (doctorsList.length > 0) setSelectedDoctor(doctorsList[0]._id);
       } catch (err) {
         console.error("Failed to fetch data:", err);
       }
@@ -157,7 +161,38 @@ const GenerateCertificate = () => {
           Generate digital medical certificates. These certificates can be shared with authorized doctors.
         </Typography>
 
+        {doctors.length === 0 ? (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            You have no assigned doctor yet. A certificate request must be directed to an assigned doctor —
+            please contact your hospital to be assigned one before requesting a certificate.
+          </Alert>
+        ) : (
+          <FormControl fullWidth sx={{ mb: 2 }}>
+            <InputLabel id="generate-certificate-doctor-label">Requesting Doctor</InputLabel>
+            <Select
+              labelId="generate-certificate-doctor-label"
+              label="Requesting Doctor"
+              value={selectedDoctor}
+              onChange={(e) => setSelectedDoctor(e.target.value)}
+            >
+              {doctors.map((doctor) => (
+                <MenuItem key={doctor._id} value={doctor._id}>
+                  {doctor.name || doctor.email || doctor._id}
+                  {doctor.specialty ? ` — ${doctor.specialty}` : ''}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        )}
 
+        <TextField
+          fullWidth
+          label="Reason (optional)"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          sx={{ mb: 2 }}
+          disabled={doctors.length === 0}
+        />
 
         <Divider sx={{ my: 2 }} />
 

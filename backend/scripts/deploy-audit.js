@@ -3,8 +3,12 @@ const fs = require('fs');
 const path = require('path');
 
 async function main() {
-    const provider = new ethers.JsonRpcProvider('http://127.0.0.1:7545');
-    const signer = await provider.getSigner(0);
+    const rpcUrl = process.env.RPC_URL;
+    if (!rpcUrl) throw new Error("RPC_URL missing");
+    const adminKey = process.env.PRIVATE_KEY;
+    if (!adminKey) throw new Error("PRIVATE_KEY missing");
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const signer = new ethers.Wallet(adminKey, provider);
     const adminAddress = await signer.getAddress();
 
     console.log(`[Deploy] Deploying EmergencyAuditRegistry with admin: ${adminAddress}`);
@@ -18,7 +22,8 @@ async function main() {
     // Resolve OZ imports
     function findImports(importPath) {
         if (importPath.startsWith('@openzeppelin/')) {
-            const ozPath = path.join(__dirname, '../node_modules', importPath);
+            const cleanPath = importPath.replace('@4.9.3', '');
+            const ozPath = path.join(__dirname, '../node_modules', cleanPath);
             return { contents: fs.readFileSync(ozPath, 'utf8') };
         }
         return { error: 'File not found' };
@@ -27,7 +32,10 @@ async function main() {
     const input = {
         language: 'Solidity',
         sources: { 'EmergencyAuditRegistry.sol': { content: source } },
-        settings: { outputSelection: { '*': { '*': ['*'] } } }
+        settings: { 
+            evmVersion: 'paris',
+            outputSelection: { '*': { '*': ['*'] } } 
+        }
     };
 
     const output = JSON.parse(solc.compile(JSON.stringify(input), { import: findImports }));

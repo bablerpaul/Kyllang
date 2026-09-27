@@ -22,29 +22,67 @@ async function processPendingTransactions() {
         const secureFile = await SecureFile.findById(pendingVersion.secureFile);
         if (!secureFile) throw new Error('Associated SecureFile not found');
 
-        if (blockchainContract && blockchainContract.storeEMRRecord) {
-            const tx = await blockchainContract.storeEMRRecord(
-                secureFile.patient.toString(),
-                pendingVersion.recordTypeStr || secureFile.fileType,
-                pendingVersion.dataHash,
-                pendingVersion.ipfsCid
-            );
+        if (blockchainContract && blockchainContract.commitHash && blockchainContract.revealHash) {
+            const crypto = require('crypto');
+            const { ethers } = require('ethers');
             
-            await tx.wait(); // Wait for transaction to be mined
+            // 1. Generate cryptographically secure nonce
+            const nonceBuffer = crypto.randomBytes(32);
+            const nonce = '0x' + nonceBuffer.toString('hex');
+
+            // 2. Calculate commitment matching Solidity: keccak256(abi.encodePacked(keccak256(abi.encodePacked(dataHash)), nonce, msg.sender))
+            const innerHash = ethers.solidityPackedKeccak256(['string'], [pendingVersion.dataHash]);
+
+            // Determine backend signer address
+            let signerAddress = '0x0000000000000000000000000000000000000000';
+            if (blockchainContract.runner && typeof blockchainContract.runner.getAddress === 'function') {
+                signerAddress = await blockchainContract.runner.getAddress();
+            } else if (blockchainContract.signer && typeof blockchainContract.signer.getAddress === 'function') {
+                signerAddress = await blockchainContract.signer.getAddress();
+            }
+
+            const commitment = ethers.solidityPackedKeccak256(
+                ['bytes32', 'bytes32', 'address'],
+                [innerHash, nonce, signerAddress]
+            );
+
+            // 3. Commit transaction
+            let currentNonce;
+            if (blockchainContract.runner && typeof blockchainContract.runner.getNonce === 'function') {
+                currentNonce = await blockchainContract.runner.getNonce('latest');
+            } else if (blockchainContract.signer && typeof blockchainContract.signer.getNonce === 'function') {
+                currentNonce = await blockchainContract.signer.getNonce('latest');
+            } else {
+                currentNonce = await blockchainContract.provider.getTransactionCount(signerAddress, 'latest');
+            }
+
+            const commitTx = await blockchainContract.commitHash(commitment, { nonce: currentNonce });
+            await commitTx.wait(); // Wait for transaction to be mined
+
+            // 4. Reveal transaction
+            const revealTx = await blockchainContract.revealHash(
+                secureFile.patient.toString(),
+                pendingVersion.recordTypeStr || secureFile.fileType || '',
+                pendingVersion.dataHash,
+                pendingVersion.ipfsCid || '',
+                nonce,
+                { nonce: currentNonce + 1 }
+            );
+            await revealTx.wait(); // Wait for transaction to be mined
             
             // Update on success
             await FileVersion.updateOne(
                 { _id: pendingVersion._id },
                 { 
                     $set: { 
-                        blockchainTransactionHash: tx.hash,
+                        blockchainTransactionHash: revealTx.hash,
                         blockchainStatus: 'confirmed' 
                     } 
                 }
             );
-            console.log(`[Blockchain Queue] Successfully anchored: ${tx.hash}`);
+            console.log(`[Blockchain Queue] Successfully anchored via Commit-Reveal: ${revealTx.hash}`);
         } else {
-            throw new Error('Blockchain contract not initialized');
+            throw new Error('Blockchain contract not initialized or missing commit/reveal functions');
         }
 
     } catch (error) {

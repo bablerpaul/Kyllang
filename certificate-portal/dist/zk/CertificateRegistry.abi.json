@@ -1,6 +1,6 @@
 {
-  "registryAddress": "0x9cE44227Cd207Bd59EAf48f769cDF90b92842605",
-  "verifierAddress": "0x5a33c11C9599D1B92ae04f58B65c91dc0C5AD2c6",
+  "registryAddress": "0x3290eb5E549FDed5f521A5C1806700928AC6A706",
+  "verifierAddress": "0x9Ce74FD63fb1de357A1bF98962b26AdcACf76D98",
   "abi": [
     {
       "inputs": [

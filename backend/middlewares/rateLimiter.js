@@ -1,4 +1,5 @@
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = rateLimit;
 
 /**
  * createLimiter
@@ -64,3 +65,25 @@ exports.certificateVerifyLimiter = createLimiter(
     2000, 
     'Too many certificate verification requests from this IP, please try again after 15 minutes.'
 );
+
+// Refresh Limiter: 30 requests per 15 minutes
+exports.refreshLimiter = createLimiter(
+    15 * 60 * 1000,
+    30,
+    'Too many token refresh requests from this IP, please try again after 15 minutes.'
+);
+
+// Break-Glass Limiter: 10 requests per 1 hour (Authenticated User Keyed)
+exports.breakGlassLimiter = createLimiter(
+    60 * 60 * 1000,
+    10,
+    'Too many emergency break-glass requests. Please try again after an hour.',
+    {
+        keyGenerator: (req) => {
+            // Use user ID as key if authenticated, otherwise fall back to
+            // ipKeyGenerator helper (required by express-rate-limit v8+ for IPv6 safety)
+            return req.user ? req.user._id.toString() : ipKeyGenerator(req);
+        }
+    }
+);
+

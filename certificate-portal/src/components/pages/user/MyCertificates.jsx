@@ -23,6 +23,13 @@ import { commitmentToBytes32, computeCommitment } from '../../../utils/poseidonU
 import { storeCredential } from '../../../utils/credentialVault';
 import { retrievePatientPrivateKey } from '../../../utils/patientKeyVault';
 
+// Status precedence: revoked > expired > active. Expiry is derived from validUntil, never persisted.
+const getCertStatus = (cert) => {
+    if (cert?.status === 'revoked') return 'revoked';
+    if (cert?.validUntil && new Date(cert.validUntil) < new Date()) return 'expired';
+    return 'active';
+};
+
 const MyCertificates = () => {
     const [certificates, setCertificates] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -131,10 +138,16 @@ const MyCertificates = () => {
             pdf.text(`Certificate ID: ${selectedCert._id}`, 20, 85);
             pdf.text(`Commitment: ${selectedCert.publicCommitmentHash || selectedCert.verificationHash || 'Unavailable'}`, 20, 95, { maxWidth: 170 });
 
-            if (selectedCert.status === 'revoked') {
+            const pdfStatus = getCertStatus(selectedCert);
+            if (pdfStatus === 'revoked') {
                 pdf.setTextColor(190, 30, 30);
                 pdf.setFontSize(15);
                 pdf.text('REVOKED - NOT VALID', 105, 115, { align: 'center' });
+                pdf.setTextColor(0, 0, 0);
+            } else if (pdfStatus === 'expired') {
+                pdf.setTextColor(230, 81, 0);
+                pdf.setFontSize(15);
+                pdf.text('EXPIRED - NOT VALID', 105, 115, { align: 'center' });
                 pdf.setTextColor(0, 0, 0);
             }
 
@@ -171,8 +184,11 @@ const MyCertificates = () => {
                                 <CardContent>
                                     <Typography variant="h6" gutterBottom sx={{ fontWeight: 700, display: 'flex', justifyContent: 'space-between' }}>
                                         Certificate
-                                        {cert.status === 'revoked' && (
+                                        {getCertStatus(cert) === 'revoked' && (
                                             <Chip label="REVOKED" color="error" size="small" />
+                                        )}
+                                        {getCertStatus(cert) === 'expired' && (
+                                            <Chip label="EXPIRED" color="warning" size="small" />
                                         )}
                                     </Typography>
                                     <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -220,11 +236,18 @@ const MyCertificates = () => {
                             <Typography variant="body2" color="text.secondary" align="center" gutterBottom>
                                 Scan this QR code to verify the authenticity securely without querying standard records (ZKP HMAC concept).
                             </Typography>
-                            {selectedCert.status === 'revoked' && (
+                            {getCertStatus(selectedCert) === 'revoked' && (
                                 <Box sx={{ mt: 2, p: 2, width: '100%', bgcolor: '#ffebee', color: '#c62828', textAlign: 'center', border: '1px solid #c62828', borderRadius: 1 }}>
                                     <Typography variant="h6" sx={{ fontWeight: 'bold' }}>REVOKED — NOT VALID</Typography>
                                     <Typography variant="body2">This certificate was revoked by the issuer.</Typography>
                                     {selectedCert.revokedAt && <Typography variant="caption">Revoked on: {new Date(selectedCert.revokedAt).toLocaleDateString()}</Typography>}
+                                </Box>
+                            )}
+                            {getCertStatus(selectedCert) === 'expired' && (
+                                <Box sx={{ mt: 2, p: 2, width: '100%', bgcolor: '#fff3e0', color: '#e65100', textAlign: 'center', border: '1px solid #e65100', borderRadius: 1 }}>
+                                    <Typography variant="h6" sx={{ fontWeight: 'bold' }}>EXPIRED — NOT VALID</Typography>
+                                    <Typography variant="body2">This certificate's validity period has ended.</Typography>
+                                    <Typography variant="caption">Valid Until: {new Date(selectedCert.validUntil).toLocaleDateString()}</Typography>
                                 </Box>
                             )}
 

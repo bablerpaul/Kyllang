@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const { cacheRoute } = require('../../middlewares/cacheMiddleware');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
@@ -37,6 +36,7 @@ const {
     approveClaim,
     rejectClaim,
     uploadClaimDocument,
+    authorizeClaimDocumentUpload,
     getClaimDocuments,
     downloadClaimDocument,
 } = require('./insuranceController');
@@ -55,16 +55,34 @@ router.get('/claims/patient/:patientId', getPatientClaimHistory);
 
 router.get('/claims/:id', getClaimById);
 
-// Verification Endpoints
-router.post('/claims/:id/verify-certificate', verifyLimiter, verifyClaimCertificate);
-router.post('/claims/:id/verify-blockchain', verifyLimiter, cacheRoute('blockchain_verify_claim', 86400), verifyClaimBlockchainHash);
+// A malformed claim id gets the handlers' existing not-found reply instead of an unhandled cast error (HTTP 500).
+
+const handleUpload = (req, res, next) => {
+    const uploader = upload.single('file');
+    uploader(req, res, function (err) {
+        if (err) {
+            return res.status(400).json({ success: false, message: err.message, error: err.message });
+        }
+        next();
+    });
+};
+
+const requireObjectIdParam = (req, res, next) => {
+    if (/^[0-9a-fA-F]{24}$/.test(String(req.params.id))) return next();
+    return res.status(404).json({ success: false, message: 'Insurance claim not found', error: 'Insurance claim not found' });
+};
+
+// Verification Endpoints (15.3-A-4: restricted to adjudicating roles)
+router.post('/claims/:id/verify-certificate', authorize('admin', 'hospital_admin', 'insurance_officer'), requireObjectIdParam, verifyLimiter, verifyClaimCertificate);
+// Deliberately NOT response-cached: authorization and the result are claim-specific and must be evaluated on every request.
+router.post('/claims/:id/verify-blockchain', authorize('admin', 'hospital_admin', 'insurance_officer'), requireObjectIdParam, verifyLimiter, verifyClaimBlockchainHash);
 
 // Claim Adjudication Endpoints (Approve / Reject)
-router.put('/claims/:id/approve', authorize('admin', 'hospital_admin', 'doctor'), approveClaim);
-router.put('/claims/:id/reject', authorize('admin', 'hospital_admin', 'doctor'), rejectClaim);
+router.put('/claims/:id/approve', authorize('admin', 'hospital_admin', 'insurance_officer'), requireObjectIdParam, approveClaim);
+router.put('/claims/:id/reject', authorize('admin', 'hospital_admin', 'insurance_officer'), requireObjectIdParam, rejectClaim);
 
 // Secure Storage Integration for Claims
-router.post('/claims/:id/upload', authorize('admin', 'hospital_admin', 'doctor', 'insurance_officer'), uploadLimiter, upload.single('file'), uploadClaimDocument);
+router.post('/claims/:id/upload', authorize('admin', 'hospital_admin', 'doctor', 'insurance_officer'), requireObjectIdParam, authorizeClaimDocumentUpload, uploadLimiter, handleUpload, uploadClaimDocument);
 router.get('/claims/:id/documents', getClaimDocuments);
 router.get('/claims/:id/documents/:fileId/download', authorize('admin', 'hospital_admin', 'doctor', 'insurance_officer'), downloadLimiter, downloadClaimDocument);
 

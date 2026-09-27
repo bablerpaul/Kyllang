@@ -1,4 +1,15 @@
 // Utility to interact with IPFS Daemon HTTP API
+const fs = require('fs');
+const path = require('path');
+const FormData = require('form-data');
+const axios = require('axios');
+
+const fallbackDir = path.join(__dirname, '../../uploads/fallback-storage');
+
+// Ensure fallback directory exists
+if (!fs.existsSync(fallbackDir)) {
+    fs.mkdirSync(fallbackDir, { recursive: true });
+}
 
 /**
  * Uploads a raw buffer to IPFS.
@@ -6,47 +17,32 @@
  * @param {String} fileName - Optional filename for IPFS.
  * @returns {Promise<String>} - Returns the IPFS CID (Hash).
  */
-const mockIpfsStorage = new Map();
-
-/**
- * uploadToIPFS
- * @description Handles operations for uploadToIPFS. Explains parameters, return values and usage.
- * @param {*} fileBuffer - fileBuffer parameter
- * @param {*} fileName - fileName parameter
- * @returns {Promise<void>} Resolves when the operation is complete
- */
 exports.uploadToIPFS = async (fileBuffer, fileName = 'encrypted_payload') => {
     if (process.env.TEST_MODE === 'true') {
         const cid = `mock_ipfs_cid_${Date.now()}`;
-        mockIpfsStorage.set(cid, fileBuffer);
+        fs.writeFileSync(path.join(fallbackDir, cid), fileBuffer);
         return cid;
     }
 
     const ipfsUrl = process.env.IPFS_NODE_URL || 'http://127.0.0.1:5001/api/v0/add';
     
-    // In Node.js environment, we use FormData to append the buffer
     const formData = new FormData();
-    
-    // Create a Blob from the Buffer to pass to FormData
-    const blob = new Blob([fileBuffer]);
-    formData.append('file', blob, fileName);
+    formData.append('file', fileBuffer, { filename: fileName });
 
     try {
-        const response = await fetch(ipfsUrl, {
-            method: 'POST',
-            body: formData
+        const response = await axios.post(ipfsUrl, formData, {
+            headers: formData.getHeaders(),
+            maxBodyLength: Infinity,
+            maxContentLength: Infinity
         });
 
-        if (!response.ok) {
-            throw new Error(`Failed to upload to IPFS. Status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        return data.Hash;
+        return response.data.Hash;
     } catch (err) {
-        if (err.code === 'ECONNREFUSED' || err.message.includes('fetch failed')) {
-            console.warn('IPFS Node unreachable, falling back to mock CID for dev/test.');
-            return `mock_ipfs_cid_${Date.now()}`;
+        if (err.code === 'ECONNREFUSED' || err.message.includes('ECONNREFUSED') || err.message.includes('fetch failed')) {
+            console.warn('IPFS Node unreachable, falling back to persistent local storage for dev/test.');
+            const cid = `mock_ipfs_cid_${Date.now()}`;
+            fs.writeFileSync(path.join(fallbackDir, cid), fileBuffer);
+            return cid;
         }
         throw err;
     }
@@ -60,16 +56,10 @@ exports.uploadToIPFS = async (fileBuffer, fileName = 'encrypted_payload') => {
  */
 exports.uploadStreamToIPFS = async (filePath, fileName = 'encrypted_payload') => {
     if (process.env.TEST_MODE === 'true') {
-        const fs = require('fs');
         const cid = `mock_ipfs_cid_${Date.now()}`;
-        const actualBuffer = fs.readFileSync(filePath);
-        mockIpfsStorage.set(cid, actualBuffer);
+        fs.copyFileSync(filePath, path.join(fallbackDir, cid));
         return cid;
     }
-
-    const fs = require('fs');
-    const FormData = require('form-data');
-    const axios = require('axios');
 
     const ipfsUrl = process.env.IPFS_NODE_URL || 'http://127.0.0.1:5001/api/v0/add';
     
@@ -86,8 +76,11 @@ exports.uploadStreamToIPFS = async (filePath, fileName = 'encrypted_payload') =>
         return response.data.Hash;
     } catch (err) {
         if (err.code === 'ECONNREFUSED' || err.message.includes('ECONNREFUSED') || err.message.includes('fetch failed')) {
-            console.warn('IPFS Node unreachable, falling back to mock CID for dev/test.');
-            return `mock_ipfs_cid_${Date.now()}`;
+            console.warn('IPFS Node unreachable, falling back to persistent local storage for dev/test.');
+            const cid = `mock_ipfs_cid_${Date.now()}`;
+            // Use copyFileSync to copy the temp file to fallback-storage synchronously to guarantee persistence
+            fs.copyFileSync(filePath, path.join(fallbackDir, cid));
+            return cid;
         }
         throw err;
     }
@@ -100,28 +93,28 @@ exports.uploadStreamToIPFS = async (filePath, fileName = 'encrypted_payload') =>
  */
 exports.fetchFromIPFS = async (cid) => {
     if (process.env.TEST_MODE === 'true' || cid.startsWith('mock_ipfs_cid_')) {
-        return mockIpfsStorage.get(cid) || Buffer.from('mock_content');
+        // Prevent path traversal by strictly validating format
+        if (!/^mock_ipfs_cid_\d+$/.test(cid)) {
+            throw new Error('Invalid fallback CID format');
+        }
+        const fallbackPath = path.join(fallbackDir, cid);
+        if (!fs.existsSync(fallbackPath)) {
+            throw new Error(`Fallback file not found for CID: ${cid}`);
+        }
+        return fs.readFileSync(fallbackPath);
     }
 
     // Standard IPFS gateway retrieval URL
-    // e.g., http://127.0.0.1:8080/ipfs/<CID> or http://127.0.0.1:5001/api/v0/cat?arg=<CID>
     const gatewayUrl = (process.env.IPFS_GATEWAY_URL || 'http://127.0.0.1:5001/api/v0/cat?arg=') + encodeURIComponent(cid);
 
     try {
-        const response = await fetch(gatewayUrl, {
-            method: 'POST' // API v0/cat usually expects POST
+        const response = await axios.post(gatewayUrl, null, {
+            responseType: 'arraybuffer'
         });
-
-        if (!response.ok) {
-            throw new Error(`Failed to fetch from IPFS. Status: ${response.status}`);
-        }
-
-        const arrayBuffer = await response.arrayBuffer();
-        return Buffer.from(arrayBuffer);
+        return Buffer.from(response.data);
     } catch (err) {
-        if (err.code === 'ECONNREFUSED' || err.message.includes('fetch failed')) {
-            console.warn('IPFS Node unreachable, falling back to mock content.');
-            return Buffer.from('Hello Secure Storage Integration Test!');
+        if (err.code === 'ECONNREFUSED' || err.message.includes('ECONNREFUSED') || err.message.includes('fetch failed')) {
+            throw new Error(`IPFS Node unreachable. Cannot fetch real CID: ${cid}`);
         }
         throw err;
     }

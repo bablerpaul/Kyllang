@@ -1,5 +1,9 @@
 require('dotenv').config();
 
+if (!process.env.JWT_SECRET) {
+    throw new Error('[CONFIG ERROR] JWT_SECRET environment variable is required but not set.');
+}
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -9,12 +13,55 @@ const cookieParser = require('cookie-parser');
 // Initialize express app
 const app = express();
 
+// Trust Proxy Configuration (F-01 Remediation)
+// Ensures req.ip correctly resolves client IPs when deployed behind a reverse proxy.
+// Defaults to false (safe) when the environment variable is omitted.
+if (process.env.TRUST_PROXY !== undefined) {
+    const tpConfig = process.env.TRUST_PROXY.trim();
+    
+    if (tpConfig === '') {
+        throw new Error('[CONFIG ERROR] TRUST_PROXY is empty or whitespace-only.');
+    }
+    
+    if (tpConfig.toLowerCase() === 'true' || tpConfig.toLowerCase() === 'false') {
+        throw new Error('[CONFIG ERROR] TRUST_PROXY cannot be a blanket boolean. Specify exact hop count (e.g., "1") or trusted IP subnets.');
+    }
+
+    if (/^\d+$/.test(tpConfig)) {
+        // Numeric hop count (non-negative integer)
+        app.set('trust proxy', parseInt(tpConfig, 10));
+    } else {
+        // Assume comma-separated IPs or subnets
+        const ips = tpConfig.split(',').map(ip => ip.trim()).filter(ip => ip.length > 0);
+        if (ips.length === 0) {
+            throw new Error('[CONFIG ERROR] TRUST_PROXY is malformed or empty.');
+        }
+        app.set('trust proxy', ips);
+    }
+}
+
 const path = require('path');
 const mongoSanitize = require('./middlewares/mongoSanitizeMiddleware');
 const { trackMetrics } = require('./src/middlewares/metricsMiddleware');
 
 // Security Middlewares
-app.use(helmet()); // Sets HTTP security headers (CSP, X-Frame-Options, etc.)
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'none'"],
+            scriptSrc: ["'self'", "'unsafe-inline'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", "data:"],
+            objectSrc: ["'none'"],
+            connectSrc: ["'self'"],
+            baseUri: ["'none'"],
+            formAction: ["'none'"],
+            frameAncestors: ["'none'"],
+        },
+    },
+    hsts: process.env.NODE_ENV === 'production' ? { maxAge: 31536000, includeSubDomains: true } : false,
+    referrerPolicy: { policy: 'no-referrer' }
+}));
 app.use(trackMetrics);
 app.use(express.json());
 app.use(cookieParser()); // Parse secure cookies
@@ -22,27 +69,38 @@ app.use(cookieParser()); // Parse secure cookies
 // Data sanitization against NoSQL query injection
 app.use(mongoSanitize());
 
-// Strict CORS Policy
-const allowedOrigins = process.env.ALLOWED_ORIGINS 
-    ? process.env.ALLOWED_ORIGINS.split(',') 
-    : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'];
+// Strict CORS Policy (Phase 16.1-B Remediation)
+const { csrfMiddleware, getAllowedOrigins } = require('./middlewares/csrfMiddleware');
 
 app.use(cors({
-    origin: true, // Allow all origins for development and ease of testing
-    credentials: true, // Allow cookies to be sent across origins
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl requests, or same-origin in some browsers)
+        if (!origin) return callback(null, true);
+        
+        const allowedOrigins = getAllowedOrigins();
+        if (allowedOrigins.indexOf(origin) === -1) {
+            const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
+            return callback(new Error(msg), false);
+        }
+        return callback(null, true);
+    },
+    credentials: true, // Allow cookies to be sent across origins securely now that origin is validated
 }));
+
+// Apply Anti-CSRF Middleware for Defense-in-Depth against Subdomain CSRF
+app.use(csrfMiddleware);
 
 // Global Rate Limiting
 const rateLimit = require('express-rate-limit');
 const globalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 200, // Limit each IP to 200 requests per `window`
+    max: 5000, // Limit each IP to 5000 requests per `window` to prevent masking endpoint limiters
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, message: 'Global rate limit exceeded, please try again later.' }
 });
 app.use(globalLimiter);
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 
 // Routes
 const authRoutes = require('./routes/authRoutes');
@@ -80,7 +138,11 @@ const swaggerUi = require('swagger-ui-express');
 const YAML = require('yamljs');
 const swaggerDocument = YAML.load(path.join(__dirname, './docs/swagger.yaml'));
 
-app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+if (process.env.NODE_ENV !== 'production') {
+    app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+} else {
+    app.use('/api/docs', (req, res) => res.status(404).json({ success: false, message: 'API Documentation is disabled in production' }));
+}
 
 // Test route
 app.get('/', (req, res) => {

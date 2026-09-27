@@ -48,6 +48,14 @@ const DocumentUpload = () => {
 
   const [isUploading, setIsUploading] = useState(false);
 
+  // Documents uploaded THIS session, keyed by patientId: [{ _id, title, type, createdAt }].
+  // There is no admin-authorized backend endpoint to list a patient's existing/historical
+  // documents (PatientDocument has no admin GET route — only doctor's own-consent-gated route
+  // and the patient's own route exist), and User has no `documents` field despite the old code
+  // reading `selectedPatient.documents` as if it did (T3-R1 Bug 1). This tracks only what this
+  // Admin session itself uploads — it is NOT a complete history, and is labeled as such below.
+  const [sessionDocuments, setSessionDocuments] = useState({});
+
   const documentTypes = [
     { value: 'vaccine_certificate', label: 'Vaccine Certificate' },
     { value: 'blood_test', label: 'Blood Test Report' },
@@ -134,7 +142,7 @@ const DocumentUpload = () => {
       const encodedEncryptedAesKey = await workerEncryptKey(aesKeyBinaryStr, patient.publicKey);
 
       // 4. Send to backend
-      await apiFetch('/api/admin/documents', {
+      const res = await apiFetch('/api/admin/documents', {
         method: 'POST',
         body: JSON.stringify({
           patientId: selectedPatientId,
@@ -144,6 +152,18 @@ const DocumentUpload = () => {
           patientEncryptedKey: encodedEncryptedAesKey
         })
       });
+
+      // Refresh the visible list with what we just uploaded (see sessionDocuments comment above).
+      const newDoc = {
+        _id: res?.data?.documentId || res?.documentId,
+        title: documentName,
+        type: documentType,
+        createdAt: new Date().toISOString(),
+      };
+      setSessionDocuments((prev) => ({
+        ...prev,
+        [selectedPatientId]: [...(prev[selectedPatientId] || []), newDoc],
+      }));
 
       alert('✅ Document uploaded successfully!');
       setDocumentName('');
@@ -164,6 +184,7 @@ const DocumentUpload = () => {
 
   const selectedPatient = selectedPatientId ? users.find(u => u._id === selectedPatientId) : null;
   const patients = users.filter(u => u.role === 'general_user');
+  const selectedPatientDocs = selectedPatient ? (sessionDocuments[selectedPatient._id] || []) : [];
 
   return (
     <Box>
@@ -308,8 +329,8 @@ const DocumentUpload = () => {
                   <Typography variant="body2">{selectedPatient.patientId || selectedPatient._id}</Typography>
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="body2" color="text.secondary">Documents:</Typography>
-                  <Chip label={selectedPatient.documents?.length || 0} size="small" />
+                  <Typography variant="body2" color="text.secondary">Documents uploaded this session:</Typography>
+                  <Chip label={selectedPatientDocs.length} size="small" />
                 </Box>
               </CardContent>
             </Card>
@@ -321,14 +342,18 @@ const DocumentUpload = () => {
           <Card elevation={3} sx={{ height: '100%' }}>
             <CardContent>
               <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <DescriptionIcon /> Patient Documents
+                <DescriptionIcon /> Documents Uploaded This Session
               </Typography>
 
               {selectedPatient ? (
                 <>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    There's no way yet for Admin to list a patient's full document history — this shows
+                    only documents uploaded through this page during your current session.
+                  </Alert>
                   <Box sx={{ mb: 2 }}>
                     <Chip
-                      label={`${selectedPatient.documents?.length || 0} documents`}
+                      label={`${selectedPatientDocs.length} documents`}
                       color="primary"
                       size="small"
                     />
@@ -340,13 +365,13 @@ const DocumentUpload = () => {
                     />
                   </Box>
 
-                  {!selectedPatient.documents || selectedPatient.documents.length === 0 ? (
+                  {selectedPatientDocs.length === 0 ? (
                     <Alert severity="info">
-                      No documents found for this patient. Upload documents using the form.
+                      No documents uploaded to this patient yet this session. Upload one using the form.
                     </Alert>
                   ) : (
                     <List sx={{ maxHeight: 400, overflow: 'auto' }}>
-                      {selectedPatient.documents.map((doc) => (
+                      {selectedPatientDocs.map((doc) => (
                         <Paper key={doc.id || doc._id} variant="outlined" sx={{ mb: 1 }}>
                           <ListItem>
                             <ListItemText
@@ -400,9 +425,9 @@ const DocumentUpload = () => {
         <Grid item xs={12} md={4}>
           <Paper sx={{ p: 2, textAlign: 'center' }}>
             <Typography variant="h4" color="primary.main">
-              {patients.reduce((total, patient) => total + (patient.documents?.length || 0), 0)}
+              {Object.values(sessionDocuments).reduce((total, docs) => total + docs.length, 0)}
             </Typography>
-            <Typography variant="caption">Total Documents</Typography>
+            <Typography variant="caption">Documents Uploaded This Session</Typography>
           </Paper>
         </Grid>
         <Grid item xs={12} md={4}>

@@ -1,0 +1,137 @@
+[
+  {
+    "_id": {
+      "$oid": "6a953b9248f65f31e8296df1"
+    },
+    "secureFile": {
+      "$oid": "6a953b9248f65f31e8296df0"
+    },
+    "versionNumber": 1,
+    "ipfsCid": "mock_ipfs_cid_1788165010744",
+    "dataHash": "03b45fe23237694685aa3b20d203544f6a774ab6861e4a0e055a17abd622f81d",
+    "blockchainTransactionHash": "0xb695617f32e810f77834307fd145ee25b4bfd777cb7e82154c6df898805ad581",
+    "uploadedBy": {
+      "$oid": "6a953b9248f65f31e8296de2"
+    },
+    "fileSize": 22,
+    "isCurrent": true,
+    "blockchainStatus": "confirmed",
+    "blockchainRetries": 0,
+    "recordTypeStr": "InsuranceClaim:6a953b9248f65f31e8296de7",
+    "createdAt": {
+      "$date": "2026-08-31T08:30:10.747Z"
+    },
+    "updatedAt": {
+      "$date": "2026-08-31T08:30:37.746Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6aab5daa0657914859ec089f"
+    },
+    "secureFile": {
+      "$oid": "6aab5daa0657914859ec089e"
+    },
+    "versionNumber": 1,
+    "ipfsCid": "QmaVfGFuHyrpVzkUjeu56c5jM2SADzPGr223qCpQcVKEzt",
+    "dataHash": "9a80e23d36be063ad165c4ed285253702cbade6a2d42a8efe17484f804262e0f",
+    "blockchainTransactionHash": null,
+    "uploadedBy": {
+      "$oid": "6aab5daa0657914859ec089b"
+    },
+    "fileSize": 11,
+    "isCurrent": true,
+    "blockchainStatus": "failed",
+    "blockchainRetries": 3,
+    "recordTypeStr": "General:6aab5daa0657914859ec089d",
+    "createdAt": {
+      "$date": "2026-09-17T03:25:30.198Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-17T03:25:58.406Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6aab5daa0657914859ec08a2"
+    },
+    "secureFile": {
+      "$oid": "6aab5daa0657914859ec08a1"
+    },
+    "versionNumber": 1,
+    "ipfsCid": "mock_ipfs_cid_1789615530213",
+    "dataHash": "e3bd49937f448e6a53c186dc76f4ee39162b807eb860ee1ed27675f55acc937c",
+    "blockchainTransactionHash": null,
+    "uploadedBy": {
+      "$oid": "6aab5daa0657914859ec089b"
+    },
+    "fileSize": 11,
+    "isCurrent": true,
+    "blockchainStatus": "failed",
+    "blockchainRetries": 3,
+    "recordTypeStr": "General:6aab5daa0657914859ec089d",
+    "createdAt": {
+      "$date": "2026-09-17T03:25:30.216Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-17T03:26:28.429Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6aab5dcdf8abc5122ad838c1"
+    },
+    "secureFile": {
+      "$oid": "6aab5dcdf8abc5122ad838c0"
+    },
+    "versionNumber": 1,
+    "ipfsCid": "Qmb6KiL7pxr1BpnUf6ojrcnmotehsNh2BZtjsuw1sM2PC2",
+    "dataHash": "93f8c07730aaadea7f71e13850e3e76076aa8a3c2f2c3d422342a75760e31047",
+    "blockchainTransactionHash": null,
+    "uploadedBy": {
+      "$oid": "6aab5dcdf8abc5122ad838bd"
+    },
+    "fileSize": 11,
+    "isCurrent": true,
+    "blockchainStatus": "failed",
+    "blockchainRetries": 3,
+    "recordTypeStr": "General:6aab5dcdf8abc5122ad838bf",
+    "createdAt": {
+      "$date": "2026-09-17T03:26:05.644Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-17T03:26:58.459Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6aab5dcdf8abc5122ad838c4"
+    },
+    "secureFile": {
+      "$oid": "6aab5dcdf8abc5122ad838c3"
+    },
+    "versionNumber": 1,
+    "ipfsCid": "mock_ipfs_cid_1789615565766",
+    "dataHash": "44e4b055d3951b7129715b5736ba91fab8b031e4a3ff8c62a0de3cb10f528703",
+    "blockchainTransactionHash": null,
+    "uploadedBy": {
+      "$oid": "6aab5dcdf8abc5122ad838bd"
+    },
+    "fileSize": 11,
+    "isCurrent": true,
+    "blockchainStatus": "failed",
+    "blockchainRetries": 3,
+    "recordTypeStr": "General:6aab5dcdf8abc5122ad838bf",
+    "createdAt": {
+      "$date": "2026-09-17T03:26:05.769Z"
+    },
+    "updatedAt": {
+      "$date": "2026-09-17T03:27:28.492Z"
+    },
+    "__v": 0
+  }
+]

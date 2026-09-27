@@ -21,7 +21,7 @@ const IssueCertificates = () => {
                     color="primary" 
                     size="large"
                     startIcon={<PeopleIcon />}
-                    onClick={() => navigate('/doctor/patients')}
+                    onClick={() => navigate('/dashboard/my-patients')}
                 >
                     Go to My Patients
                 </Button>

@@ -1,6 +1,7 @@
 const PatientDocument = require('../models/PatientDocument');
 const CertificateRequest = require('../models/CertificateRequest');
 const AuditLog = require('../models/AuditLog');
+const { patientCertificateIds } = require('../services/certificatePatientService');
 const nacl = require('tweetnacl');
 const util = require('tweetnacl-util');
 
@@ -240,11 +241,9 @@ exports.getAssignedDoctors = async (req, res, next) => {
  */
 exports.getCertificates = async (req, res, next) => {
     try {
-        const Patient = require('../models/Patient');
         const Certificate = require('../models/Certificate');
-        const patient = await Patient.findOne({ user: req.user._id }).select('_id').lean();
-        const patientIdentities = [req.user._id];
-        if (patient) patientIdentities.push(patient._id);
+        // Canonical Patient-profile _id + legacy User _id
+        const patientIdentities = await patientCertificateIds(req.user._id);
 
         const certificates = await Certificate.find({ patient: { $in: patientIdentities } })
             .select('+encryptedCredential')

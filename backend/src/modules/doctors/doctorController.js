@@ -14,6 +14,9 @@ const util = require('tweetnacl-util');
 const blockchainContract = require('../../../blockchain');
 const Appointment = require('../../../models/Appointment');
 const mongoose = require('mongoose');
+// Reused, not reinvented: the same recursive key-sort canonicalization already established for EMR integrity hashing
+// (see src/modules/emr/emrRecordController.js::canonicalizeEMRData, which fixed this exact class of bug there).
+const { canonicalize } = require('../../utils/canonicalize');
 
 /**
  * getAllDoctors
@@ -38,7 +41,7 @@ exports.getAllDoctors = async (req, res, next) => {
  * @returns {*} Return value
  */
 const generateToken = (id) => {
-    return jwt.sign({ id }, process.env.JWT_SECRET || 'secret_key', {
+    return jwt.sign({ id }, process.env.JWT_SECRET, {
         expiresIn: '30d',
     });
 };
@@ -93,13 +96,27 @@ exports.registerDoctor = async (req, res, next) => {
             publicKey,
         });
 
-        const doctor = await Doctor.create({
-            user: user._id,
-            specialty,
-            licenseNumber,
-            department: department || 'General Medicine',
-            consultationFee: consultationFee || 0,
-        });
+        // The pre-check above (licenseExists) closes the common case, but a genuine race between two concurrent
+        // registrations for the same licenseNumber — or any other Doctor-creation failure — can still fail here
+        // AFTER the User already exists. Without a rollback, that leaves a role:'doctor' User with no Doctor
+        // profile behind. Mirrors the same rollback already used by adminController.createUser for this exact
+        // User-then-profile sequence.
+        let doctor;
+        try {
+            doctor = await Doctor.create({
+                user: user._id,
+                specialty,
+                licenseNumber,
+                department: department || 'General Medicine',
+                consultationFee: consultationFee || 0,
+            });
+        } catch (doctorError) {
+            await User.findByIdAndDelete(user._id);
+            const message = doctorError && doctorError.code === 11000
+                ? 'Doctor with this license number already exists'
+                : 'Failed to create doctor profile';
+            return res.status(400).json({ success: false, message, error: message });
+        }
 
         const token = generateToken(user._id);
 
@@ -153,13 +170,12 @@ exports.loginDoctor = async (req, res, next) => {
             return res.status(403).json({ success: false, message: 'Access denied. Account is not a doctor.' , error: 'Access denied. Account is not a doctor.'  });
         }
 
-        let doctor = await Doctor.findOne({ user: user._id });
+        // Credentials are already verified above. Login RESOLVES the existing Doctor profile; it never provisions one (no
+        // placeholder specialty / fabricated license). A doctor account whose profile was never provisioned is refused with a
+        // controlled 403 and NO token — profiles come only from the explicit paths (admin user creation, doctor registration).
+        const doctor = await Doctor.findOne({ user: user._id });
         if (!doctor) {
-            doctor = await Doctor.create({
-                user: user._id,
-                specialty: user.specialty || 'General Physician',
-                licenseNumber: `DOC-${user._id.toString().substring(18)}`,
-            });
+            return res.status(403).json({ success: false, message: 'Doctor profile not provisioned for this account. Contact an administrator.', error: 'DOCTOR_PROFILE_REQUIRED' });
         }
 
         const token = generateToken(user._id);
@@ -260,9 +276,14 @@ exports.getPatientEMR = async (req, res, next) => {
     try {
         const { patientId } = req.params;
 
-        // Verify active consent before opening patient EMR
-        const isAllowed = await hasActiveConsent({ patientInput: patientId, requestingUser: req.user });
-        if (!isAllowed) {
+        // Verify active consent before opening patient EMR. The response bundles four kinds of data, so each section requires a
+        // consent whose SCOPE permits that resource (the patient profile is part of the medical record); the request is refused only
+        // when NO section is permitted. A doctor with a single-resource consent receives only that section.
+        const canSee = {};
+        for (const sc of ['medical_records', 'prescriptions', 'lab_reports', 'certificates']) {
+            canSee[sc] = await hasActiveConsent({ patientInput: patientId, requestingUser: req.user, requiredScope: sc });
+        }
+        if (!Object.values(canSee).some(Boolean)) {
             return res.status(403).json({ success: false, message: 'Access Denied: Active patient consent is required for doctor access.' , error: 'Access Denied: Active patient consent is required for doctor access.'  });
         }
 
@@ -277,25 +298,25 @@ exports.getPatientEMR = async (req, res, next) => {
         const pId = patientProfile?._id || patientId;
         const uId = patientUser?._id || patientId;
 
-        const medicalRecords = await MedicalRecord.find({
+        const medicalRecords = !canSee.medical_records ? [] : await MedicalRecord.find({
             $or: [{ patient: pId }, { patient: uId }]
         }).sort({ visitDate: -1 });
 
-        const prescriptions = await Prescription.find({
+        const prescriptions = !canSee.prescriptions ? [] : await Prescription.find({
             $or: [{ patient: pId }, { patient: uId }]
         }).sort({ createdAt: -1 });
 
-        const labReports = await LabReport.find({
+        const labReports = !canSee.lab_reports ? [] : await LabReport.find({
             $or: [{ patient: pId }, { patient: uId }]
         }).sort({ createdAt: -1 });
 
-        const certificates = await Certificate.find({
+        const certificates = !canSee.certificates ? [] : await Certificate.find({
             patient: { $in: [pId, uId] }
         }).select('-encryptedCredential').sort({ createdAt: -1 });
 
         res.status(200).json({ success: true, message: 'Operation successful', data: {
-            patient: patientProfile,
-            patientUser,
+            patient: canSee.medical_records ? patientProfile : null,
+            patientUser: canSee.medical_records ? patientUser : null,
             medicalRecords,
             prescriptions,
             labReports,
@@ -308,6 +329,51 @@ exports.getPatientEMR = async (req, res, next) => {
 };
 
 /**
+ * isValidIdInput
+ * @description True only for a 24-hex ObjectId string or an ObjectId instance. Rejects objects/arrays/numbers/empty
+ * values (e.g. a body `patientId` of `{ "$ne": null }`), so callers answer 400 instead of a cast error surfacing as a 500
+ * or an operator object widening the Patient lookup.
+ * @param {*} v - candidate id
+ * @returns {boolean}
+ */
+const isValidIdInput = (v) =>
+    (typeof v === 'string' && /^[0-9a-fA-F]{24}$/.test(v)) ||
+    (!!v && typeof v === 'object' && (v._bsontype === 'ObjectId' || v._bsontype === 'ObjectID'));
+
+/**
+ * resolvePatientId
+ * @description Resolves an EXISTING Patient._id from a Patient._id or a User._id that an existing Patient profile
+ * references. Read-only and deterministic: it never creates, updates or migrates anything (a User with no Patient
+ * profile is NOT given one — Patient profiles come only from the deliberate provisioning paths). Returns null when the
+ * input is not a valid id or no matching Patient exists — callers answer 400 (invalid, via isValidIdInput) / 404 (null).
+ * The result is not an authorization decision. Same contract as the resolver in the EMR/lab/prescription controllers.
+ * @param {*} idInput - Patient._id or User._id
+ * @returns {Promise<ObjectId|null>}
+ */
+const resolvePatientId = async (idInput) => {
+    if (!isValidIdInput(idInput)) return null;
+    const byPatientId = await Patient.findById(idInput).select('_id').lean();
+    if (byPatientId) return byPatientId._id;
+    const byUserId = await Patient.findOne({ user: idInput }).select('_id').lean();
+    return byUserId ? byUserId._id : null;
+};
+
+/**
+ * refBelongsToPatient
+ * @description True when a stored patient reference (a MedicalRecord's `patient`) is this patient: their Patient._id, or — for
+ * legacy records — their User._id. Read-only. Same relationship the dedicated prescription controller uses.
+ * @param {*} storedRef - the reference stored on the record
+ * @param {*} patientId - the resolved Patient._id
+ * @returns {Promise<boolean>}
+ */
+const refBelongsToPatient = async (storedRef, patientId) => {
+    if (!storedRef || !patientId) return false;
+    if (String(storedRef) === String(patientId)) return true;
+    const p = await Patient.findById(patientId).select('user').lean();
+    return !!(p && p.user && String(storedRef) === String(p.user));
+};
+
+/**
  * updatePatientDiagnosis
  * @description Handles operations for updatePatientDiagnosis. Explains parameters, return values and usage.
  * @param {Object} req - The Express request object
@@ -317,6 +383,9 @@ exports.getPatientEMR = async (req, res, next) => {
  */
 exports.updatePatientDiagnosis = async (req, res, next) => {
     try {
+        if (!req.user || !req.user._id) {
+            return res.status(401).json({ success: false, message: 'Not authorized, user not found', error: 'Not authorized, user not found' });
+        }
         const { patientId } = req.params;
         const { chiefComplaint, diagnosis, treatmentPlan, vitals } = req.body;
 
@@ -324,23 +393,47 @@ exports.updatePatientDiagnosis = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'Diagnosis field is required' , error: 'Diagnosis field is required'  });
         }
 
-        let doctorDoc = await Doctor.findOne({ user: req.user._id });
+        // The recording doctor is the caller's EXISTING Doctor profile; it is never auto-created (no placeholder specialty /
+        // fabricated license). A caller without one is refused up front with a controlled 403 and nothing is written.
+        const doctorDoc = await Doctor.findOne({ user: req.user._id });
         if (!doctorDoc) {
-            doctorDoc = await Doctor.create({
-                user: req.user._id,
-                specialty: req.user.specialty || 'General',
-                licenseNumber: `DOC-${req.user._id.toString().substring(18)}`
-            });
+            return res.status(403).json({ success: false, message: 'Access Denied: A Doctor profile is required to record a diagnosis.', error: 'DOCTOR_PROFILE_REQUIRED' });
         }
 
-        let patientDoc = await Patient.findOne({ $or: [{ _id: patientId }, { user: patientId }] });
-        if (!patientDoc) {
-            patientDoc = await Patient.create({ user: patientId });
+        // Role policy (same as uploadPrescription / addClinicalNotes / the dedicated controllers): only a doctor or an administrator.
+        // The route already limits this endpoint to doctors; this keeps a direct handler call to the same policy.
+        if (!(req.user.role === 'doctor' || req.user.role === 'admin' || req.user.role === 'hospital_admin')) {
+            return res.status(403).json({ success: false, message: 'Access Denied: Role not authorized to record a diagnosis.', error: 'Access Denied: Role not authorized to record a diagnosis.' });
         }
 
-        // 1. Convert record to JSON
+        // The patient is the EXISTING Patient profile; it is never auto-created from the supplied id. An invalid id is a 400 and a
+        // missing profile a controlled 404 — in both cases nothing is created or written and no later step runs.
+        if (!isValidIdInput(patientId)) {
+            return res.status(400).json({ success: false, message: 'Invalid patient identifier', error: 'Invalid patient identifier' });
+        }
+        const resolvedPatientId = await resolvePatientId(patientId);
+        if (!resolvedPatientId) {
+            return res.status(404).json({ success: false, message: 'Patient not found', error: 'Patient not found' });
+        }
+
+        // AUTHORIZATION against the RESOLVED Patient, decided ONLY by the project's single consent authority (hasActiveConsent) and
+        // applied to EVERY caller that reaches this point (it used to run only when req.user.role === 'doctor'): an ACTIVE, UNEXPIRED
+        // Consent granted to this authenticated caller; administrators keep their existing access. An assignment, authorship of an
+        // earlier record, a name or any request-body identity/reference field NEVER grants access. This endpoint accepts no record
+        // id: it always creates a NEW diagnosis record for the resolved patient, so there is no existing record whose ownership
+        // could be claimed. It is decided BEFORE the record write, the hash anchoring and the audit row.
+        if (!(await hasActiveConsent({ patientInput: resolvedPatientId, requestingUser: req.user, requiredScope: 'medical_records' }))) {
+            return res.status(403).json({ success: false, message: 'Access Denied: Not authorized to modify patient diagnosis.', error: 'Access Denied: Not authorized to modify patient diagnosis.' });
+        }
+
+        // 1. Convert record to canonical JSON. NOT `JSON.stringify(recordData, Object.keys(recordData).sort())`: that
+        // array-form replacer is applied at EVERY nesting level, so nested `vitals` sub-fields (bloodPressure, heartRate,
+        // temperature, ...) — none of which are themselves in the top-level key list — were silently serialized as `{}`,
+        // regardless of what was actually stored. `canonicalize()` recursively sorts keys at every level instead, so the
+        // hash represents the complete record, matching the technique already fixed for this same reason in
+        // emrRecordController.js::canonicalizeEMRData.
         const recordData = {
-            patient: patientDoc._id.toString(),
+            patient: resolvedPatientId.toString(),
             doctor: doctorDoc._id.toString(),
             chiefComplaint: chiefComplaint || 'Consultation Visit',
             diagnosis,
@@ -348,14 +441,14 @@ exports.updatePatientDiagnosis = async (req, res, next) => {
             vitals: vitals || { bloodPressure: '120/80', heartRate: 72, temperature: 98.6 },
             visitDate: new Date().toISOString(),
         };
-        const recordJSON = JSON.stringify(recordData, Object.keys(recordData).sort());
+        const recordJSON = canonicalize(recordData);
 
         // 2. Generate SHA256 hash
         const dataHash = crypto.createHash('sha256').update(recordJSON).digest('hex');
 
         // 3. Store record in MongoDB
         const medicalRecord = await MedicalRecord.create({
-            patient: patientDoc._id,
+            patient: resolvedPatientId,
             doctor: doctorDoc._id,
             chiefComplaint: chiefComplaint || 'Consultation Visit',
             diagnosis,
@@ -366,39 +459,73 @@ exports.updatePatientDiagnosis = async (req, res, next) => {
             recordHash: dataHash,
         });
 
-        // 4. Store hash in blockchain
+        // 4. Anchor the hash on-chain using the SAME commit-reveal flow already established and working in
+        // emrRecordController.js::createEMR — the live EMR blockchain ABI has no `storeEMRRecord` method (that call always
+        // threw here, silently, and the handler still reported success). Blockchain failure does not roll back the
+        // MongoDB write, matching createEMR's own existing policy that anchoring is non-fatal to the record operation —
+        // but unlike createEMR's response, this handler never claims anchoring occurred when it did not.
         let transactionHash = null;
+        let blockchainAnchored = false;
         try {
-            const tx = await blockchainContract.storeEMRRecord(
-                patientDoc._id.toString(),
+            const { ethers } = require('ethers');
+
+            const nonceBuffer = crypto.randomBytes(32);
+            const nonce = '0x' + nonceBuffer.toString('hex');
+            const innerHash = ethers.solidityPackedKeccak256(['string'], [dataHash]);
+
+            let signerAddress = '0x0000000000000000000000000000000000000000';
+            if (blockchainContract.runner && typeof blockchainContract.runner.getAddress === 'function') {
+                signerAddress = await blockchainContract.runner.getAddress();
+            } else if (blockchainContract.signer && typeof blockchainContract.signer.getAddress === 'function') {
+                signerAddress = await blockchainContract.signer.getAddress();
+            }
+
+            const commitment = ethers.solidityPackedKeccak256(
+                ['bytes32', 'bytes32', 'address'],
+                [innerHash, nonce, signerAddress]
+            );
+
+            const currentNonce = await blockchainContract.runner.getNonce('latest');
+            const commitTx = await blockchainContract.commitHash(commitment, { nonce: currentNonce });
+            await commitTx.wait();
+
+            const revealTx = await blockchainContract.revealHash(
+                resolvedPatientId.toString(),
                 'MedicalRecord',
                 dataHash,
-                ''
+                '',
+                nonce,
+                { nonce: currentNonce + 1 }
             );
-            await tx.wait();
-            transactionHash = tx.hash;
+            await revealTx.wait();
+
+            transactionHash = revealTx.hash;
+            blockchainAnchored = true;
 
             medicalRecord.transactionHash = transactionHash;
             medicalRecord.blockchainHash = transactionHash;
             await medicalRecord.save();
         } catch (contractError) {
-            console.error('Blockchain storeEMRRecord failed:', contractError.message);
+            console.error('Blockchain commit/reveal failed for updatePatientDiagnosis:', contractError.message);
         }
 
         await AuditLog.create({
             actor: req.user._id,
             action: 'OTHER',
-            details: { type: 'update_diagnosis', patientId, recordId: medicalRecord._id, dataHash, transactionHash }
+            details: { type: 'update_diagnosis', patientId, recordId: medicalRecord._id, dataHash, transactionHash, blockchainAnchored }
         });
 
-        // 5. Return transaction hash
+        // 5. Report the REAL anchoring outcome — never claim success the chain call didn't achieve.
         res.status(200).json({
             success: true,
-            message: 'Diagnosis updated and anchored to blockchain successfully',
+            message: blockchainAnchored
+                ? 'Diagnosis updated and anchored to blockchain successfully'
+                : 'Diagnosis updated successfully; blockchain anchoring failed and was NOT recorded',
 
             data: {
                 dataHash,
                 transactionHash,
+                blockchainAnchored,
                 medicalRecord
             }
         });
@@ -418,6 +545,9 @@ exports.updatePatientDiagnosis = async (req, res, next) => {
  */
 exports.addClinicalNotes = async (req, res, next) => {
     try {
+        if (!req.user || !req.user._id) {
+            return res.status(401).json({ success: false, message: 'Not authorized, user not found', error: 'Not authorized, user not found' });
+        }
         const { patientId } = req.params;
         const { clinicalNotes, recordId } = req.body;
 
@@ -425,25 +555,54 @@ exports.addClinicalNotes = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'Clinical notes content is required' , error: 'Clinical notes content is required'  });
         }
 
+        // The authenticated caller's EXISTING Doctor profile (server-derived from the session; never auto-created, never taken
+        // from the request). A caller without one is refused with a controlled 403 and nothing is written.
+        const doctorDoc = await Doctor.findOne({ user: req.user._id });
+        if (!doctorDoc) {
+            return res.status(403).json({ success: false, message: 'Access Denied: A Doctor profile is required to add clinical notes.', error: 'DOCTOR_PROFILE_REQUIRED' });
+        }
+
+        // Role policy (same as uploadPrescription / the dedicated controllers): only a doctor or an administrator. A caller of
+        // any other role no longer skips authorization when the handler is reached directly.
+        if (!(req.user.role === 'doctor' || req.user.role === 'admin' || req.user.role === 'hospital_admin')) {
+            return res.status(403).json({ success: false, message: 'Access Denied: Role not authorized to add clinical notes.', error: 'Access Denied: Role not authorized to add clinical notes.' });
+        }
+
+        // The patient is the EXISTING Patient profile; it is never auto-created from the supplied id (invalid id -> 400, missing
+        // profile -> controlled 404, nothing created or written).
+        if (!isValidIdInput(patientId)) {
+            return res.status(400).json({ success: false, message: 'Invalid patient identifier', error: 'Invalid patient identifier' });
+        }
+        const resolvedPatientId = await resolvePatientId(patientId);
+        if (!resolvedPatientId) {
+            return res.status(404).json({ success: false, message: 'Patient not found', error: 'Patient not found' });
+        }
+
+        // AUTHORIZATION against the RESOLVED Patient, decided ONLY by the project's single consent authority (hasActiveConsent):
+        // an ACTIVE, UNEXPIRED Consent granted to this authenticated caller; administrators keep their existing access. Being the
+        // record's original author (record.doctor), an assignment, a name or any request-body identity field NEVER grants access.
+        // Decided BEFORE the record is looked up (no record/patient linkage is revealed to an unconsented caller) and before any write.
+        if (!(await hasActiveConsent({ patientInput: resolvedPatientId, requestingUser: req.user, requiredScope: 'medical_records' }))) {
+            return res.status(403).json({ success: false, message: 'Access Denied: Not authorized to add clinical notes.', error: 'Access Denied: Not authorized to add clinical notes.' });
+        }
+
+        // A supplied record is loaded from the database and must belong to THIS resolved patient; a patient id inside the request
+        // never decides ownership.
         let record;
         if (recordId) {
+            if (!isValidIdInput(recordId)) {
+                return res.status(400).json({ success: false, message: 'Invalid record identifier', error: 'Invalid record identifier' });
+            }
             record = await MedicalRecord.findById(recordId);
+            if (record && !(await refBelongsToPatient(record.patient, resolvedPatientId))) {
+                return res.status(403).json({ success: false, message: 'Access Denied: Record does not belong to specified patient.', error: 'Access Denied: Record does not belong to specified patient.' });
+            }
         }
 
         if (!record) {
-            let doctorDoc = await Doctor.findOne({ user: req.user._id });
-            if (!doctorDoc) {
-                doctorDoc = await Doctor.create({
-                    user: req.user._id,
-                    specialty: req.user.specialty || 'General',
-                    licenseNumber: `DOC-${req.user._id.toString().substring(18)}`
-                });
-            }
-            let patientDoc = await Patient.findOne({ $or: [{ _id: patientId }, { user: patientId }] });
-            if (!patientDoc) patientDoc = await Patient.create({ user: patientId });
-
+            // Creating a NEW note record: recorded under the caller's authenticated Doctor profile (resolved above).
             record = await MedicalRecord.create({
-                patient: patientDoc._id,
+                patient: resolvedPatientId,
                 doctor: doctorDoc._id,
                 chiefComplaint: 'Clinical Note Entry',
                 diagnosis: 'Clinical Consultation',
@@ -487,32 +646,71 @@ exports.addClinicalNotes = async (req, res, next) => {
  */
 exports.uploadPrescription = async (req, res, next) => {
     try {
+        if (!req.user || !req.user._id) {
+            return res.status(401).json({ success: false, message: 'Not authorized, user not found', error: 'Not authorized, user not found' });
+        }
         const { patientId, medications, instructions, medicalRecordId } = req.body;
 
         if (!patientId || !medications || !Array.isArray(medications) || medications.length === 0) {
             return res.status(400).json({ success: false, message: 'patientId and medications array are required' , error: 'patientId and medications array are required'  });
         }
 
-        let doctorDoc = await Doctor.findOne({ user: req.user._id });
+        // The prescribing doctor is the caller's EXISTING Doctor profile; it is never auto-created (no placeholder specialty /
+        // fabricated license). A caller without one is refused up front with a controlled 403 and nothing is written.
+        const doctorDoc = await Doctor.findOne({ user: req.user._id });
         if (!doctorDoc) {
-            doctorDoc = await Doctor.create({
-                user: req.user._id,
-                specialty: req.user.specialty || 'General',
-                licenseNumber: `DOC-${req.user._id.toString().substring(18)}`
-            });
+            return res.status(403).json({ success: false, message: 'Access Denied: A Doctor profile is required to upload a prescription.', error: 'DOCTOR_PROFILE_REQUIRED' });
         }
 
-        let patientDoc = await Patient.findOne({ $or: [{ _id: patientId }, { user: patientId }] });
-        if (!patientDoc) patientDoc = await Patient.create({ user: patientId });
+        // Role policy (same as the dedicated prescription controller): only a doctor or an administrator may create a
+        // prescription. The route already limits this endpoint to doctors; this keeps a direct handler call to the same policy.
+        if (!(req.user.role === 'doctor' || req.user.role === 'admin' || req.user.role === 'hospital_admin')) {
+            return res.status(403).json({ success: false, message: 'Access Denied: Role not authorized to create prescriptions.', error: 'Access Denied: Role not authorized to create prescriptions.' });
+        }
+
+        // The patient is the EXISTING Patient profile; it is never auto-created from the supplied id (invalid id -> 400, missing
+        // profile -> controlled 404, nothing created or written).
+        if (!isValidIdInput(patientId)) {
+            return res.status(400).json({ success: false, message: 'Invalid patient identifier', error: 'Invalid patient identifier' });
+        }
+        const resolvedPatientId = await resolvePatientId(patientId);
+        if (!resolvedPatientId) {
+            return res.status(404).json({ success: false, message: 'Patient not found', error: 'Patient not found' });
+        }
+
+        // AUTHORIZATION against the RESOLVED Patient, decided by the project's single consent authority (hasActiveConsent): an
+        // ACTIVE, UNEXPIRED Consent granted to this authenticated caller (by User id or Doctor profile id); administrators keep
+        // their existing access. Assignments, record authorship, names and request-body identity fields never grant access.
+        // Decided BEFORE anything is looked up further or written.
+        if (!(await hasActiveConsent({ patientInput: resolvedPatientId, requestingUser: req.user, requiredScope: 'prescriptions' }))) {
+            return res.status(403).json({ success: false, message: 'Access Denied: Patient active consent is required to create prescriptions.', error: 'Access Denied: Patient active consent is required to create prescriptions.' });
+        }
+
+        // The optional linked medical record must exist AND belong to THIS resolved patient. The record is loaded from the
+        // database; a patient id inside the request never decides ownership.
+        let linkedRecordId;
+        if (medicalRecordId !== undefined && medicalRecordId !== null && medicalRecordId !== '') {
+            if (!isValidIdInput(medicalRecordId)) {
+                return res.status(400).json({ success: false, message: 'Invalid medical record identifier', error: 'Invalid medical record identifier' });
+            }
+            const linkedRecord = await MedicalRecord.findById(medicalRecordId).select('patient').lean();
+            if (!linkedRecord) {
+                return res.status(404).json({ success: false, message: 'EMR not found', error: 'EMR not found' });
+            }
+            if (!(await refBelongsToPatient(linkedRecord.patient, resolvedPatientId))) {
+                return res.status(403).json({ success: false, message: 'Access Denied: The EMR does not belong to this patient.', error: 'Access Denied: The EMR does not belong to this patient.' });
+            }
+            linkedRecordId = linkedRecord._id;
+        }
 
         // Generate digital signature hash
-        const signaturePayload = `${patientDoc._id}|${doctorDoc._id}|${JSON.stringify(medications)}|${Date.now()}`;
+        const signaturePayload = `${resolvedPatientId}|${doctorDoc._id}|${JSON.stringify(medications)}|${Date.now()}`;
         const digitalSignatureHash = crypto.createHash('sha256').update(signaturePayload).digest('hex');
 
         const prescription = await Prescription.create({
-            patient: patientDoc._id,
+            patient: resolvedPatientId,
             doctor: doctorDoc._id,
-            medicalRecord: medicalRecordId || undefined,
+            medicalRecord: linkedRecordId,
             medications,
             instructions,
             digitalSignatureHash,
@@ -521,7 +719,7 @@ exports.uploadPrescription = async (req, res, next) => {
         await AuditLog.create({
             actor: req.user._id,
             action: 'OTHER',
-            details: { type: 'upload_prescription', prescriptionId: prescription._id, patientId: patientDoc._id }
+            details: { type: 'upload_prescription', prescriptionId: prescription._id, patientId: resolvedPatientId }
         });
 
         res.status(201).json({

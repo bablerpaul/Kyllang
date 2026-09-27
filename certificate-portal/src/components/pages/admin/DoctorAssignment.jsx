@@ -20,10 +20,7 @@ import {
   Paper,
   Chip,
   IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions
+  Tooltip
 } from '@mui/material';
 import {
   Assignment as AssignmentIcon,
@@ -39,7 +36,6 @@ const DoctorAssignment = () => {
 
   const [selectedPatientId, setSelectedPatientId] = useState('');
   const [selectedDoctorId, setSelectedDoctorId] = useState('');
-  const [unassignedDialog, setUnassignedDialog] = useState({ open: false, patientId: null, patientName: '' });
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -76,15 +72,6 @@ const DoctorAssignment = () => {
     } catch (error) {
       alert(`Error assigning doctor: ${error.message}`);
     }
-  };
-
-  const handleRemoveAssignment = (patientId, patientName) => {
-    // Note: The prompt doesn't strictly ask for 'Unassign' and we haven't built a backend endpoint for it.
-    alert('For this Proof of Concept, unassigning is not supported on the backend.');
-  };
-
-  const confirmRemoveAssignment = () => {
-    setUnassignedDialog({ open: false, patientId: null, patientName: '' });
   };
 
   const patients = users.filter(u => u.role === 'general_user');
@@ -248,14 +235,16 @@ const DoctorAssignment = () => {
                           <Chip label={assignment.doctorSpecialty || 'N/A'} size="small" />
                         </TableCell>
                         <TableCell>
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => handleRemoveAssignment(assignment.patientId, assignment.patientName)}
-                            title="Remove Assignment"
-                          >
-                            <DeleteIcon />
-                          </IconButton>
+                          {/* No backend endpoint exists to remove a doctor-patient assignment
+                              (T3-R1 Bug 7) — disabled with an explanation rather than a delete
+                              icon that silently no-ops. */}
+                          <Tooltip title="Removing an assignment isn't supported yet">
+                            <span>
+                              <IconButton size="small" disabled>
+                                <DeleteIcon />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
                         </TableCell>
                       </TableRow>
                     );
@@ -294,27 +283,6 @@ const DoctorAssignment = () => {
           </Paper>
         </Grid>
       </Grid>
-
-      {/* Remove Assignment Dialog */}
-      <Dialog open={unassignedDialog.open} onClose={() => setUnassignedDialog({ open: false, patientId: null, patientName: '' })}>
-        <DialogTitle>Remove Doctor Assignment</DialogTitle>
-        <DialogContent>
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            Are you sure you want to remove the doctor assignment for {unassignedDialog.patientName}?
-          </Alert>
-          <Typography variant="body2">
-            The patient will become unassigned and will need a new doctor assignment for medical care coordination.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setUnassignedDialog({ open: false, patientId: null, patientName: '' })}>
-            Cancel
-          </Button>
-          <Button onClick={confirmRemoveAssignment} color="error" variant="contained">
-            Remove Assignment
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 };

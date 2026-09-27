@@ -24,7 +24,7 @@ import { apiFetch } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import DoctorDashboard from '../../components/pages/doctor/DoctorDashboard';
 import PatientKeyEnrollment from '../../components/pages/user/PatientKeyEnrollment';
-import { hasStoredPrivateKey } from '../../utils/patientKeyVault';
+import { getLocalKeyStatus, KEY_STATUS } from '../../utils/patientKeyVault';
 
 function StatCard({ icon, label, value, sub, color = 'primary', loading }) {
   return (
@@ -62,26 +62,18 @@ function PatientDashboardOverview() {
   const [documents, setDocuments] = useState([]);
   const [certificates, setCertificates] = useState([]);
   const [lastUpdated, setLastUpdated] = useState(null);
-  // Key enrollment state: null = unknown, 'unregistered' = no public key, 'missing_local' = has public key but no local private key, 'enrolled' = all good
-  const [keyMissing, setKeyMissing] = useState(null);
+  // Key state (one of KEY_STATUS, or null = unknown): this browser's key for THIS account compared with the public key
+  // registered on the server. Only public keys are compared; nothing is decrypted.
+  const [keyStatus, setKeyStatus] = useState(null);
 
-  // Check whether the authenticated patient already has a public key enrolled
   const checkPublicKey = useCallback(async () => {
     try {
       const res = await apiFetch('/api/auth/me');
       const user = res.data || res;
-      const hasLocalKey = await hasStoredPrivateKey();
-      
-      if (!user.publicKey) {
-        setKeyMissing('unregistered');
-      } else if (!hasLocalKey) {
-        setKeyMissing('missing_local');
-      } else {
-        setKeyMissing('enrolled');
-      }
+      setKeyStatus(await getLocalKeyStatus(user._id, user.publicKey));
     } catch (_) {
-      // Non-blocking: do not block the dashboard if this check fails
-      setKeyMissing('enrolled');
+      // Non-blocking: do not block the dashboard if this check fails — but never report an unverified key as ready.
+      setKeyStatus(null);
     }
   }, []);
 
@@ -136,13 +128,13 @@ function PatientDashboardOverview() {
   return (
     <Box sx={{ display: 'grid', gap: 3 }}>
       {/* Key Enrollment Banner — shown only when patient has no public key */}
-      {keyMissing === 'unregistered' && (
+      {keyStatus === KEY_STATUS.UNREGISTERED && (
         <Alert
           severity="warning"
           sx={{ borderRadius: 2 }}
           action={
             <PatientKeyEnrollment
-              onEnrolled={() => setKeyMissing('enrolled')}
+              onEnrolled={checkPublicKey}
               compact
             />
           }
@@ -151,23 +143,45 @@ function PatientDashboardOverview() {
           encryption key before a doctor can issue you a secure ZK certificate.
         </Alert>
       )}
-      {/* Key Rotation Banner — shown when patient has public key on server but no private key locally */}
-      {keyMissing === 'missing_local' && (
+      {/* Server has a key for this account, but this browser has none for it. Re-enrolling is possible only behind the
+          explicit risk confirmation in PatientKeyEnrollment — never automatically. */}
+      {keyStatus === KEY_STATUS.MISSING && (
+        <Alert
+          severity="warning"
+          sx={{ borderRadius: 2 }}
+          action={<PatientKeyEnrollment onEnrolled={checkPublicKey} compact isRotation />}
+        >
+          <strong>Your encryption key is not in this browser.</strong> Your account already has a registered key, but
+          its private key is stored only in the browser or device where you set it up. Please sign in from that
+          browser or device to open your credentials. Re-enrolling here creates a new key and may permanently remove
+          access to credentials already issued to you.
+        </Alert>
+      )}
+      {keyStatus === KEY_STATUS.MISMATCH && (
         <Alert
           severity="error"
           sx={{ borderRadius: 2 }}
-          action={
-            <PatientKeyEnrollment
-              onEnrolled={() => setKeyMissing('enrolled')}
-              compact
-              isRotation
-            />
-          }
+          action={<PatientKeyEnrollment onEnrolled={checkPublicKey} compact isRotation />}
         >
-          <strong>Security Alert:</strong> Your browser is missing the private key needed to decrypt credentials. You must re-enroll your key to receive future certificates.
+          <strong>Key mismatch:</strong> the encryption key saved in this browser for your account does not match the
+          key registered on the server, so it will not be used. Your current key was probably set up in another browser
+          or device — please use that one. Re-enrolling here replaces the registered key and may permanently remove
+          access to credentials encrypted to it.
         </Alert>
       )}
-      {keyMissing === 'enrolled' && (
+      {keyStatus === KEY_STATUS.LEGACY_UNVERIFIED && (
+        <Alert
+          severity="warning"
+          sx={{ borderRadius: 2 }}
+          action={<PatientKeyEnrollment onEnrolled={checkPublicKey} compact isRotation />}
+        >
+          <strong>Unverified key:</strong> this browser holds an encryption key saved by an earlier version of Kyllang
+          that is not linked to an account, so it can&apos;t be confirmed as yours yet. It is only used if, when you
+          enter your passphrase, it matches the key registered for your account. Do not re-enroll unless you are sure
+          you no longer have your key.
+        </Alert>
+      )}
+      {keyStatus === KEY_STATUS.MATCH && (
         <Alert severity="success" sx={{ borderRadius: 2 }}>
           ✓ Encryption key enrolled. Your X25519 public key is registered and credential delivery is ready.
         </Alert>

@@ -1,6 +1,7 @@
 const { Appointment } = require('../../models');
 const Patient = require('../../../models/Patient');
 const Doctor = require('../../../models/Doctor');
+const User = require('../../../models/User');
 const mongoose = require('mongoose');
 
 /**
@@ -70,6 +71,103 @@ const getAppointments = async (req, res, next) => {
     }
 };
 
+// @desc    Get globally available slots across all doctors
+// @route   GET /api/appointments/available-slots
+// @access  Private
+const getAvailableGlobalSlots = async (req, res, next) => {
+    try {
+        const { date } = req.query;
+        if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            return res.status(400).json({ success: false, message: 'date query parameter is required in YYYY-MM-DD format.' });
+        }
+
+        const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const [yStr, mStr, dStr] = date.split('-');
+        const reqYear = parseInt(yStr, 10);
+        const reqMonth = parseInt(mStr, 10) - 1;
+        const reqDate = parseInt(dStr, 10);
+        const dateObj = new Date(reqYear, reqMonth, reqDate);
+        const dayName = DAY_NAMES[dateObj.getDay()];
+
+        const doctors = await Doctor.find().select('_id availability appointmentDuration').lean();
+
+        const allSlotsSet = new Set();
+        const docSlotMap = new Map(); // doctorId -> set of slot labels
+
+        const now = new Date();
+        const isToday = dateObj.toDateString() === now.toDateString();
+        const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+        for (const doc of doctors) {
+            const avail = doc.availability;
+            const dayConfig = avail && avail[dayName];
+            if (!dayConfig || !dayConfig.enabled) continue;
+
+            const [startH, startM] = dayConfig.startTime.split(':').map(Number);
+            const [endH,   endM]   = dayConfig.endTime.split(':').map(Number);
+            const startMinutes = startH * 60 + startM;
+            const endMinutes   = endH   * 60 + endM;
+            const duration = doc.appointmentDuration || 30;
+
+            const docSlots = new Set();
+            for (let m = startMinutes; m + duration <= endMinutes; m += duration) {
+                const h = Math.floor(m / 60);
+                const min = m % 60;
+                const period = h < 12 ? 'AM' : 'PM';
+                const displayH = h % 12 === 0 ? 12 : h % 12;
+                const label = `${String(displayH).padStart(2, '0')}:${String(min).padStart(2, '0')} ${period}`;
+                
+                if (!isToday || m > nowMinutes) {
+                    docSlots.add(label);
+                    allSlotsSet.add(label);
+                }
+            }
+            docSlotMap.set(doc._id.toString(), docSlots);
+        }
+
+        const dayStart = new Date(reqYear, reqMonth, reqDate, 0, 0, 0, 0);
+        const dayEnd   = new Date(reqYear, reqMonth, reqDate, 23, 59, 59, 999);
+
+        const booked = await Appointment.find({
+            appointmentDate: { $gte: dayStart, $lte: dayEnd },
+            status: { $in: ['scheduled', 'completed'] },
+        }).select('doctor timeSlot').lean();
+
+        for (const b of booked) {
+            const dSlots = docSlotMap.get(b.doctor.toString());
+            if (dSlots) {
+                dSlots.delete(b.timeSlot);
+            }
+        }
+
+        const finalAvailableSlots = new Set();
+        for (const [docId, slots] of docSlotMap.entries()) {
+            for (const s of slots) {
+                finalAvailableSlots.add(s);
+            }
+        }
+
+        const parseTime = (label) => {
+            const match = label.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+            let h = parseInt(match[1], 10);
+            const m = parseInt(match[2], 10);
+            if (match[3].toUpperCase() === 'PM' && h !== 12) h += 12;
+            if (match[3].toUpperCase() === 'AM' && h === 12) h = 0;
+            return h * 60 + m;
+        };
+
+        const sortedSlots = Array.from(finalAvailableSlots).sort((a, b) => parseTime(a) - parseTime(b));
+
+        res.status(200).json({
+            success: true,
+            date,
+            slots: sortedSlots
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
 // @desc    Create a new appointment
 // @route   POST /api/appointments
 // @access  Private (general_user, hospital_admin only)
@@ -77,15 +175,10 @@ const createAppointment = async (req, res, next) => {
     try {
         const { doctorId, patientId, appointmentDate, timeSlot, reason, clinicalNotes } = req.body;
 
-        // ── Doctors cannot book as patients ────────────────────────────────
         if (req.user.role === 'doctor') {
             return res.status(403).json({ success: false, message: 'Doctors cannot create patient appointments.' });
         }
 
-        // ── Input validation ───────────────────────────────────────────────
-        if (!doctorId || !mongoose.Types.ObjectId.isValid(doctorId)) {
-            return res.status(400).json({ success: false, message: 'A valid doctorId is required.' });
-        }
         if (!appointmentDate) {
             return res.status(400).json({ success: false, message: 'appointmentDate is required.' });
         }
@@ -103,12 +196,6 @@ const createAppointment = async (req, res, next) => {
         }
         if (!reason || !reason.toString().trim()) {
             return res.status(400).json({ success: false, message: 'reason is required.' });
-        }
-
-        // ── Validate Doctor ────────────────────────────────────────────────
-        const doctorDoc = await Doctor.findById(doctorId);
-        if (!doctorDoc) {
-            return res.status(404).json({ success: false, message: 'Doctor not found.' });
         }
 
         // ── Resolve Patient ────────────────────────────────────────────────
@@ -133,6 +220,104 @@ const createAppointment = async (req, res, next) => {
             resolvedPatientId = patientDoc._id;
         } else {
             return res.status(403).json({ success: false, message: 'Not authorized to create appointments.' });
+        }
+
+        let finalDoctorId = doctorId;
+
+        // ── AUTOMATIC DOCTOR ASSIGNMENT ──────────────────────────────
+        if (!finalDoctorId && req.user.role === 'general_user') {
+            const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            const dayName = DAY_NAMES[apptDate.getDay()];
+
+            const slotMatch = timeSlot.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+            if (!slotMatch) return res.status(400).json({ success: false, message: 'timeSlot format is invalid.' });
+            let slotHour = parseInt(slotMatch[1], 10);
+            const slotMin  = parseInt(slotMatch[2], 10);
+            const period   = slotMatch[3].toUpperCase();
+            if (period === 'PM' && slotHour !== 12) slotHour += 12;
+            if (period === 'AM' && slotHour === 12) slotHour  = 0;
+            const slotMinutes = slotHour * 60 + slotMin;
+
+            const allDoctors = await Doctor.find().populate('user', 'assignedPatients').lean();
+            let eligibleDoctors = [];
+
+            for (const doc of allDoctors) {
+                const avail = doc.availability;
+                const dayConfig = avail && avail[dayName];
+                if (!dayConfig || !dayConfig.enabled) continue;
+
+                const [startH, startM] = dayConfig.startTime.split(':').map(Number);
+                const [endH,   endM]   = dayConfig.endTime.split(':').map(Number);
+                const startMinutes = startH * 60 + startM;
+                const endMinutes   = endH   * 60 + endM;
+                const duration = doc.appointmentDuration || 30;
+
+                if (slotMinutes >= startMinutes && slotMinutes + duration <= endMinutes) {
+                    eligibleDoctors.push(doc);
+                }
+            }
+
+            const dayStart = new Date(apptDate);
+            dayStart.setHours(0, 0, 0, 0);
+            const dayEnd = new Date(apptDate);
+            dayEnd.setHours(23, 59, 59, 999);
+
+            const booked = await Appointment.find({
+                appointmentDate: { $gte: dayStart, $lte: dayEnd },
+                timeSlot: timeSlot.trim(),
+                status: { $in: ['scheduled', 'completed'] }
+            }).select('doctor').lean();
+            
+            const bookedDocIds = new Set(booked.map(b => b.doctor.toString()));
+            
+            eligibleDoctors = eligibleDoctors.filter(d => !bookedDocIds.has(d._id.toString()));
+
+            if (eligibleDoctors.length === 0) {
+                return res.status(409).json({ success: false, message: 'No doctors are available for the selected time slot.' });
+            }
+
+            let preferredDocs = [];
+            for (const doc of eligibleDoctors) {
+                const assigned = doc.user?.assignedPatients || [];
+                if (assigned.some(p => p.toString() === req.user._id.toString())) {
+                    preferredDocs.push(doc);
+                }
+            }
+
+            const candidatePool = preferredDocs.length > 0 ? preferredDocs : eligibleDoctors;
+
+            const workloads = await Appointment.aggregate([
+                { $match: { 
+                    appointmentDate: { $gte: dayStart, $lte: dayEnd },
+                    status: { $in: ['scheduled', 'completed'] },
+                    doctor: { $in: candidatePool.map(d => d._id) }
+                }},
+                { $group: { _id: '$doctor', count: { $sum: 1 } } }
+            ]);
+            
+            const workloadMap = new Map();
+            workloads.forEach(w => workloadMap.set(w._id.toString(), w.count));
+
+            for (const doc of candidatePool) {
+                doc.workload = workloadMap.get(doc._id.toString()) || 0;
+            }
+
+            candidatePool.sort((a, b) => {
+                if (a.workload !== b.workload) return a.workload - b.workload;
+                return a._id.toString().localeCompare(b._id.toString());
+            });
+
+            finalDoctorId = candidatePool[0]._id;
+        }
+
+        if (!finalDoctorId || !mongoose.Types.ObjectId.isValid(finalDoctorId)) {
+            return res.status(400).json({ success: false, message: 'A valid doctorId is required or no doctor is available.' });
+        }
+
+        // ── Validate Doctor ────────────────────────────────────────────────
+        const doctorDoc = await Doctor.findById(finalDoctorId);
+        if (!doctorDoc) {
+            return res.status(404).json({ success: false, message: 'Doctor not found.' });
         }
 
         // ── Double-booking check ───────────────────────────────────────────
@@ -179,7 +364,7 @@ const updateAppointmentStatus = async (req, res, next) => {
         const { status } = req.body;
 
         // ── Validate incoming status ───────────────────────────────────────
-        const VALID_STATUSES = ['scheduled', 'completed', 'cancelled', 'no_show'];
+        const VALID_STATUSES = ['scheduled', 'confirmed', 'completed', 'cancelled', 'no_show'];
         if (!status || !VALID_STATUSES.includes(status)) {
             return res.status(400).json({
                 success: false,
@@ -201,7 +386,7 @@ const updateAppointmentStatus = async (req, res, next) => {
                 isOwner = true;
             }
         } else if (req.user.role === 'doctor') {
-            const doctorDoc = await Doctor.findOne({ user: req.user._id }).select('_id');
+            const doctorDoc = await Doctor.findOne({ user: req.user._id });
             if (doctorDoc && appointment.doctor.toString() === doctorDoc._id.toString()) {
                 isOwner = true;
             }
@@ -212,6 +397,50 @@ const updateAppointmentStatus = async (req, res, next) => {
 
         if (!isOwner) {
             return res.status(403).json({ success: false, message: 'Not authorized to update this appointment.' });
+        }
+
+        // ── Appointment confirmation rules ──────────────────────────────────
+        if (status === 'confirmed') {
+            if (req.user.role !== 'doctor') {
+                return res.status(403).json({ success: false, message: 'Only a doctor can confirm an appointment.' });
+            }
+            if (appointment.status !== 'scheduled') {
+                return res.status(400).json({ success: false, message: 'Only scheduled appointments can be confirmed.' });
+            }
+
+            const doctorDoc = await Doctor.findOne({ user: req.user._id });
+            if (!doctorDoc || appointment.doctor.toString() !== doctorDoc._id.toString()) {
+                return res.status(403).json({ success: false, message: 'Cannot confirm an appointment assigned to another doctor.' });
+            }
+
+            // Perform automatic patient-doctor assignment upon confirmation
+            // This is done sequentially. The project doesn't currently use Mongoose transactions (startSession).
+            const doctorUser = await User.findById(req.user._id);
+            const doctorProfile = doctorDoc;
+            const patientProfile = await Patient.findById(appointment.patient);
+
+            if (!patientProfile) {
+                return res.status(404).json({ success: false, message: 'Patient profile not found.' });
+            }
+
+            if (doctorUser && !doctorUser.assignedPatients.includes(patientProfile.user)) {
+                doctorUser.assignedPatients.push(patientProfile.user);
+                await doctorUser.save();
+            }
+            if (doctorProfile && !doctorProfile.assignedPatients.includes(patientProfile._id)) {
+                doctorProfile.assignedPatients.push(patientProfile._id);
+                await doctorProfile.save();
+            }
+            
+            const patUser = await User.findById(patientProfile.user);
+            if (patUser && !patUser.assignedDoctors.includes(doctorProfile._id)) {
+                patUser.assignedDoctors.push(doctorProfile._id);
+                await patUser.save();
+            }
+            if (!patientProfile.assignedDoctors.includes(doctorProfile._id)) {
+                patientProfile.assignedDoctors.push(doctorProfile._id);
+                await patientProfile.save();
+            }
         }
 
         appointment.status = status;
@@ -379,4 +608,5 @@ module.exports = {
     createAppointment,
     updateAppointmentStatus,
     rescheduleAppointment,
+    getAvailableGlobalSlots,
 };

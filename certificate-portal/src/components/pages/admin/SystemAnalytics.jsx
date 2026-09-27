@@ -72,9 +72,11 @@ const SystemAnalytics = () => {
     ? Math.round((assignedDoctors.length / doctors.length) * 100)
     : 0;
 
-  // Avg docs per patient
-  const totalDocs = users.reduce((acc, u) => acc + (u.documents?.length || 0), 0);
-  const avgDocsPerPatient = patients.length > 0 ? (totalDocs / patients.length).toFixed(1) : 0;
+  // Avg docs per patient — no existing API exposes a real per-patient document count (User has
+  // no `documents` field; documents live in a separate collection with no admin-safe listing
+  // endpoint — see T3-R1 Bug 4/Bug 1). Rather than compute a false number from a nonexistent
+  // field, this is honestly reported as unavailable.
+  const avgDocsPerPatient = null;
 
   // Action type breakdown from audit logs
   const actionCounts = {};
@@ -196,11 +198,16 @@ const SystemAnalytics = () => {
               <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
                 Encrypted documents per registered patient
               </Typography>
-              {loading
-                ? <Skeleton height={10} />
-                : <LinearProgress variant="determinate" value={Math.min(100, avgDocsPerPatient * 20)} color="info" sx={{ height: 8, borderRadius: 4 }} />
-              }
-              <Typography variant="h4" sx={{ fontWeight: 800, mt: 1 }}>{loading ? '—' : avgDocsPerPatient}</Typography>
+              {loading ? (
+                <Skeleton height={10} />
+              ) : (
+                <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
+                  Not available — no admin API currently reports per-patient document counts.
+                </Typography>
+              )}
+              <Typography variant="h4" sx={{ fontWeight: 800, mt: 1, color: loading ? 'text.primary' : 'text.disabled' }}>
+                {loading ? '—' : 'N/A'}
+              </Typography>
             </CardContent>
           </Card>
         </Grid>

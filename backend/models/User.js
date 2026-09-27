@@ -50,6 +50,12 @@ const userSchema = new mongoose.Schema(
                 ref: 'User',
             },
         ],
+        assignedDoctors: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'Doctor',
+            },
+        ],
     },
     {
         timestamps: true,

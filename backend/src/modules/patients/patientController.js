@@ -6,6 +6,7 @@ const Prescription = require('../../../models/Prescription');
 const LabReport = require('../../../models/LabReport');
 const { invalidateCache } = require('../../middlewares/cacheMiddleware');
 const Certificate = require('../../../models/Certificate');
+const { patientCertificateIds } = require('../../../services/certificatePatientService');
 const jwt = require('jsonwebtoken');
 const nacl = require('tweetnacl');
 const util = require('tweetnacl-util');
@@ -17,7 +18,7 @@ const util = require('tweetnacl-util');
  * @returns {*} Return value
  */
 const generateToken = (id) => {
-    return jwt.sign({ id }, process.env.JWT_SECRET || 'secret_key', {
+    return jwt.sign({ id }, process.env.JWT_SECRET, {
         expiresIn: '30d',
     });
 };
@@ -281,7 +282,8 @@ exports.getPatientMedicalHistory = async (req, res, next) => {
             populate: { path: 'user', select: 'name email' },
         }).sort({ createdAt: -1 }).lean();
 
-        const certificates = await Certificate.find({ patient: req.user._id })
+        // Canonical Patient-profile _id + legacy User _id
+        const certificates = await Certificate.find({ patient: { $in: await patientCertificateIds(req.user._id) } })
             .populate('issuedBy', 'name email specialty')
             .sort({ createdAt: -1 })
             .lean();

@@ -2,14 +2,18 @@ import { useState } from 'react';
 import PropTypes from 'prop-types';
 import { 
     Alert, Button, Paper, Typography, Box, 
-    Dialog, DialogTitle, DialogContent, DialogContentText, 
-    TextField, DialogActions 
+    Dialog, DialogTitle, DialogContent, DialogContentText,
+    TextField, DialogActions, Checkbox, FormControlLabel
 } from '@mui/material';
 import SecurityIcon from '@mui/icons-material/Security';
 import nacl from 'tweetnacl';
 import util from 'tweetnacl-util';
 import { apiFetch } from '../../../utils/api';
 import { storePatientPrivateKey } from '../../../utils/patientKeyVault';
+import { useAuth } from '../../../contexts/AuthContext';
+
+// Word the patient must type before a re-enrollment (key rotation) can proceed.
+const RE_ENROLL_CONFIRMATION = 'RE-ENROLL';
 
 /**
  * PatientKeyEnrollment
@@ -21,9 +25,11 @@ import { storePatientPrivateKey } from '../../../utils/patientKeyVault';
  * Props:
  *   onEnrolled  {Function} optional callback fired after successful enrollment
  *   compact     {Boolean}  when true, renders only the button (for use in Alert action slots)
- *   isRotation  {Boolean}  when true, acts as a rotation/re-enrollment UI
+ *   isRotation  {Boolean}  when true, acts as a rotation/re-enrollment UI — gated by a risk warning that requires an
+ *                          acknowledgement checkbox AND typing RE-ENROLL before the passphrase step is reachable
  */
 const PatientKeyEnrollment = ({ onEnrolled, compact = false, isRotation = false }) => {
+    const { userId } = useAuth();
     const [status, setStatus] = useState('');
     const [busy, setBusy] = useState(false);
     
@@ -32,9 +38,17 @@ const PatientKeyEnrollment = ({ onEnrolled, compact = false, isRotation = false 
     const [passphrase, setPassphrase] = useState('');
     const [confirmPassphrase, setConfirmPassphrase] = useState('');
     const [dialogError, setDialogError] = useState('');
+    // Re-enrollment replaces the server key, so it starts with a mandatory risk-acknowledgement step.
+    const [step, setStep] = useState('passphrase'); // 'warning' | 'passphrase'
+    const [acknowledged, setAcknowledged] = useState(false);
+    const [confirmText, setConfirmText] = useState('');
+    const riskConfirmed = acknowledged && confirmText.trim() === RE_ENROLL_CONFIRMATION;
 
     const openDialog = () => {
         setDialogOpen(true);
+        setStep(isRotation ? 'warning' : 'passphrase');
+        setAcknowledged(false);
+        setConfirmText('');
         setPassphrase('');
         setConfirmPassphrase('');
         setDialogError('');
@@ -46,6 +60,10 @@ const PatientKeyEnrollment = ({ onEnrolled, compact = false, isRotation = false 
     };
 
     const handleConfirm = async () => {
+        if (isRotation && !riskConfirmed) {
+            setStep('warning');
+            return;
+        }
         if (!passphrase) {
             setDialogError('Passphrase is required.');
             return;
@@ -78,8 +96,8 @@ const PatientKeyEnrollment = ({ onEnrolled, compact = false, isRotation = false 
                 body: JSON.stringify({ publicKey }),
             });
 
-            // 3. Store private key encrypted in IndexedDB — never leaves this browser
-            await storePatientPrivateKey(privateKey, passphrase);
+            // 3. Store private key encrypted in IndexedDB — never leaves this browser — in this account's own slot
+            await storePatientPrivateKey(privateKey, passphrase, { userId });
 
             const successMsg = 'Encryption key enrolled. Your private key is protected in this browser only.';
             setStatus(successMsg);
@@ -91,8 +109,56 @@ const PatientKeyEnrollment = ({ onEnrolled, compact = false, isRotation = false 
         }
     };
 
+    const renderWarning = () => (
+        <>
+            <DialogTitle>Before you re-enroll your security key</DialogTitle>
+            <DialogContent>
+                <Alert severity="error" sx={{ mb: 2 }}>
+                    Re-enrolling may permanently remove your access to credentials that were already issued to you.
+                </Alert>
+                <DialogContentText component="div" sx={{ mb: 2 }}>
+                    <ul style={{ margin: 0, paddingLeft: 20 }}>
+                        <li>Your existing private key may still be stored in <strong>another browser or device</strong> where you set it up. It is stored only there — Kyllang&apos;s server never has it and cannot recover it.</li>
+                        <li>Re-enrolling creates a <strong>new</strong> key and replaces the key registered for your account. It does not recover the old key.</li>
+                        <li>Credentials already issued to you remain encrypted to your old key. Without that key they can no longer be opened.</li>
+                        <li>New credentials will be encrypted to the new key.</li>
+                    </ul>
+                </DialogContentText>
+                <Alert severity="info" sx={{ mb: 2 }}>
+                    First try signing in from the browser or device that holds your existing key. Only continue if that is no longer possible.
+                </Alert>
+                <FormControlLabel
+                    control={<Checkbox checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} />}
+                    label="I understand that re-enrolling may permanently remove access to credentials encrypted to my previous key."
+                    sx={{ mb: 1 }}
+                />
+                <TextField
+                    margin="dense"
+                    label={`Type ${RE_ENROLL_CONFIRMATION} to confirm`}
+                    fullWidth
+                    variant="outlined"
+                    value={confirmText}
+                    onChange={(e) => setConfirmText(e.target.value)}
+                    autoComplete="off"
+                />
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={closeDialog} variant="contained" color="primary">Cancel — keep my current key</Button>
+                <Button onClick={() => setStep('passphrase')} color="error" disabled={!riskConfirmed}>
+                    Continue to re-enroll
+                </Button>
+            </DialogActions>
+        </>
+    );
+
     const renderDialog = () => (
         <Dialog open={dialogOpen} onClose={closeDialog} maxWidth="sm" fullWidth>
+            {isRotation && step === 'warning' ? renderWarning() : renderPassphraseStep()}
+        </Dialog>
+    );
+
+    const renderPassphraseStep = () => (
+        <>
             <DialogTitle>
                 {isRotation ? 'Reset / Re-enroll Security Key' : 'Set Up Security Key'}
             </DialogTitle>
@@ -132,11 +198,11 @@ const PatientKeyEnrollment = ({ onEnrolled, compact = false, isRotation = false 
             </DialogContent>
             <DialogActions>
                 <Button onClick={closeDialog} color="inherit">Cancel</Button>
-                <Button onClick={handleConfirm} variant="contained" color="primary">
+                <Button onClick={handleConfirm} variant="contained" color={isRotation ? 'error' : 'primary'} disabled={isRotation && !riskConfirmed}>
                     {isRotation ? 'Reset / Re-enroll' : 'Set Up Key'}
                 </Button>
             </DialogActions>
-        </Dialog>
+        </>
     );
 
     // Compact mode: just the button (used as Alert action)

@@ -315,6 +315,7 @@ export default function AppointmentsManager() {
   const getStatusColor = (status) => {
     switch (status) {
       case 'completed': return 'success';
+      case 'confirmed': return 'info';
       case 'scheduled': return 'primary';
       case 'cancelled': return 'error';
       case 'no_show': return 'warning';
@@ -688,7 +689,15 @@ export default function AppointmentsManager() {
             <Card sx={{ borderRadius: '12px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05)', border: '1px solid #e2e8f0', height: '100%', display: 'flex', flexDirection: 'column' }}>
               <CardContent sx={{ flexGrow: 1 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                  <Chip label={(apt.status || 'scheduled').toUpperCase()} size="small" color={getStatusColor(apt.status)} sx={{ fontWeight: 600, fontSize: '0.7rem' }} />
+                  <Chip 
+                    label={
+                      apt.status === 'scheduled' && isPatient ? 'PENDING CONFIRMATION' : 
+                      (apt.status || 'scheduled').toUpperCase()
+                    } 
+                    size="small" 
+                    color={getStatusColor(apt.status)} 
+                    sx={{ fontWeight: 600, fontSize: '0.7rem' }} 
+                  />
                   {isDoctor && apt.status === 'scheduled' && (
                     <IconButton size="small" onClick={(e) => openDoctorMenu(e, apt)}>
                       <MoreVertIcon fontSize="small" />
@@ -741,16 +750,29 @@ export default function AppointmentsManager() {
                     </Box>
                   )}
                 </CardContent>
-                {(isPatient || isAdmin) && apt.status === 'scheduled' && (
+                {(isPatient || isAdmin) && (apt.status === 'scheduled' || apt.status === 'confirmed') && (
                   <CardActions sx={{ px: 2, pb: 2, pt: 0 }}>
                     <Button fullWidth variant="outlined" color="error" size="small" onClick={() => openCancelDialog(apt)} sx={{ textTransform: 'none', fontWeight: 600, borderRadius: '8px' }}>
                       Cancel Appointment
                     </Button>
                   </CardActions>
                 )}
-                {isDoctor && (apt.status === 'scheduled' || apt.status === 'completed') && (
+                {isDoctor && (apt.status === 'scheduled' || apt.status === 'confirmed' || apt.status === 'completed') && (
                   <CardActions sx={{ px: 2, pb: 2, pt: 0, gap: 1 }}>
                     {apt.status === 'scheduled' && (
+                      <Button
+                        id={`confirm-appt-btn-${apt._id}`}
+                        variant="contained"
+                        color="primary"
+                        size="small"
+                        onClick={() => handleUpdateStatus(apt._id, 'confirmed')}
+                        disabled={statusUpdating}
+                        sx={{ flex: 1, textTransform: 'none', fontWeight: 600, borderRadius: '8px' }}
+                      >
+                        Confirm Booking
+                      </Button>
+                    )}
+                    {(apt.status === 'scheduled' || apt.status === 'confirmed') && (
                       <Button
                         id={`cancel-appt-btn-${apt._id}`}
                         variant="outlined"
@@ -760,19 +782,21 @@ export default function AppointmentsManager() {
                         disabled={statusUpdating}
                         sx={{ flex: 1, textTransform: 'none', fontWeight: 600, borderRadius: '8px' }}
                       >
-                        Cancel Appointment
+                        Cancel
                       </Button>
                     )}
-                    <Button
-                      id={`create-emr-btn-${apt._id}`}
-                      variant="contained"
-                      color="primary"
-                      size="small"
-                      onClick={() => handleOpenEMRDialog(apt)}
-                      sx={{ flex: 1, textTransform: 'none', fontWeight: 600, borderRadius: '8px' }}
-                    >
-                      Create EMR
-                    </Button>
+                    {(apt.status === 'confirmed' || apt.status === 'completed') && (
+                      <Button
+                        id={`create-emr-btn-${apt._id}`}
+                        variant="contained"
+                        color="primary"
+                        size="small"
+                        onClick={() => handleOpenEMRDialog(apt)}
+                        sx={{ flex: 1, textTransform: 'none', fontWeight: 600, borderRadius: '8px' }}
+                      >
+                        Create EMR
+                      </Button>
+                    )}
                   </CardActions>
                 )}
                 {/* Reschedule button: doctor only, cancelled appointments only */}

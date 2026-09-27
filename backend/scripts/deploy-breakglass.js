@@ -42,12 +42,12 @@ async function main() {
     const abi = contract.abi;
     const bytecode = contract.evm.bytecode.object;
 
-    // Connect to Ganache
-    const rpcUrl = process.env.RPC_URL || 'http://127.0.0.1:7545';
+    const rpcUrl = process.env.RPC_URL;
+    if (!rpcUrl) throw new Error("RPC_URL missing");
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     
-    // Using default admin key
-    const adminKey = process.env.PRIVATE_KEY || '0x4f3edf983ac636a65a842ce7c78d9aa706d3b113bce9c46f30d7d21715b23b1d';
+    const adminKey = process.env.PRIVATE_KEY;
+    if (!adminKey) throw new Error("PRIVATE_KEY missing");
     const wallet = new ethers.Wallet(adminKey, provider);
     console.log("Deploying with account:", wallet.address);
 

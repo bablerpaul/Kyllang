@@ -13,6 +13,7 @@ import {
   TextField,
   InputAdornment,
   Tooltip,
+  Alert,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
@@ -91,6 +92,12 @@ export default function AuditLogsManager() {
           </Typography>
         </Box>
       </Box>
+
+      {/* The backend returns only the 100 most recent entries (no pagination/query params exist
+          today) — say so honestly instead of implying this is the complete history. */}
+      <Alert severity="info" sx={{ mb: 3 }}>
+        Showing the {logs.length} most recent audit events. Older history isn't available in this view yet.
+      </Alert>
 
       <Paper elevation={0} sx={{ p: 2, mb: 3, border: '1px solid #e2e8f0', borderRadius: '12px' }}>
         <TextField

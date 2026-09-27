@@ -9,7 +9,7 @@ const { ethers } = require('ethers');
  * generateAccessToken
  */
 const generateAccessToken = (id) => {
-    return jwt.sign({ id }, process.env.JWT_SECRET || 'secret_key', {
+    return jwt.sign({ id }, process.env.JWT_SECRET, {
         expiresIn: '15m', // Short-lived Access Token
     });
 };
@@ -71,8 +71,7 @@ exports.register = async (req, res, next) => {
             name,
             email,
             password,
-            role: role || 'general_user',
-            specialty: role === 'doctor' ? specialty : undefined,
+            role: 'general_user'
         });
 
         if (user) {
@@ -97,7 +96,7 @@ exports.register = async (req, res, next) => {
                         provider
                     );
                     
-                    const registryAddress = process.env.KEY_ESCROW_REGISTRY_ADDRESS;
+                    const registryAddress = process.env.KEY_ESCROW_ADDRESS;
                     if (registryAddress) {
                         const abi = [
                             "function depositEscrow(bytes32 patientPubKey, bytes calldata encryptedShare, tuple(uint256 x, uint256 y) c0, tuple(uint256 x, uint256 y) c1, tuple(uint256 x, uint256 y) c2, address trustee) external"

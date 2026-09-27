@@ -104,7 +104,7 @@ const RequestForm = ({ open, onClose, patient, document }) => {
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Typography variant="body2" color="text.secondary">Document:</Typography>
-                  <Typography variant="body2" fontWeight="medium">{document?.name}</Typography>
+                  <Typography variant="body2" fontWeight="medium">{document?.title}</Typography>
                 </Box>
               </Box>
 

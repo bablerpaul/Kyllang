@@ -51,6 +51,8 @@ import ApprovalOutlinedIcon from '@mui/icons-material/ApprovalOutlined';
 import HealthAndSafetyOutlinedIcon from '@mui/icons-material/HealthAndSafetyOutlined';
 import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined';
 import ChecklistOutlinedIcon from '@mui/icons-material/ChecklistOutlined';
+import EnhancedEncryptionOutlinedIcon from '@mui/icons-material/EnhancedEncryptionOutlined';
+import HowToRegOutlinedIcon from '@mui/icons-material/HowToRegOutlined';
 
 import { useAuth } from '../contexts/AuthContext';
 
@@ -63,7 +65,6 @@ const COMMON_ITEMS = [
 
 const ADMIN_ITEMS = [
   { text: 'User Management',   icon: <ManageAccountsOutlinedIcon />, path: '/dashboard/users' },
-  { text: 'Doctor Assignment', icon: <AssignmentIndOutlinedIcon />,  path: '/dashboard/assignments' },
   { text: 'Document Upload',   icon: <CloudUploadOutlinedIcon />,    path: '/dashboard/documents' },
   { text: 'Patients',          icon: <PeopleAltOutlinedIcon />,      path: '/dashboard/patients' },
   { text: 'Doctors',           icon: <MedicalServicesOutlinedIcon />,path: '/dashboard/doctors' },
@@ -72,10 +73,15 @@ const ADMIN_ITEMS = [
   { text: 'Lab Reports',       icon: <ScienceOutlinedIcon />,        path: '/dashboard/lab-reports' },
   { text: 'Certificates',      icon: <VerifiedUserOutlinedIcon />,   path: '/dashboard/certificates' },
   { text: 'Insurance Claims',  icon: <ShieldOutlinedIcon />,         path: '/dashboard/insurance' },
+  { text: 'Secure Storage',    icon: <EnhancedEncryptionOutlinedIcon />, path: '/dashboard/secure-storage' },
   { text: 'ZK QR Verification',icon: <QrCodeScannerIcon />,          path: '/dashboard/qr-verify' },
   { text: 'Analytics',         icon: <BarChartOutlinedIcon />,       path: '/dashboard/analytics' },
   { text: 'Audit Logs',        icon: <ReceiptLongOutlinedIcon />,    path: '/dashboard/audit-logs' },
-  { text: 'Emergency Access',  icon: <LocalHospitalIcon style={{ color: '#d9534f' }} />, path: '/dashboard/emergency-access' },
+  // "Emergency Access" was removed from this list (T3-R1 Bug 2): the route it pointed to
+  // (/dashboard/emergency-access) only allows the 'doctor' role, so hospital_admin was silently
+  // redirected to Overview. No genuine Admin-facing emergency monitoring page currently exists —
+  // see completion report for the real (but 100% unreachable) backend MCI status/activate/deactivate
+  // capability at /api/emergency/*, which is out of scope to build UI for here.
 ];
 
 const DOCTOR_ITEMS = [
@@ -87,19 +93,25 @@ const DOCTOR_ITEMS = [
   { text: 'Issue Certificates',icon: <WorkspacePremiumOutlinedIcon />,path: '/dashboard/issue' },
   { text: 'Cert Requests',     icon: <ApprovalOutlinedIcon />,       path: '/dashboard/requests' },
   { text: 'View Documents',    icon: <FolderOpenOutlinedIcon />,     path: '/dashboard/view-documents' },
+  { text: 'Secure Storage',    icon: <EnhancedEncryptionOutlinedIcon />, path: '/dashboard/secure-storage' },
   { text: 'ZK QR Verification',icon: <QrCodeScannerIcon />,          path: '/dashboard/qr-verify' },
   { text: 'Emergency Access',  icon: <LocalHospitalIcon style={{ color: '#d9534f' }} />, path: '/dashboard/emergency-access' },
+  { text: 'My Profile',        icon: <AccountCircleOutlinedIcon />,  path: '/dashboard/profile' },
 ];
 
 const USER_ITEMS = [
-  { text: 'My Health Records', icon: <HealthAndSafetyOutlinedIcon />,path: '/dashboard/health-records' },
+  { text: 'My Profile',        icon: <AccountCircleOutlinedIcon />,  path: '/dashboard/profile', roles: ['general_user'] },
+  { text: 'My Health Records', icon: <HealthAndSafetyOutlinedIcon />,path: '/dashboard/emr' },
   { text: 'My Documents',      icon: <FolderOpenOutlinedIcon />,     path: '/dashboard/my-documents' },
+  // USER_ITEMS is also the menu of insurance_officer, which /api/secure-storage does not serve → patients only.
+  { text: 'Secure Storage',    icon: <EnhancedEncryptionOutlinedIcon />, path: '/dashboard/secure-storage', roles: ['general_user'] },
   { text: 'Appointments',      icon: <EventNoteOutlinedIcon />,      path: '/dashboard/appointments' },
   { text: 'Prescriptions',     icon: <ChecklistOutlinedIcon />,      path: '/dashboard/prescriptions' },
   { text: 'Lab Reports',       icon: <ScienceOutlinedIcon />,        path: '/dashboard/lab-reports' },
   { text: 'My Certificates',   icon: <VerifiedUserOutlinedIcon />,   path: '/dashboard/my-certificates' },
   { text: 'Request Certificate',icon: <WorkspacePremiumOutlinedIcon />, path: '/dashboard/generate-certificate' },
   { text: 'Approve Requests',  icon: <ApprovalOutlinedIcon />,       path: '/dashboard/approve-requests' },
+  { text: 'Doctor Consent',    icon: <HowToRegOutlinedIcon />,       path: '/dashboard/consent' },
   { text: 'ZK QR Verification',icon: <QrCodeScannerIcon />,          path: '/dashboard/qr-verify' },
 ];
 
@@ -178,7 +190,7 @@ export default function EMRDashboardLayout() {
     role === 'doctor'         ? DOCTOR_ITEMS :
                                 USER_ITEMS;
 
-  const menuItems = [...COMMON_ITEMS, ...roleItems];
+  const menuItems = [...COMMON_ITEMS, ...roleItems].filter(item => !item.roles || item.roles.includes(role));
 
   const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
   const handleMenuOpen    = (e) => setAnchorEl(e.currentTarget);
@@ -405,6 +417,12 @@ export default function EMRDashboardLayout() {
                 <HomeOutlinedIcon sx={{ mr: 1.5, color: 'text.secondary', fontSize: '1.1rem' }} />
                 Dashboard
               </MenuItem>
+              {(role === 'general_user' || role === 'doctor') && (
+                <MenuItem onClick={() => { handleMenuClose(); navigate('/dashboard/profile'); }}>
+                  <AccountCircleOutlinedIcon sx={{ mr: 1.5, color: 'text.secondary', fontSize: '1.1rem' }} />
+                  My Profile
+                </MenuItem>
+              )}
               <Divider />
               <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}>
                 <LogoutIcon sx={{ mr: 1.5, fontSize: '1.1rem' }} /> Log Out

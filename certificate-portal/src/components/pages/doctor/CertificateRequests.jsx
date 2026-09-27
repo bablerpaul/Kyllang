@@ -27,6 +27,7 @@ import PrivateKeyDialog from '../../shared/PrivateKeyDialog';
 const CertificateRequests = () => {
     const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
     const [selectedRequest, setSelectedRequest] = useState(null);
     const [formData, setFormData] = useState({
         diagnosis: '',
@@ -41,11 +42,18 @@ const CertificateRequests = () => {
     const [pendingDocToView, setPendingDocToView] = useState(null);
 
     const fetchRequests = async () => {
+        setLoading(true);
+        setError('');
         try {
             const data = await apiFetch('/api/doctor/certificate-requests');
-            setRequests(data);
+            // API responds { success, message, data: [...] } — normalize defensively so the
+            // state is ALWAYS an array. A malformed/missing `data` field must never reach
+            // `.map()` below and crash the app.
+            const list = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+            setRequests(list);
         } catch (err) {
             console.error("Failed to fetch certificate requests:", err);
+            setError(err.message || 'Failed to load certificate requests.');
         } finally {
             setLoading(false);
         }
@@ -86,7 +94,8 @@ const CertificateRequests = () => {
 
     const handleViewDocument = async (request) => {
         try {
-            const docs = await apiFetch(`/api/doctor/patients/${request.patient._id}/documents`);
+            const res = await apiFetch(`/api/doctor/patients/${request.patient._id}/documents`);
+            const docs = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
             const vaccineDoc = docs.find(d => d.type === 'vaccine_certificate');
 
             if (!vaccineDoc) {
@@ -155,11 +164,19 @@ const CertificateRequests = () => {
                     <NotificationsIcon color="primary" /> Pending Certificate Requests
                 </Typography>
 
-                {requests.length === 0 ? (
+                {error && (
+                    <Alert severity="error" sx={{ mb: 2 }} action={
+                        <Button color="inherit" size="small" onClick={fetchRequests}>Retry</Button>
+                    }>
+                        {error}
+                    </Alert>
+                )}
+
+                {!error && requests.length === 0 ? (
                     <Alert severity="info" sx={{ mb: 2 }}>
                         No pending certificate requests at this time.
                     </Alert>
-                ) : (
+                ) : !error && (
                     <List dense>
                         {requests.map((request) => (
                             <ListItem key={request._id} sx={{ borderBottom: '1px solid #eee', mb: 1, pb: 1, alignItems: 'flex-start' }}>

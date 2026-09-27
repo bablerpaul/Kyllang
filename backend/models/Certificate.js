@@ -11,9 +11,11 @@ const mongoose = require('mongoose');
 const certificateSchema = new mongoose.Schema(
     {
         // ── Patient / Doctor References ──────────────────────────────────
+        // Canonical: the Patient-profile _id (the Poseidon commitment is computed from this ID).
+        // Legacy records may hold a User _id — readers must accept both (see services/certificatePatientService.js).
         patient: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'User',
+            ref: 'Patient',
             required: true,
         },
         issuedBy: {

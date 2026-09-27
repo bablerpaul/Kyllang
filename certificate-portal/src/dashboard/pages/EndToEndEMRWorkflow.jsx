@@ -50,7 +50,6 @@ export default function EndToEndEMRWorkflow() {
   const [patientData, setPatientData] = useState({
     name: 'Robert Davis',
     email: 'robert.davis@example.com',
-    password: 'password123',
     bloodGroup: 'O+',
     phone: '+1 555-0987',
     patientId: 'PAT-9081',
@@ -59,7 +58,6 @@ export default function EndToEndEMRWorkflow() {
 
   const [doctorData, setDoctorData] = useState({
     email: 'doctor@hospital.org',
-    password: 'password123',
     doctorName: 'Dr. Sarah Jenkins',
     specialty: 'Cardiology',
     doctorId: 'DOC-101',
@@ -112,11 +110,11 @@ export default function EndToEndEMRWorkflow() {
       // Simulate live API state transitions
       if (activeStep === 0) {
         // Patient Register
-        setPatientData(prev => ({ ...prev, patientId: `PAT-${Math.floor(1000 + Math.random() * 9000)}`, token: 'jwt_patient_sample' }));
+        setPatientData(prev => ({ ...prev, patientId: `PAT-${Math.floor(1000 + Math.random() * 9000)}`, token: 'DEMO_TOKEN_PLACEHOLDER' }));
         addAudit('CREATED', 'Patient', patientData.name, '192.168.1.50');
       } else if (activeStep === 1) {
         // Doctor Login
-        setDoctorData(prev => ({ ...prev, token: 'jwt_doctor_sample' }));
+        setDoctorData(prev => ({ ...prev, token: 'DEMO_TOKEN_PLACEHOLDER' }));
         addAudit('VIEWED', 'User', doctorData.doctorName, '192.168.1.104');
       } else if (activeStep === 2) {
         // Open Patient
@@ -187,10 +185,10 @@ export default function EndToEndEMRWorkflow() {
     <Box>
       <Box sx={{ mb: 3 }}>
         <Typography variant="h4" sx={{ fontWeight: 700, color: '#0f172a' }}>
-          Connected End-to-End EMR Flow
+          Connected End-to-End EMR Flow — DEMO SIMULATION
         </Typography>
         <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
-          Complete 10-step lifecycle: Patient Registration $\rightarrow$ Doctor Login $\rightarrow$ Open EMR $\rightarrow$ Lab IPFS Upload $\rightarrow$ Blockchain Anchor $\rightarrow$ Certificate $\rightarrow$ Insurance Adjudication $\rightarrow$ Audit Log
+          Simulated 10-step lifecycle: Patient Registration $\rightarrow$ Doctor Login $\rightarrow$ Open EMR $\rightarrow$ Lab IPFS Upload $\rightarrow$ Blockchain Anchor $\rightarrow$ Certificate $\rightarrow$ Insurance Adjudication $\rightarrow$ Audit Log
         </Typography>
       </Box>
 
@@ -228,7 +226,7 @@ export default function EndToEndEMRWorkflow() {
                 </Grid>
                 {patientData.token && (
                   <Alert severity="success" sx={{ mt: 2 }}>
-                    Patient Created! ID: <strong>{patientData.patientId}</strong> (Curve25519 X25519 Encryption Keypair Generated)
+                    Patient Created! DEMO ID: <strong>{patientData.patientId}</strong> (Simulated Keypair Generation)
                   </Alert>
                 )}
               </Paper>
@@ -275,7 +273,7 @@ export default function EndToEndEMRWorkflow() {
                 </Grid>
                 {emrData.dataHash && (
                   <Alert severity="success" sx={{ mt: 2 }}>
-                    Record Created in MongoDB! SHA-256 Data Hash: <strong>{emrData.dataHash}</strong>
+                    Record Created in MongoDB! Simulated SHA-256 Data Hash: <strong>{emrData.dataHash}</strong>
                   </Alert>
                 )}
               </Paper>
@@ -292,7 +290,7 @@ export default function EndToEndEMRWorkflow() {
                 </Grid>
                 {labData.ipfsCid && (
                   <Alert severity="success" sx={{ mt: 2 }}>
-                    Scan Uploaded to IPFS! Content Identifier (CID): <strong>{labData.ipfsCid}</strong> (Zero large files on local disk/blockchain)
+                    Scan Uploaded to IPFS! Simulated Content Identifier (CID): <strong>{labData.ipfsCid}</strong>
                   </Alert>
                 )}
               </Paper>
@@ -304,12 +302,12 @@ export default function EndToEndEMRWorkflow() {
                   <VerifiedIcon /> Step 6: Smart Contract Anchoring (`EMRRegistry.sol &rarr; storeEMRRecord`)
                 </Typography>
                 <Box sx={{ p: 2, bgcolor: '#1e293b', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                  <Typography variant="body2" sx={{ color: '#cbd5e1' }}>Smart Contract Address: <strong>0xDA0bab807633f07f013f94DD0E6A4F96F8742B53</strong></Typography>
+                  <Typography variant="body2" sx={{ color: '#cbd5e1' }}>Smart Contract Address: <strong>{import.meta.env.VITE_CONTRACT_ADDRESS || '0x59C06503d953E317a71779462a64c8680bC678A7'}</strong></Typography>
                   <Typography variant="body2" sx={{ color: '#cbd5e1', mt: 1 }}>Record Type: <strong>MedicalRecord</strong> | IPFS CID: <strong>{labData.ipfsCid}</strong></Typography>
                   {blockchainTx && (
                     <Box sx={{ mt: 2, p: 1.5, bgcolor: '#0284c7', borderRadius: '6px', color: '#ffffff' }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Ethereum Transaction Confirmed!</Typography>
-                      <Typography variant="caption" sx={{ fontFamily: 'monospace', display: 'block' }}>Tx Hash: {blockchainTx}</Typography>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Simulated Ethereum Transaction Confirmed!</Typography>
+                      <Typography variant="caption" sx={{ fontFamily: 'monospace', display: 'block' }}>Simulated Tx Hash: {blockchainTx}</Typography>
                     </Box>
                   )}
                 </Box>
@@ -322,11 +320,11 @@ export default function EndToEndEMRWorkflow() {
                   <VerifiedUserIcon /> Step 7: Issue Connected Medical Certificate (`POST /api/certificates`)
                 </Typography>
                 <Alert severity="info" sx={{ mb: 2 }}>
-                  Certificate linked to EMR ID: <strong>{emrData.emrId || 'EMR-6001'}</strong> for Patient <strong>{patientData.name}</strong>
+                  Certificate linked to DEMO EMR ID: <strong>{emrData.emrId || 'EMR-6001'}</strong> for Patient <strong>{patientData.name}</strong>
                 </Alert>
                 {certificateData.verificationHash && (
                   <Alert severity="success">
-                    Certificate Issued! HMAC Verification Hash: <strong>{certificateData.verificationHash}</strong>
+                    Certificate Issued! Simulated Verification Hash: <strong>{certificateData.verificationHash}</strong>
                   </Alert>
                 )}
               </Paper>
@@ -339,8 +337,8 @@ export default function EndToEndEMRWorkflow() {
                 </Typography>
                 {verificationResult && (
                   <Alert severity="success" icon={<CheckCircleIcon fontSize="inherit" />}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Medical Certificate Cryptographically Verified!</Typography>
-                    <Typography variant="caption" sx={{ display: 'block' }}>HMAC Zero-Knowledge Proof hash matches contract state. Valid until: {certificateData.validUntil}</Typography>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>DEMO SIMULATION — Verification Step Simulated</Typography>
+                    <Typography variant="caption" sx={{ display: 'block' }}>Simulated verification — no real proof generated. Valid until: {certificateData.validUntil}</Typography>
                   </Alert>
                 )}
               </Paper>
@@ -358,8 +356,8 @@ export default function EndToEndEMRWorkflow() {
                   <Grid item xs={6}><Typography variant="body2">Adjudication Status: <strong>{insuranceData.status.toUpperCase()}</strong></Typography></Grid>
                 </Grid>
                 <Box sx={{ display: 'flex', gap: 2 }}>
-                  <Chip label="Certificate Verified" color="success" icon={<CheckCircleIcon />} />
-                  <Chip label="On-Chain Hash Verified" color="success" icon={<VerifiedIcon />} />
+                  <Chip label="Simulated Certificate Verification" color="success" icon={<CheckCircleIcon />} />
+                  <Chip label="Simulated Hash Verification" color="success" icon={<VerifiedIcon />} />
                 </Box>
               </Paper>
             )}

@@ -18,6 +18,7 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
+  DialogContentText,
   DialogActions,
   FormControl,
   InputLabel,
@@ -37,7 +38,8 @@ import {
   PersonAdd as PersonAddIcon
 } from '@mui/icons-material';
 import { apiFetch } from '../../../utils/api';
-import { QRCodeCanvas as QRCode } from 'qrcode.react';
+// No existing public verification endpoint/payload for a hospital ID card holder exists in this
+// app (T3-R1 Bug 10) — removed the unused QR import rather than inventing a new QR workflow.
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
@@ -66,10 +68,10 @@ const UserManagement = () => {
   }, []);
 
   const handleRegistrationSuccess = (payloadData, form, role) => {
-    // Show the private key to the admin to give to the user
+    // Show ID Card generation dialog
     setPrivateKeyDialog({ 
       open: true, 
-      key: payloadData.privateKey, 
+      key: '', // Private keys are no longer generated backend
       email: payloadData.user?.email || form.email, 
       name: payloadData.user?.name || form.name, 
       role: payloadData.user?.role || role 
@@ -79,16 +81,22 @@ const UserManagement = () => {
   };
 
   const handleDelete = (type, id, name) => {
-    // Delete not fully implemented in backend yet for PoC, just show UI
-    alert('Delete functionality is not implemented for this Proof of Concept.');
+    setDeleteDialog({ open: true, type, id, name });
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
+    const { id } = deleteDialog;
     setDeleteDialog({ open: false, type: '', id: null, name: '' });
+    try {
+      await apiFetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+      fetchUsers();
+    } catch (error) {
+      alert(error.message || 'Failed to delete user');
+    }
   };
 
   const handleDownloadIDCard = async () => {
-    if (!idCardRef.current || !privateKeyDialog.key) return;
+    if (!idCardRef.current) return;
 
     try {
       const canvas = await html2canvas(idCardRef.current, {
@@ -115,6 +123,9 @@ const UserManagement = () => {
 
   const patients = users.filter(u => u.role === 'general_user');
   const doctors = users.filter(u => u.role === 'doctor');
+  const insuranceOfficers = users.filter(u => u.role === 'insurance_officer');
+  // GET /api/admin/users intentionally excludes hospital_admin accounts server-side
+  // (backend/controllers/adminController.js::getAllUsers) — never populate this from `users`.
   const admins = []; // Hide admins for now in UI
 
   return (
@@ -122,10 +133,10 @@ const UserManagement = () => {
       <Dialog open={privateKeyDialog.open} onClose={() => setPrivateKeyDialog({ ...privateKeyDialog, open: false })} maxWidth="sm" fullWidth>
         <DialogTitle>User Created - Access ID Card</DialogTitle>
         <DialogContent>
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            A new key pair was generated for {privateKeyDialog.name} ({privateKeyDialog.email}).
-            **You must provide this ID card to the user.** It will NEVER be shown again!
-          </Alert>
+          <DialogContentText sx={{ mb: 2 }}>
+            A new user was generated for {privateKeyDialog.name} ({privateKeyDialog.email}).
+            You can download their Hospital ID card below.
+          </DialogContentText>
 
           <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2, alignItems: 'center', flexDirection: 'column' }}>
             <Typography variant="caption" sx={{ mb: 1, color: 'text.secondary' }}>
@@ -169,22 +180,6 @@ const UserManagement = () => {
                   color="#666"
                   sx={{ mt: 1, height: '20px', fontSize: '0.6rem' }}
                 />
-                <Box sx={{ mt: 1.5 }}>
-                  <Typography variant="caption" sx={{ fontSize: '0.5rem', color: '#666' }}>
-                    Access Key Embedded
-                  </Typography>
-                </Box>
-              </Box>
-
-              <Box sx={{ ml: 2, p: 0.5, bgcolor: '#fff' }}>
-                {privateKeyDialog.key && (
-                  <QRCode
-                    value={privateKeyDialog.key}
-                    size={80} // fits well within 54mm height
-                    level={"L"}
-                    includeMargin={false}
-                  />
-                )}
               </Box>
             </Box>
           </Box>
@@ -351,6 +346,69 @@ const UserManagement = () => {
               {doctors.length === 0 && (
                 <Alert severity="info">
                   No doctors found. Add a new doctor using the form above.
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Insurance Officers List */}
+        <Grid item xs={12} md={6}>
+          <Card elevation={2} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <CardContent sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <VerifiedUserIcon /> Insurance Officers ({insuranceOfficers.length})
+                </Typography>
+                <Chip label={`Total: ${insuranceOfficers.length}`} size="small" />
+              </Box>
+
+              <List sx={{ flexGrow: 1, maxHeight: 400, overflow: 'auto' }}>
+                {insuranceOfficers.map((officer) => (
+                  <ListItem
+                    key={officer._id}
+                    sx={{
+                      border: '1px solid #e0e0e0',
+                      borderRadius: 1,
+                      mb: 1,
+                      backgroundColor: 'white'
+                    }}
+                  >
+                    <ListItemText
+                      primary={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="subtitle1">{officer.name}</Typography>
+                          <Chip label="Active" size="small" color="success" />
+                        </Box>
+                      }
+                      secondary={
+                        <>
+                          <Typography variant="body2">
+                            {officer.email}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            ID: {officer._id}
+                          </Typography>
+                        </>
+                      }
+                    />
+                    <ListItemSecondaryAction>
+                      <IconButton
+                        edge="end"
+                        aria-label="delete"
+                        onClick={() => handleDelete('insurance_officer', officer._id, officer.name)}
+                        color="error"
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </ListItemSecondaryAction>
+                  </ListItem>
+                ))}
+              </List>
+
+              {insuranceOfficers.length === 0 && (
+                <Alert severity="info">
+                  No insurance officers found. Register one via "Register New User" above.
                 </Alert>
               )}
             </CardContent>

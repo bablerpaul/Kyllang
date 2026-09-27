@@ -73,16 +73,25 @@ const DocumentViewer = () => {
 
   useEffect(() => {
     const fetchDocument = async () => {
+      // No real docId means there's nothing to fetch (e.g. this route was reached without a
+      // selected document) — show a clear error instead of calling /api/doctor/documents/undefined.
+      if (!docId) {
+        setError('No document selected. Please choose a document from your patient list.');
+        return;
+      }
       try {
         if (hasFetched.current) return;
         hasFetched.current = true;
 
-        const docRes = await apiFetch(`/api/doctor/documents/${docId}`);
-        setPendingDocData(docRes);
+        const res = await apiFetch(`/api/doctor/documents/${docId}`);
+        // API responds { success, message, data: {...} } — the doctorEncryptedKey/encryptedData
+        // fields live under `.data`, not on the envelope itself.
+        const docData = res?.data || res;
+        setPendingDocData(docData);
         setPrivateKeyDialogOpen(true);
       } catch (err) {
         console.error(err);
-        setError('Failed to fetch document.');
+        setError(err.message || 'Failed to fetch document.');
       }
     };
     fetchDocument();

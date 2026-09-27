@@ -97,8 +97,10 @@ async function main() {
     console.log(`╚═══════════════════════════════════════════════════╝${c.reset}\n`);
 
     // ── Provider + Wallet ──────────────────────────────────────────────────
-    const rpcUrl     = process.env.RPC_URL     || 'http://127.0.0.1:7545';
-    const privateKey = process.env.PRIVATE_KEY || '0x712fac96b41c7df01136bad90dbd1ae957ecdfc169bf88c8a59f650bc9a9f388';
+    const rpcUrl     = process.env.RPC_URL;
+    if (!rpcUrl) fail('RPC_URL missing');
+    const privateKey = process.env.PRIVATE_KEY;
+    if (!privateKey) fail('PRIVATE_KEY missing');
 
     log(`Connecting to ${rpcUrl}…`);
     const provider = new ethers.JsonRpcProvider(rpcUrl);

@@ -1,0 +1,102 @@
+[
+  {
+    "_id": {
+      "$oid": "6a953b9248f65f31e8296df2"
+    },
+    "secureFile": {
+      "$oid": "6a953b9248f65f31e8296df0"
+    },
+    "fileVersion": {
+      "$oid": "6a953b9248f65f31e8296df1"
+    },
+    "accessedBy": {
+      "$oid": "6a953b9248f65f31e8296de2"
+    },
+    "actionType": "UPLOADED",
+    "success": true,
+    "accessTime": {
+      "$date": "2026-08-31T08:30:10.748Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6aab5daa0657914859ec08a0"
+    },
+    "secureFile": {
+      "$oid": "6aab5daa0657914859ec089e"
+    },
+    "fileVersion": {
+      "$oid": "6aab5daa0657914859ec089f"
+    },
+    "accessedBy": {
+      "$oid": "6aab5daa0657914859ec089b"
+    },
+    "actionType": "UPLOADED",
+    "success": true,
+    "accessTime": {
+      "$date": "2026-09-17T03:25:30.199Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6aab5daa0657914859ec08a3"
+    },
+    "secureFile": {
+      "$oid": "6aab5daa0657914859ec08a1"
+    },
+    "fileVersion": {
+      "$oid": "6aab5daa0657914859ec08a2"
+    },
+    "accessedBy": {
+      "$oid": "6aab5daa0657914859ec089b"
+    },
+    "actionType": "UPLOADED",
+    "success": true,
+    "accessTime": {
+      "$date": "2026-09-17T03:25:30.217Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6aab5dcdf8abc5122ad838c2"
+    },
+    "secureFile": {
+      "$oid": "6aab5dcdf8abc5122ad838c0"
+    },
+    "fileVersion": {
+      "$oid": "6aab5dcdf8abc5122ad838c1"
+    },
+    "accessedBy": {
+      "$oid": "6aab5dcdf8abc5122ad838bd"
+    },
+    "actionType": "UPLOADED",
+    "success": true,
+    "accessTime": {
+      "$date": "2026-09-17T03:26:05.645Z"
+    },
+    "__v": 0
+  },
+  {
+    "_id": {
+      "$oid": "6aab5dcdf8abc5122ad838c5"
+    },
+    "secureFile": {
+      "$oid": "6aab5dcdf8abc5122ad838c3"
+    },
+    "fileVersion": {
+      "$oid": "6aab5dcdf8abc5122ad838c4"
+    },
+    "accessedBy": {
+      "$oid": "6aab5dcdf8abc5122ad838bd"
+    },
+    "actionType": "UPLOADED",
+    "success": true,
+    "accessTime": {
+      "$date": "2026-09-17T03:26:05.769Z"
+    },
+    "__v": 0
+  }
+]

@@ -6,16 +6,20 @@ import { apiFetch } from '../../../utils/api';
 const HealthRecords = () => {
     const [record, setRecord] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
     const [verifyingId, setVerifyingId] = useState(null);
     const [verificationResults, setVerificationResults] = useState({});
 
     useEffect(() => {
         const fetchRecord = async () => {
             try {
-                const data = await apiFetch('/api/emr/records');
-                setRecord(data);
+                const res = await apiFetch('/api/emr/records');
+                setRecord(res?.data || res);
             } catch (err) {
                 console.error(err);
+                // A real backend failure (401/403/404/500/network) must be shown to
+                // the patient, never rendered identically to "no records yet".
+                setError(err.message || 'Failed to load health records.');
             } finally {
                 setLoading(false);
             }
@@ -61,6 +65,12 @@ const HealthRecords = () => {
                     Comprehensive patient medical history, allergies, chronic conditions, and clinical encounter history.
                 </Typography>
             </Paper>
+
+            {error && (
+                <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
+                    {error}
+                </Alert>
+            )}
 
             <Grid container spacing={3}>
                 {/* Vitals Summary Card */}

@@ -39,7 +39,7 @@ export default function EmergencyAccessManager() {
       // Typically, an MCI (Mass Casualty Incident) or emergency request is logged on-chain.
       // We simulate hitting the new /api/emergency endpoint.
       const token = localStorage.getItem('token');
-      const response = await axios.post('/api/emergency/trigger', 
+      const response = await axios.post('/api/emergency/break-glass', 
         { patientId, reason },
         { headers: { Authorization: `Bearer ${token}` } }
       );

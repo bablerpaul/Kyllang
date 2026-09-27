@@ -90,15 +90,26 @@ exports.breakGlass = async (req, res, next) => {
         const mongoose = require('mongoose');
 
         // Check if patientId is a valid ObjectId
-        let record = null;
+        let records = [];
         if (mongoose.Types.ObjectId.isValid(patientId)) {
-            // Instantly bypass constraints and fetch the record
-            record = await MedicalRecord.findOne({ patient: patientId })
+            // Instantly bypass constraints and fetch the patient's full history, newest first
+            records = await MedicalRecord.find({ patient: patientId })
+                .sort({ visitDate: -1 })
                 .populate('patient', 'name email')
                 .lean();
         }
 
-        if (!record) {
+        if (records.length === 0) {
+            // Log the failed/not-found break-glass attempt to prevent silent enumeration
+            await AuditLog.create({
+                actor: req.user._id,
+                action: 'BREAK_GLASS_FAILED',
+                details: {
+                    message: 'Emergency Break-Glass protocol failed: Record not found',
+                    patientId: patientId,
+                    timestamp: new Date()
+                }
+            });
             return res.status(404).json({ success: false, message: 'Medical record not found for this patient ID' });
         }
 
@@ -114,21 +125,33 @@ exports.breakGlass = async (req, res, next) => {
         });
 
         // Optionally interact with BreakGlassRegistry contract to log it on-chain
+        let breakGlassTxHash = null;
         try {
             const contract = getContract('BreakGlassRegistry');
-            if (contract) {
-                // Assuming contract has a way to log this immediately, 
-                // for simplicity here we just log it in our off-chain DB,
-                // but we could emit an event on-chain as well if needed.
+            if (contract && (process.env.NODE_ENV === 'production' || process.env.TEST_MODE === 'true')) {
+                const { ethers } = require('ethers');
+                let formattedPatientId = patientId.toString();
+                if (formattedPatientId.length > 31) formattedPatientId = formattedPatientId.substring(0, 31);
+                const patientIdBytes32 = ethers.encodeBytes32String(formattedPatientId);
+                const rawReason = req.body.reason || 'Emergency Override';
+                const safeReason = rawReason.substring(0, 1000); // Bounded length
+                const ticketHash = ethers.id(safeReason);
+                
+                const operatorIdentity = req.user._id.toString();
+                
+                const tx = await contract.declareEmergency(patientIdBytes32, ticketHash, operatorIdentity);
+                await tx.wait();
+                breakGlassTxHash = tx.hash;
+                console.log('[BreakGlassRegistry] Emergency declared on-chain. TX:', breakGlassTxHash);
             }
         } catch (err) {
-            console.warn('Failed to interact with BreakGlassRegistry contract for on-chain audit', err);
+            console.warn('Failed to interact with BreakGlassRegistry contract for on-chain audit:', err.message);
         }
 
         res.status(200).json({
             success: true,
             message: 'Break-glass protocol activated. Critical audit logged.',
-            data: record
+            data: { ...records[0], history: records, breakGlassTxHash }
         });
     } catch (error) {
         next(error);

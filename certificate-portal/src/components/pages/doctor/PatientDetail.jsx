@@ -21,6 +21,13 @@ import CreateEMRDialog from './CreateEMRDialog';
 import IssueCertificateForm from './IssueCertificateForm';
 import { apiFetch } from '../../../utils/api';
 
+// Status precedence: revoked > expired > active. Expiry is derived from validUntil, never persisted.
+const getCertStatus = (cert) => {
+  if (cert?.status === 'revoked') return 'revoked';
+  if (cert?.validUntil && new Date(cert.validUntil) < new Date()) return 'expired';
+  return 'active';
+};
+
 const PatientDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -188,12 +195,22 @@ const PatientDetail = () => {
   }
 
   // Helpers
+  // Patient.address is a nested object ({street, city, state, zipCode}), never a plain string from
+  // the current backend — but this stays defensive of a string value too (legacy data) and must
+  // NEVER hand a raw object to JSX, which throws "Objects are not valid as a React child".
+  const formatAddress = (address) => {
+    if (!address) return 'Not provided';
+    if (typeof address === 'string') return address.trim() || 'Not provided';
+    const parts = [address.street, address.city, address.state, address.zipCode].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : 'Not provided';
+  };
+
   const displayDob = patientProfile?.dateOfBirth ? new Date(patientProfile.dateOfBirth).toLocaleDateString() : 'Not provided';
   const displayGender = patientProfile?.gender || 'Not provided';
   const displayBloodGroup = patientProfile?.bloodGroup || 'Not provided';
   const contactPhone = patientProfile?.contactNumber || 'Not provided';
   const contactEmail = patient.email || 'Not provided';
-  const contactAddress = patientProfile?.address || 'Not provided';
+  const contactAddress = formatAddress(patientProfile?.address);
   
   const upcomingAppointments = appointments.filter(a => ['scheduled', 'rescheduled'].includes(a.status)).sort((a,b) => new Date(a.appointmentDate) - new Date(b.appointmentDate));
   const pastAppointments = appointments.filter(a => !['scheduled', 'rescheduled'].includes(a.status)).sort((a,b) => new Date(b.appointmentDate) - new Date(a.appointmentDate));
@@ -600,7 +617,7 @@ const PatientDetail = () => {
                                         secondary={new Date(doc.uploadedAt).toLocaleDateString()} 
                                     />
                                     <ListItemSecondaryAction>
-                                        <Button variant="outlined" size="small" onClick={() => window.open(doc.fileUrl, '_blank')}>View</Button>
+                                        <Button variant="outlined" size="small" onClick={() => window.open(doc.fileUrl, '_blank', 'noopener,noreferrer')}>View</Button>
                                     </ListItemSecondaryAction>
                                 </ListItem>
                                 {idx < grantedDocuments.length - 1 && <Divider />}
@@ -648,9 +665,14 @@ const PatientDetail = () => {
                     {certificates.map((cert) => (
                         <Grid item xs={12} sm={6} md={4} key={cert._id}>
                             <Card variant="outlined" sx={{ position: 'relative', overflow: 'visible' }}>
-                                {cert.status === 'revoked' && (
+                                {getCertStatus(cert) === 'revoked' && (
                                     <Box sx={{ position: 'absolute', top: 10, right: 10 }}>
                                         <Chip label="REVOKED" color="error" size="small" />
+                                    </Box>
+                                )}
+                                {getCertStatus(cert) === 'expired' && (
+                                    <Box sx={{ position: 'absolute', top: 10, right: 10 }}>
+                                        <Chip label="EXPIRED" color="warning" size="small" />
                                     </Box>
                                 )}
                                 <CardContent>
@@ -663,12 +685,12 @@ const PatientDetail = () => {
                                     <Typography variant="body2" color="text.secondary" gutterBottom>
                                         Valid: {new Date(cert.validFrom).toLocaleDateString()} - {new Date(cert.validUntil).toLocaleDateString()}
                                     </Typography>
-                                    {cert.status !== 'revoked' && new Date(cert.validUntil) >= new Date() && (
-                                        <Button 
-                                            variant="outlined" 
-                                            color="error" 
-                                            size="small" 
-                                            fullWidth 
+                                    {getCertStatus(cert) === 'active' && (
+                                        <Button
+                                            variant="outlined"
+                                            color="error"
+                                            size="small"
+                                            fullWidth
                                             sx={{ mt: 2 }}
                                             onClick={() => {
                                                 setCertToRevoke(cert);
@@ -678,9 +700,14 @@ const PatientDetail = () => {
                                             Revoke Certificate
                                         </Button>
                                     )}
-                                    {cert.status === 'revoked' && (
+                                    {getCertStatus(cert) === 'revoked' && (
                                         <Typography variant="caption" color="error" sx={{ display: 'block', mt: 2 }}>
                                             Revoked on {new Date(cert.revokedAt).toLocaleDateString()}
+                                        </Typography>
+                                    )}
+                                    {getCertStatus(cert) === 'expired' && (
+                                        <Typography variant="caption" sx={{ display: 'block', mt: 2, color: '#e65100' }}>
+                                            Expired on {new Date(cert.validUntil).toLocaleDateString()}
                                         </Typography>
                                     )}
                                 </CardContent>
@@ -696,13 +723,15 @@ const PatientDetail = () => {
       {requestFormOpen && selectedDocument && (
         <RequestForm
           open={requestFormOpen}
-          onClose={() => setRequestFormOpen(false)}
-          documentId={selectedDocument._id}
-          patientId={id}
-          onSuccess={() => {
+          // RequestForm calls onClose(true) after a successful submission to signal that a
+          // refresh is needed (see RequestForm.jsx's handleSubmit) — there is no separate
+          // onSuccess prop on this component.
+          onClose={(shouldRefresh) => {
             setRequestFormOpen(false);
-            fetchAllData();
+            if (shouldRefresh) fetchAllData();
           }}
+          patient={patient}
+          document={selectedDocument}
         />
       )}
 
@@ -710,12 +739,13 @@ const PatientDetail = () => {
         <CreateEMRDialog
           open={createEmrOpen}
           onClose={() => setCreateEmrOpen(false)}
-          patientId={id}
-          appointmentId={selectedAppointment._id}
-          onSuccess={() => {
-            setCreateEmrOpen(false);
+          // CreateEMRDialog expects a real `appointment` object (see the working invocation in
+          // AppointmentsManager.jsx) — it reads appointment.patient/_id/reason internally, not
+          // separate patientId/appointmentId props.
+          appointment={selectedAppointment}
+          onCreated={() => {
             fetchAllData();
-            setActiveTab(2); // Jump to clinical history after creating EMR
+            setActiveTab(2); // Jump to clinical history after a real successful creation
           }}
         />
       )}
@@ -727,7 +757,7 @@ const PatientDetail = () => {
             setIssueCertificateOpen(false);
             if (success) fetchAllData();
           }}
-          patient={patientProfile || patient}
+          patient={patientProfile}
           appointment={selectedAppointment}
         />
       )}

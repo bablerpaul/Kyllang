@@ -42,11 +42,11 @@ async function main() {
     console.log("Connecting to Ganache...");
     const provider = new ethers.JsonRpcProvider("http://127.0.0.1:7545");
     
-    // Default private key
-    let privateKey = "0x712fac96b41c7df01136bad90dbd1ae957ecdfc169bf88c8a59f650bc9a9f388";
-    
-    // Let's connect a wallet
-    const wallet = new ethers.Wallet(privateKey, provider);
+    // Private key must be supplied via PRIVATE_KEY environment variable
+    if (!process.env.PRIVATE_KEY) {
+        throw new Error('[CONFIG ERROR] PRIVATE_KEY environment variable is required but not set. Run: set PRIVATE_KEY=0x... before deploying.');
+    }
+    const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
     console.log(`Deploying contract with account: ${wallet.address}`);
 
     const factory = new ethers.ContractFactory(abi, bytecode, wallet);

@@ -38,6 +38,11 @@ const PatientProfile = () => {
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState(null);
     const [editMode, setEditMode] = useState(false);
+    // Tracks whether the profile fetch actually succeeded, distinct from `loading`.
+    // Editing/saving must never be allowed while this is false, otherwise a failed
+    // or not-yet-completed load would submit a blank form and wipe real data.
+    const [profileLoaded, setProfileLoaded] = useState(false);
+    const [profileError, setProfileError] = useState('');
 
     const [formData, setFormData] = useState({
         name: '',
@@ -58,7 +63,11 @@ const PatientProfile = () => {
 
     const fetchProfile = async () => {
         try {
-            const data = await apiFetch('/api/patient/profile');
+            const res = await apiFetch('/api/patient/profile');
+            // GET /api/patient/profile responds { success, message, data: <Patient> }.
+            // The actual patient fields (user, dateOfBirth, gender, ...) live under
+            // `.data`, not on the envelope itself.
+            const data = res?.data || res || {};
             setProfile(data);
             setFormData({
                 name: data.user?.name || '',
@@ -76,14 +85,23 @@ const PatientProfile = () => {
                 allergies: (data.allergies || []).join(', '),
                 chronicConditions: (data.chronicConditions || []).join(', '),
             });
+            setProfileLoaded(true);
+            setProfileError('');
         } catch (err) {
             console.error('Error fetching profile:', err);
+            // Do NOT mark the profile as loaded on failure — this keeps Edit/Save
+            // disabled so a failed load can never be submitted back as blank data.
+            setProfileLoaded(false);
+            setProfileError(err.message || 'Failed to load your profile.');
         }
     };
 
     const fetchHistory = async () => {
         try {
-            const data = await apiFetch('/api/patient/history');
+            const res = await apiFetch('/api/patient/history');
+            // GET /api/patient/history responds
+            // { success, message, data: { patient, medicalRecords, prescriptions, labReports, certificates } }.
+            const data = res?.data || res || {};
             setHistory(data);
         } catch (err) {
             console.error('Error fetching medical history:', err);
@@ -105,6 +123,15 @@ const PatientProfile = () => {
 
     const handleSaveProfile = async (e) => {
         e.preventDefault();
+
+        // Guard: never submit the form if the real profile was not successfully
+        // loaded first — formData would still hold defaults/blanks and saving
+        // would overwrite the patient's genuine data on the backend.
+        if (!profileLoaded) {
+            setMessage({ severity: 'error', text: 'Your profile has not finished loading. Please retry before saving.' });
+            return;
+        }
+
         setSaving(true);
         setMessage(null);
 
@@ -171,6 +198,12 @@ const PatientProfile = () => {
                 </Alert>
             )}
 
+            {profileError && (
+                <Alert severity="error" sx={{ mb: 3 }}>
+                    {profileError} Editing is disabled until your profile loads successfully — please refresh and try again.
+                </Alert>
+            )}
+
             <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
                 <Tabs value={tab} onChange={(e, val) => setTab(val)}>
                     <Tab icon={<Person />} label="My Profile" />
@@ -196,11 +229,23 @@ const PatientProfile = () => {
                                 <Divider sx={{ my: 2 }} />
 
                                 <Box sx={{ textAlign: 'left' }}>
-                                    <Typography variant="caption" color="text.secondary" display="block">
+                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ userSelect: 'all' }}>
+                                        <strong>Patient ID:</strong> {profile?._id || '—'}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                                        <strong>Date of Birth:</strong> {profile?.dateOfBirth ? new Date(profile.dateOfBirth).toLocaleDateString() : 'Not set'}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                                        <strong>Gender:</strong> {profile?.gender || 'Not set'}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
                                         <strong>Blood Group:</strong> {profile?.bloodGroup || 'Unknown'}
                                     </Typography>
                                     <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
                                         <strong>Contact Phone:</strong> {profile?.contactNumber || 'Not set'}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                                        <strong>Address:</strong> {profile?.address ? [profile.address.street, profile.address.city, profile.address.state, profile.address.zipCode].filter(Boolean).join(', ') || 'Not set' : 'Not set'}
                                     </Typography>
                                     <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
                                         <strong>Assigned Doctors:</strong> {profile?.assignedDoctors?.length || 0}
@@ -219,7 +264,7 @@ const PatientProfile = () => {
                                         variant={editMode ? 'outlined' : 'contained'}
                                         startIcon={editMode ? <Save /> : <Edit />}
                                         onClick={() => (editMode ? handleSaveProfile({ preventDefault: () => {} }) : setEditMode(true))}
-                                        disabled={saving}
+                                        disabled={saving || !profileLoaded}
                                     >
                                         {editMode ? (saving ? 'Saving...' : 'Save Profile') : 'Edit Profile'}
                                     </Button>
@@ -449,8 +494,8 @@ const PatientProfile = () => {
                                 ) : (
                                     history.labReports.map((lab) => (
                                         <Paper key={lab._id} variant="outlined" sx={{ p: 2, mb: 2, backgroundColor: '#fffde7' }}>
-                                            <Typography variant="subtitle2" fontWeight="bold">{lab.testName} ({lab.testCategory})</Typography>
-                                            <Typography variant="body2">{lab.resultsSummary}</Typography>
+                                            <Typography variant="subtitle2" fontWeight="bold">{lab.testName} ({[lab.investigationCategory, lab.testCategory].filter(Boolean).join(' · ')})</Typography>
+                                            <Typography variant="body2">{lab.overallSummary || lab.resultsSummary}</Typography>
                                         </Paper>
                                     ))
                                 )}

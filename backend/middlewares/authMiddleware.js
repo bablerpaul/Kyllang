@@ -27,7 +27,7 @@ const protect = async (req, res, next) => {
     if (token) {
         try {
             // Verify token securely (Prevent JWT Algorithm Confusion / None Algorithm Attack)
-            const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret_key', { algorithms: ['HS256'] });
+            const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
 
             // Get user from the token
             req.user = await User.findById(decoded.id).select('-password');

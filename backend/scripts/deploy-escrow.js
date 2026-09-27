@@ -42,13 +42,12 @@ async function main() {
     const abi = contract.abi;
     const bytecode = contract.evm.bytecode.object;
 
-    // Connect to Ganache
-    const rpcUrl = process.env.RPC_URL || 'http://127.0.0.1:7545';
+    const rpcUrl = process.env.RPC_URL;
+    if (!rpcUrl) throw new Error("RPC_URL missing");
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     
-    // We can use the first Ganache account or a known private key
-    // Using a known one for consistency, or letting Ganache provide a signer
-    const adminKey = process.env.PRIVATE_KEY || '0x4f3edf983ac636a65a842ce7c78d9aa706d3b113bce9c46f30d7d21715b23b1d';
+    const adminKey = process.env.PRIVATE_KEY;
+    if (!adminKey) throw new Error("PRIVATE_KEY missing");
     const wallet = new ethers.Wallet(adminKey, provider);
     console.log("Deploying with account:", wallet.address);
 
@@ -68,14 +67,14 @@ async function main() {
     const envPath = path.resolve(__dirname, '../.env');
     let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
     
-    if (envContent.includes('KEY_ESCROW_REGISTRY_ADDRESS=')) {
-        envContent = envContent.replace(/KEY_ESCROW_REGISTRY_ADDRESS=.*/, `KEY_ESCROW_REGISTRY_ADDRESS=${address}`);
+    if (envContent.includes('KEY_ESCROW_ADDRESS=')) {
+        envContent = envContent.replace(/KEY_ESCROW_ADDRESS=.*/, `KEY_ESCROW_ADDRESS=${address}`);
     } else {
-        envContent += `\nKEY_ESCROW_REGISTRY_ADDRESS=${address}\n`;
+        envContent += `\nKEY_ESCROW_ADDRESS=${address}\n`;
     }
     
     fs.writeFileSync(envPath, envContent);
-    console.log(".env updated with KEY_ESCROW_REGISTRY_ADDRESS");
+    console.log(".env updated with KEY_ESCROW_ADDRESS");
 }
 
 main().catch(err => {

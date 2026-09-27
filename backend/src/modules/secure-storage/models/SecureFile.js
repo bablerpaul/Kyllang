@@ -49,6 +49,10 @@ const secureFileSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'InsuranceClaim',
         },
+        linkedLabReport: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'LabReport',
+        },
         
         isActive: {
             type: Boolean,
@@ -67,8 +71,8 @@ secureFileSchema.index({ linkedInsurance: 1 });
 secureFileSchema.index({ fileType: 1 });
 
 secureFileSchema.pre('validate', function() {
-    if (!this.linkedEMR && !this.linkedCertificate && !this.linkedInsurance) {
-        throw new Error('A SecureFile must be linked to at least one of the following: linkedEMR, linkedCertificate, or linkedInsurance.');
+    if (!this.linkedEMR && !this.linkedCertificate && !this.linkedInsurance && !this.linkedLabReport) {
+        throw new Error('A SecureFile must be linked to at least one of the following: linkedEMR, linkedCertificate, linkedInsurance, or linkedLabReport.');
     }
 });
 
