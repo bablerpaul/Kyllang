@@ -48,8 +48,12 @@ import CertificateRequests from './components/pages/doctor/CertificateRequests';
 // ── Patient-specific pages ──────────────────────────────────────────────────
 import MyCertificates from './components/pages/user/MyCertificates';
 import MyDocuments from './components/pages/user/MyDocuments';
+import MyDocumentsHub from './components/pages/user/MyDocumentsHub';
 import GenerateCertificate from './components/pages/user/GenerateCertificate';
 import ApproveRequests from './components/pages/user/ApproveRequests';
+import MedicalCertificateRequests from './components/pages/user/MedicalCertificateRequests';
+import CertificateAccessRequests from './components/pages/user/CertificateAccessRequests';
+import DoctorCertificateAccessRequests from './components/pages/doctor/CertificateAccessRequests';
 import PatientKeyEnrollment from './components/pages/user/PatientKeyEnrollment';
 import DoctorConsent from './components/pages/user/DoctorConsent';
 
@@ -116,14 +120,21 @@ function App() {
             <Route path="document/:docId" element={<DocumentViewer />} />
             <Route path="issue" element={<IssueCertificates />} />
             <Route path="requests" element={<CertificateRequests />} />
+            {/* Own path: "certificate-access-requests" is the patient-only page; a duplicate path would be shadowed. */}
+            <Route path="my-certificate-access-requests" element={<DoctorCertificateAccessRequests />} />
             <Route path="emergency-access" element={<EmergencyAccess />} />
             <Route path="profile" element={<DoctorProfile />} />
           </Route>
 
           {/* Patient pages */}
           <Route element={<ProtectedRoute allowedRoles={['general_user']} />}>
-            <Route path="my-documents" element={<MyDocuments />} />
+            {/* Unified patient hub (prescriptions, lab reports, certificates). The legacy PatientDocument page moved to
+                its own route below; its records are not part of the hub. */}
+            <Route path="my-documents" element={<MyDocumentsHub />} />
+            <Route path="encrypted-documents" element={<MyDocuments />} />
             <Route path="my-certificates" element={<MyCertificates />} />
+            <Route path="certificate-requests" element={<MedicalCertificateRequests />} />
+            <Route path="certificate-access-requests" element={<CertificateAccessRequests />} />
             <Route path="generate-certificate" element={<GenerateCertificate />} />
             <Route path="approve-requests" element={<ApproveRequests />} />
             <Route path="consent" element={<DoctorConsent />} />

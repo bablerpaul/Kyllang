@@ -8,7 +8,13 @@ const {
     getAssignedDoctors,
     getCertificates,
     enrollPublicKey,
-    rotatePublicKey
+    rotatePublicKey,
+    getDoctorCertificateRequests,
+    approveDoctorCertificateRequest,
+    rejectDoctorAccess,
+    getCertificateAccessRequests,
+    approveCertificateAccessRequest,
+    rejectCertificateAccessRequest
 } = require('../controllers/patientController');
 const {
     registerPatient,
@@ -43,6 +49,12 @@ router.get('/documents', getDocuments);
 router.get('/doctors', getAssignedDoctors);
 router.get('/certificates', getCertificates);
 router.post('/documents/:docId/approve', approveDoctorAccess);
+router.post('/documents/:docId/reject', rejectDoctorAccess);
 router.post('/certificates/request', requestCertificate);
+router.get('/doctor-certificate-requests', getDoctorCertificateRequests);
+router.post('/doctor-certificate-requests/:id/approve', approveDoctorCertificateRequest);
+router.get('/certificate-access-requests', getCertificateAccessRequests);
+router.post('/certificate-access-requests/:requestId/approve', approveCertificateAccessRequest);
+router.post('/certificate-access-requests/:requestId/reject', rejectCertificateAccessRequest);
 
 module.exports = router;

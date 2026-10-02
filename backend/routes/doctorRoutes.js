@@ -26,7 +26,12 @@ const {
     issueCertificate,
     getDocument,
     getCertificateRequests,
-    approveCertificateRequest
+    approveCertificateRequest,
+    createDoctorCertificateRequest,
+    requestCertificateAccess,
+    getApprovedCertificateAccess,
+    getMyCertificateAccessRequests,
+    enrollDoctorPublicKey
 } = require('../controllers/doctorController');
 const {
     registerDoctor,
@@ -86,6 +91,14 @@ router.post('/documents/:docId/request', requestDocumentAccess);
 // removed too. Auth (protect + authorize('doctor')) still applies via the router.use(...) above.
 router.post('/certificates', issueCertificate);
 router.get('/certificate-requests', getCertificateRequests);
+router.post('/certificates/:certId/request', requestCertificateAccess);
+// One-time registration of the doctor's browser-generated X25519 public key (enrollment only — never overwrites).
+router.put('/public-key', enrollDoctorPublicKey);
+// The authenticated doctor's own CertificateAccessRequests (metadata only, no ciphertext); ?status=pending|approved|rejected|all.
+router.get('/certificate-access-requests', getMyCertificateAccessRequests);
+// One approved, unexpired CertificateAccessRequest of the authenticated doctor → that certificate's doctor ciphertext.
+router.get('/certificate-access-requests/:requestId', getApprovedCertificateAccess);
 router.post('/certificate-requests/:id/approve', approveCertificateRequest);
+router.post('/certificate-requests', createDoctorCertificateRequest);
 
 module.exports = router;

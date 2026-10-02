@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
     Dialog, DialogTitle, DialogContent, DialogActions, TextField,
     Button, Grid, Alert, Typography, Box, Stepper, Step, StepLabel,
-    CircularProgress, Paper
+    CircularProgress, Paper, MenuItem
 } from '@mui/material';
 import { CheckCircle as CheckCircleIcon } from '@mui/icons-material';
 import { apiFetch } from '../../../utils/api';
@@ -14,6 +14,7 @@ const steps = ['Certificate Details', 'Review', 'Success'];
 const IssueCertificateForm = ({ open, onClose, patient }) => {
     const [activeStep, setActiveStep] = useState(0);
     const [formData, setFormData] = useState({
+        certificateType: '',
         diagnosis: '',
         remarks: '',
         validFrom: new Date().toISOString().split('T')[0],
@@ -39,7 +40,7 @@ const IssueCertificateForm = ({ open, onClose, patient }) => {
                 setError(PROFILE_REQUIRED_MESSAGE);
                 return;
             }
-            if (!formData.diagnosis || !formData.validFrom || !formData.validUntil) {
+            if (!formData.certificateType || !formData.diagnosis || !formData.validFrom || !formData.validUntil) {
                 setError('Please fill in all required fields.');
                 return;
             }
@@ -94,6 +95,7 @@ const IssueCertificateForm = ({ open, onClose, patient }) => {
                 method: 'POST',
                 body: JSON.stringify({
                     patientId: patient._id,
+                    certificateType: formData.certificateType,
                     publicCommitmentHash,
                     validFrom: new Date(formData.validFrom).toISOString(),
                     validUntil: new Date(formData.validUntil).toISOString(),
@@ -126,6 +128,7 @@ const IssueCertificateForm = ({ open, onClose, patient }) => {
             setActiveStep(0);
             setSuccessData(null);
             setFormData({
+                certificateType: '',
                 diagnosis: '',
                 remarks: '',
                 validFrom: new Date().toISOString().split('T')[0],
@@ -154,6 +157,20 @@ const IssueCertificateForm = ({ open, onClose, patient }) => {
                             <Typography variant="body2" color="text.secondary" gutterBottom>
                                 Patient: <strong>{patient?.user?.name || patient?.name}</strong> ({patient?._id})
                             </Typography>
+                        </Grid>
+                        <Grid item xs={12}>
+                            <TextField
+                                select
+                                fullWidth
+                                label="Certificate Type"
+                                value={formData.certificateType}
+                                onChange={handleChange('certificateType')}
+                                required
+                            >
+                                <MenuItem value="vaccine">Vaccine</MenuItem>
+                                <MenuItem value="age_verification">Age Verification</MenuItem>
+                                <MenuItem value="general">General</MenuItem>
+                            </TextField>
                         </Grid>
                         <Grid item xs={12}>
                             <TextField
@@ -211,6 +228,9 @@ const IssueCertificateForm = ({ open, onClose, patient }) => {
                                 <Grid item xs={4}><Typography variant="subtitle2" color="text.secondary">Patient:</Typography></Grid>
                                 <Grid item xs={8}><Typography variant="body2">{patient?.user?.name || patient?.name}</Typography></Grid>
                                 
+                                <Grid item xs={4}><Typography variant="subtitle2" color="text.secondary">Certificate Type:</Typography></Grid>
+                                <Grid item xs={8}><Typography variant="body2">{formData.certificateType}</Typography></Grid>
+
                                 <Grid item xs={4}><Typography variant="subtitle2" color="text.secondary">Diagnosis:</Typography></Grid>
                                 <Grid item xs={8}><Typography variant="body2">{formData.diagnosis}</Typography></Grid>
                                 

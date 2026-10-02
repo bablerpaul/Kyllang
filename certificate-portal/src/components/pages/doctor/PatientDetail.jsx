@@ -28,6 +28,16 @@ const getCertStatus = (cert) => {
   return 'active';
 };
 
+// "Request Certificate" = request access to an EXISTING certificate (CertificateAccessRequest).
+// Creating a NEW certificate is "Issue Certificate". Server messages are never shown verbatim.
+const CERT_ACCESS_REQUEST_ERRORS = {
+  401: 'Your session has expired. Please sign in again.',
+  403: 'You are not authorized to request access to this certificate.',
+  404: 'Certificate not found.',
+  409: 'An access request for this certificate is already pending.',
+};
+const CERT_STATUS_CHIP = { active: 'success', expired: 'warning', revoked: 'error' };
+
 const PatientDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -50,6 +60,10 @@ const PatientDetail = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [requestFormOpen, setRequestFormOpen] = useState(false);
   const [issueCertificateOpen, setIssueCertificateOpen] = useState(false);
+  const [requestCertificateDialogOpen, setRequestCertificateDialogOpen] = useState(false);
+  const [requestingCertId, setRequestingCertId] = useState(null);
+  const [certRequestFeedback, setCertRequestFeedback] = useState(null); // { severity, text }
+  const [pendingCertIds, setPendingCertIds] = useState(() => new Set());
   const [createEmrOpen, setCreateEmrOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
@@ -58,6 +72,8 @@ const PatientDetail = () => {
   const [certToRevoke, setCertToRevoke] = useState(null);
   const [revokeReason, setRevokeReason] = useState('');
   const [revoking, setRevoking] = useState(false);
+  const [requestDocumentDialogOpen, setRequestDocumentDialogOpen] = useState(false);
+  const [requestingDocId, setRequestingDocId] = useState(null);
 
   const fetchAllData = useCallback(async () => {
     try {
@@ -119,9 +135,69 @@ const PatientDetail = () => {
     fetchAllData();
   }, [fetchAllData]);
 
-  const handleRequestAccess = (document) => {
-    setSelectedDocument(document);
-    setRequestFormOpen(true);
+  // Informational only: marks certificates that already have a pending access request from this doctor.
+  // The backend stays the source of truth (a duplicate POST is refused with 409).
+  const loadPendingCertificateRequests = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/doctor/certificate-access-requests?status=pending', { redirectOnAuthFailure: false });
+      const rows = Array.isArray(res?.data) ? res.data : [];
+      setPendingCertIds(new Set(rows.map((r) => String(r.certificate?.certificateId)).filter(Boolean)));
+    } catch (_) {
+      // Keep whatever is already known; never block requesting on this lookup.
+    }
+  }, []);
+
+  const openRequestCertificateDialog = () => {
+    setCertRequestFeedback(null);
+    setRequestCertificateDialogOpen(true);
+    loadPendingCertificateRequests();
+  };
+
+  const handleRequestCertificateAccess = async (cert) => {
+    if (!cert?._id || requestingCertId) return;
+    const certId = String(cert._id);
+    setRequestingCertId(certId);
+    setCertRequestFeedback(null);
+    try {
+      // The certificate id goes in the URL only; the backend derives doctor and patient itself.
+      await apiFetch(`/api/doctor/certificates/${encodeURIComponent(certId)}/request`, { method: 'POST' });
+      setCertRequestFeedback({ severity: 'success', text: 'Certificate access request sent.' });
+      await loadPendingCertificateRequests();
+      setPendingCertIds((prev) => new Set(prev).add(certId));
+    } catch (err) {
+      console.error('Certificate access request failed:', err?.status);
+      if (err?.status === 409) setPendingCertIds((prev) => new Set(prev).add(certId));
+      setCertRequestFeedback({
+        severity: err?.status === 409 ? 'warning' : 'error',
+        text: CERT_ACCESS_REQUEST_ERRORS[err?.status] || 'Failed to send the certificate access request. Please try again.',
+      });
+    } finally {
+      setRequestingCertId(null);
+    }
+  };
+
+  const handleRequestDocumentAccess = async (doc) => {
+    try {
+        setRequestingDocId(doc._id);
+        await apiFetch(`/api/doctor/documents/${doc._id}/request`, {
+            method: 'POST'
+        });
+        alert('Access request submitted successfully.');
+        setRequestDocumentDialogOpen(false);
+        fetchAllData();
+    } catch (error) {
+        if (error.status === 400) {
+            alert('A request for this document is already pending.');
+        } else if (error.status === 403) {
+            alert('Active patient consent is required to request document access.');
+        } else if (error.status === 404) {
+            alert('Document could not be found.');
+        } else {
+            alert(error.message || 'Failed to request document access.');
+        }
+    } finally {
+        setRequestingDocId(null);
+    }
   };
 
   const handleVerifyIntegrity = async (emrId) => {
@@ -236,15 +312,39 @@ const PatientDetail = () => {
                 <RefreshIcon />
             </IconButton>
         </Tooltip>
-        <Button 
-            variant="contained" 
-            color="secondary" 
-            startIcon={<AssignmentIcon />} 
-            onClick={() => setIssueCertificateOpen(true)}
-            sx={{ borderRadius: 2, textTransform: 'none', ml: 'auto' }}
-        >
-            Issue Medical Certificate
-        </Button>
+        <Box sx={{ ml: 'auto', display: 'flex', gap: 2 }}>
+            <Button 
+                variant="outlined" 
+                color="info" 
+                startIcon={<DescriptionIcon />} 
+                onClick={() => setRequestDocumentDialogOpen(true)}
+                sx={{ borderRadius: 2, textTransform: 'none' }}
+            >
+                Request Document
+            </Button>
+            <Tooltip title="Request access to an EXISTING certificate of this patient" describeChild>
+                <Button
+                    variant="outlined"
+                    color="primary"
+                    startIcon={<AssignmentIcon />}
+                    onClick={openRequestCertificateDialog}
+                    sx={{ borderRadius: 2, textTransform: 'none' }}
+                >
+                    Request Certificate
+                </Button>
+            </Tooltip>
+            <Tooltip title="Create a NEW certificate for this patient" describeChild>
+                <Button
+                    variant="contained"
+                    color="secondary"
+                    startIcon={<MedicalServicesIcon />}
+                    onClick={() => setIssueCertificateOpen(true)}
+                    sx={{ borderRadius: 2, textTransform: 'none' }}
+                >
+                    Issue Certificate
+                </Button>
+            </Tooltip>
+        </Box>
       </Box>
 
       {/* Tabs */}
@@ -638,11 +738,27 @@ const PatientDetail = () => {
                                 <ListItem>
                                     <ListItemIcon><LockIcon color="disabled" /></ListItemIcon>
                                     <ListItemText 
-                                        primary="Protected Document" 
-                                        secondary="Request access to view metadata and contents" 
+                                        primary={doc.title || doc.documentName || 'Unnamed Document'}
+                                        secondary={
+                                            <>
+                                                <Typography variant="body2" component="span" display="block">Type: {doc.type || 'Unknown'}</Typography>
+                                                <Typography variant="body2" component="span" display="block">Date: {doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : 'Unknown'}</Typography>
+                                            </>
+                                        }
                                     />
                                     <ListItemSecondaryAction>
-                                        <Button variant="contained" size="small" onClick={() => handleRequestAccess(doc)}>Request Access</Button>
+                                        {doc.hasPendingRequest ? (
+                                            <Chip label="Pending" size="small" color="warning" />
+                                        ) : (
+                                            <Button 
+                                                variant="contained" 
+                                                size="small" 
+                                                disabled={requestingDocId === doc._id}
+                                                onClick={() => handleRequestDocumentAccess(doc)}
+                                            >
+                                                {requestingDocId === doc._id ? 'Requesting...' : 'Request Access'}
+                                            </Button>
+                                        )}
                                     </ListItemSecondaryAction>
                                 </ListItem>
                                 {idx < documents.length - 1 && <Divider />}
@@ -720,20 +836,51 @@ const PatientDetail = () => {
       )}
 
       {/* Dialogs */}
-      {requestFormOpen && selectedDocument && (
-        <RequestForm
-          open={requestFormOpen}
-          // RequestForm calls onClose(true) after a successful submission to signal that a
-          // refresh is needed (see RequestForm.jsx's handleSubmit) — there is no separate
-          // onSuccess prop on this component.
-          onClose={(shouldRefresh) => {
-            setRequestFormOpen(false);
-            if (shouldRefresh) fetchAllData();
-          }}
-          patient={patient}
-          document={selectedDocument}
-        />
-      )}
+      {/* Request Document Dialog */}
+      <Dialog open={requestDocumentDialogOpen} onClose={() => setRequestDocumentDialogOpen(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Request Document Access</DialogTitle>
+          <DialogContent dividers>
+              {documents.length === 0 ? (
+                  <Alert severity="info">No available documents to request.</Alert>
+              ) : (
+                  <List>
+                      {documents.map((doc, idx) => (
+                          <React.Fragment key={doc._id}>
+                              <ListItem>
+                                  <ListItemText
+                                      primary={doc.title || doc.documentName || 'Unnamed Document'}
+                                      secondary={
+                                          <>
+                                              <Typography variant="body2" component="span" display="block">Type: {doc.type || 'Unknown'}</Typography>
+                                              <Typography variant="body2" component="span" display="block">Date: {doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : 'Unknown'}</Typography>
+                                          </>
+                                      }
+                                  />
+                                  <ListItemSecondaryAction>
+                                      {doc.hasPendingRequest ? (
+                                          <Chip label="Pending" size="small" color="warning" />
+                                      ) : (
+                                          <Button
+                                              variant="contained"
+                                              size="small"
+                                              disabled={requestingDocId === doc._id}
+                                              onClick={() => handleRequestDocumentAccess(doc)}
+                                          >
+                                              {requestingDocId === doc._id ? 'Requesting...' : 'Request'}
+                                          </Button>
+                                      )}
+                                  </ListItemSecondaryAction>
+                              </ListItem>
+                              {idx < documents.length - 1 && <Divider />}
+                          </React.Fragment>
+                      ))}
+                  </List>
+              )}
+          </DialogContent>
+          <DialogActions>
+              <Button onClick={() => setRequestDocumentDialogOpen(false)}>Close</Button>
+          </DialogActions>
+      </Dialog>
 
       {createEmrOpen && selectedAppointment && (
         <CreateEMRDialog
@@ -761,6 +908,93 @@ const PatientDetail = () => {
           appointment={selectedAppointment}
         />
       )}
+
+      {/* Request Certificate = access to an EXISTING certificate (CertificateAccessRequest) */}
+      <Dialog
+          open={requestCertificateDialogOpen}
+          onClose={() => !requestingCertId && setRequestCertificateDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+      >
+          <DialogTitle>Request Access to an Existing Certificate</DialogTitle>
+          <DialogContent dividers>
+              <DialogContentText sx={{ mb: 2 }}>
+                  Choose one of {patient.name || 'this patient'}&apos;s existing certificates. The patient decides whether to
+                  share it with you. This does not create a new certificate — use <strong>Issue Certificate</strong> for that.
+              </DialogContentText>
+              {certRequestFeedback && (
+                  <Alert severity={certRequestFeedback.severity} sx={{ mb: 2 }} onClose={() => setCertRequestFeedback(null)}>
+                      {certRequestFeedback.text}
+                  </Alert>
+              )}
+              {certificates.length === 0 ? (
+                  <Alert severity="info">No existing certificates are available for this patient.</Alert>
+              ) : (
+                  <List>
+                      {certificates.map((cert, idx) => {
+                          const certId = String(cert._id);
+                          const status = getCertStatus(cert);
+                          const isPending = pendingCertIds.has(certId);
+                          return (
+                              <React.Fragment key={certId}>
+                                  <ListItem sx={{ pr: 16 }}>
+                                      <ListItemText
+                                          primary={
+                                              <Box component="span" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                                                  Certificate {certId}
+                                              </Box>
+                                          }
+                                          secondary={
+                                              <>
+                                                  <Typography variant="body2" component="span" display="block">
+                                                      Valid: {cert.validFrom ? new Date(cert.validFrom).toLocaleDateString() : '—'} – {cert.validUntil ? new Date(cert.validUntil).toLocaleDateString() : '—'}
+                                                  </Typography>
+                                                  <Typography variant="body2" component="span" display="block">
+                                                      Issued: {cert.createdAt ? new Date(cert.createdAt).toLocaleDateString() : '—'}
+                                                  </Typography>
+                                                  {cert.remarks && (
+                                                      <Typography variant="body2" component="span" display="block">Remarks: {cert.remarks}</Typography>
+                                                  )}
+                                                  <Chip
+                                                      component="span"
+                                                      label={status}
+                                                      size="small"
+                                                      color={CERT_STATUS_CHIP[status] || 'default'}
+                                                      variant="outlined"
+                                                      sx={{ mt: 0.5, textTransform: 'capitalize' }}
+                                                  />
+                                              </>
+                                          }
+                                      />
+                                      <ListItemSecondaryAction>
+                                          {isPending ? (
+                                              <Chip label="Pending" size="small" color="warning" />
+                                          ) : (
+                                              <Button
+                                                  variant="contained"
+                                                  size="small"
+                                                  disabled={Boolean(requestingCertId)}
+                                                  onClick={() => handleRequestCertificateAccess(cert)}
+                                              >
+                                                  {requestingCertId === certId ? 'Requesting...' : 'Request Access'}
+                                              </Button>
+                                          )}
+                                      </ListItemSecondaryAction>
+                                  </ListItem>
+                                  {idx < certificates.length - 1 && <Divider />}
+                              </React.Fragment>
+                          );
+                      })}
+                  </List>
+              )}
+          </DialogContent>
+          <DialogActions>
+              <Button onClick={() => navigate('/dashboard/my-certificate-access-requests')} disabled={Boolean(requestingCertId)}>
+                  My certificate access requests
+              </Button>
+              <Button onClick={() => setRequestCertificateDialogOpen(false)} disabled={Boolean(requestingCertId)}>Close</Button>
+          </DialogActions>
+      </Dialog>
 
       {/* Revoke Dialog */}
       <Dialog open={revokeDialogOpen} onClose={() => !revoking && setRevokeDialogOpen(false)} maxWidth="sm" fullWidth>

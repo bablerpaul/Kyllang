@@ -302,7 +302,7 @@ export default function EndToEndEMRWorkflow() {
                   <VerifiedIcon /> Step 6: Smart Contract Anchoring (`EMRRegistry.sol &rarr; storeEMRRecord`)
                 </Typography>
                 <Box sx={{ p: 2, bgcolor: '#1e293b', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                  <Typography variant="body2" sx={{ color: '#cbd5e1' }}>Smart Contract Address: <strong>{import.meta.env.VITE_CONTRACT_ADDRESS || '0x59C06503d953E317a71779462a64c8680bC678A7'}</strong></Typography>
+                  <Typography variant="body2" sx={{ color: '#cbd5e1' }}>Smart Contract Address: <strong>{import.meta.env.VITE_CONTRACT_ADDRESS || '0x2f6F64Ce99a27e7F8bcaD4D632023F280c7A8116'}</strong></Typography>
                   <Typography variant="body2" sx={{ color: '#cbd5e1', mt: 1 }}>Record Type: <strong>MedicalRecord</strong> | IPFS CID: <strong>{labData.ipfsCid}</strong></Typography>
                   {blockchainTx && (
                     <Box sx={{ mt: 2, p: 1.5, bgcolor: '#0284c7', borderRadius: '6px', color: '#ffffff' }}>

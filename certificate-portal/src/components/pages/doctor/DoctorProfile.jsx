@@ -18,6 +18,7 @@ import {
     AssignmentInd as LicenseIcon,
 } from '@mui/icons-material';
 import { apiFetch } from '../../../utils/api';
+import DoctorKeyEnrollment from './DoctorKeyEnrollment';
 
 const DoctorProfile = () => {
     const [profile, setProfile] = useState(null);
@@ -191,6 +192,10 @@ const DoctorProfile = () => {
                     </Paper>
                 </Grid>
             </Grid>
+
+            <Box sx={{ mt: 4 }}>
+                <DoctorKeyEnrollment />
+            </Box>
         </Box>
     );
 };

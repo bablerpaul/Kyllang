@@ -19,7 +19,7 @@
 
 const Certificate   = require('../models/Certificate');
 const MedicalRecord = require('../models/MedicalRecord');
-const Doctor        = require('../models/Doctor');
+const Doctor          = require('../models/Doctor');
 const User          = require('../models/User');
 const AuditLog      = require('../models/AuditLog');
 const { ethers }    = require('ethers');
@@ -89,6 +89,7 @@ exports.createCertificate = async (req, res, next) => {
     try {
         const {
             patientId,
+            certificateType,
             publicCommitmentHash,
             issuerAddress,
             validFrom,
@@ -100,6 +101,14 @@ exports.createCertificate = async (req, res, next) => {
         } = req.body;
 
         // ── Input Validation ───────────────────────────────────────────────
+        const allowedTypes = ['vaccine', 'age_verification', 'general'];
+        if (!certificateType || !allowedTypes.includes(certificateType)) {
+            return res.status(400).json({
+                success: false,
+                message: 'certificateType is required and must be one of: vaccine, age_verification, general',
+            });
+        }
+
         if (!patientId || !publicCommitmentHash || !validFrom || !validUntil) {
             return res.status(400).json({
                 success: false,
@@ -180,15 +189,39 @@ exports.createCertificate = async (req, res, next) => {
         const registry = blockchainContract.getContract('CertificateRegistry');
 
         if (registry) {
+            let txSubmitted = false;
+            let txHash = null;
             try {
                 // registerCertificate() on-chain — must be called by an authorized issuer wallet
                 const tx = await registry.registerCertificate(commitmentBytes32);
+                txSubmitted = true;
+                txHash = tx.hash;
                 const receipt = await tx.wait();
+                
+                if (receipt.status === 0) {
+                    throw new Error('Transaction reverted');
+                }
+                
                 blockchainTxHash = receipt.hash || tx.hash;
                 console.log('[CertificateRegistry] Hash registered on-chain. TX:', blockchainTxHash);
             } catch (contractErr) {
                 console.error('[CertificateRegistry] On-chain registration failed:', contractErr.message);
-                // Return error — we must not create a certificate without on-chain registration
+                
+                // Determine if definitively reverted/failed before submission
+                const isReverted = contractErr.message === 'Transaction reverted' || 
+                                 (contractErr.receipt && contractErr.receipt.status === 0);
+
+                if (txSubmitted && !isReverted) {
+                    // UNKNOWN OUTCOME
+                    console.error(`[CRITICAL BLOCKCHAIN UNKNOWN] TX ${txHash} submitted but outcome unknown.`);
+                    return res.status(502).json({
+                        success: false,
+                        message: 'Blockchain transaction outcome unknown. Please check blockchain explorer manually.',
+                        error: contractErr.message,
+                    });
+                }
+
+                // Failed BEFORE submission or DEFINITIVELY reverted.
                 return res.status(502).json({
                     success: false,
                     message: 'On-chain certificate registration failed. Please ensure the issuer wallet is authorized.',
@@ -200,23 +233,36 @@ exports.createCertificate = async (req, res, next) => {
         }
 
         // ── MongoDB Document ───────────────────────────────────────────────
-        const certificate = await Certificate.create({
-            patient:              patientProfile._id,
-            issuedBy:             req.user._id,
-            doctor:               doctorProfile._id,
-            medicalRecord:        emrRecord?._id,
-            insuranceClaim:       insuranceClaimId || undefined,
-            validFrom,
-            validUntil,
-            remarks,
-            publicCommitmentHash: commitmentBytes32,
-            verificationHash:     commitmentBytes32, // legacy alias
-            verificationMethod:   'zk_proof',
-            blockchainTxHash,
-            issuerAddress:        issuerAddress || req.user.walletAddress || null,
-            accessList:           [req.user._id],
-            encryptedCredential,
-        });
+        let certificate;
+        try {
+            certificate = await Certificate.create({
+                patient:              patientProfile._id,
+                issuedBy:             req.user._id,
+                doctor:               doctorProfile._id,
+                medicalRecord:        emrRecord?._id,
+                insuranceClaim:       insuranceClaimId || undefined,
+                validFrom,
+                validUntil,
+                remarks,
+                publicCommitmentHash: commitmentBytes32,
+                verificationHash:     commitmentBytes32, // legacy alias
+                verificationMethod:   'zk_proof',
+                blockchainTxHash,
+                issuerAddress:        issuerAddress || req.user.walletAddress || null,
+                accessList:           [req.user._id],
+                encryptedCredential,
+            });
+        } catch (dbError) {
+            if (blockchainTxHash) {
+                console.error(`[CRITICAL PERSISTENCE FAILURE] Certificate created on-chain (${blockchainTxHash}) but MongoDB save failed!`);
+                await AuditLog.create({
+                    actor: req.user._id,
+                    action: 'CERTIFICATE_PERSISTENCE_FAILURE',
+                    details: { blockchainTxHash, error: dbError.message }
+                }).catch(e => console.error('Failed to write audit log for persistence failure', e));
+            }
+            throw dbError;
+        }
 
         // ── Audit Log ──────────────────────────────────────────────────────
         await AuditLog.create({

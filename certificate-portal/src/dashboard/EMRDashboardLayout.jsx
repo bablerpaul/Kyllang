@@ -53,6 +53,8 @@ import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined';
 import ChecklistOutlinedIcon from '@mui/icons-material/ChecklistOutlined';
 import EnhancedEncryptionOutlinedIcon from '@mui/icons-material/EnhancedEncryptionOutlined';
 import HowToRegOutlinedIcon from '@mui/icons-material/HowToRegOutlined';
+import LockOpenOutlinedIcon from '@mui/icons-material/LockOpenOutlined';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 
 import { useAuth } from '../contexts/AuthContext';
 
@@ -92,6 +94,7 @@ const DOCTOR_ITEMS = [
   { text: 'Lab Reports',       icon: <ScienceOutlinedIcon />,        path: '/dashboard/lab-reports' },
   { text: 'Issue Certificates',icon: <WorkspacePremiumOutlinedIcon />,path: '/dashboard/issue' },
   { text: 'Cert Requests',     icon: <ApprovalOutlinedIcon />,       path: '/dashboard/requests' },
+  { text: 'Certificate Access Requests', icon: <LockOpenOutlinedIcon />, path: '/dashboard/my-certificate-access-requests' },
   { text: 'View Documents',    icon: <FolderOpenOutlinedIcon />,     path: '/dashboard/view-documents' },
   { text: 'Secure Storage',    icon: <EnhancedEncryptionOutlinedIcon />, path: '/dashboard/secure-storage' },
   { text: 'ZK QR Verification',icon: <QrCodeScannerIcon />,          path: '/dashboard/qr-verify' },
@@ -103,12 +106,16 @@ const USER_ITEMS = [
   { text: 'My Profile',        icon: <AccountCircleOutlinedIcon />,  path: '/dashboard/profile', roles: ['general_user'] },
   { text: 'My Health Records', icon: <HealthAndSafetyOutlinedIcon />,path: '/dashboard/emr' },
   { text: 'My Documents',      icon: <FolderOpenOutlinedIcon />,     path: '/dashboard/my-documents' },
+  // Legacy PatientDocument page (admin-uploaded encrypted documents); patient-only route, so patient-only entry.
+  { text: 'Encrypted Documents (Legacy)', icon: <LockOutlinedIcon />, path: '/dashboard/encrypted-documents', roles: ['general_user'] },
   // USER_ITEMS is also the menu of insurance_officer, which /api/secure-storage does not serve → patients only.
   { text: 'Secure Storage',    icon: <EnhancedEncryptionOutlinedIcon />, path: '/dashboard/secure-storage', roles: ['general_user'] },
   { text: 'Appointments',      icon: <EventNoteOutlinedIcon />,      path: '/dashboard/appointments' },
   { text: 'Prescriptions',     icon: <ChecklistOutlinedIcon />,      path: '/dashboard/prescriptions' },
   { text: 'Lab Reports',       icon: <ScienceOutlinedIcon />,        path: '/dashboard/lab-reports' },
   { text: 'My Certificates',   icon: <VerifiedUserOutlinedIcon />,   path: '/dashboard/my-certificates' },
+  { text: 'Med Cert Requests', icon: <MedicalServicesOutlinedIcon />,path: '/dashboard/certificate-requests', roles: ['general_user'] },
+  { text: 'Certificate Access Requests', icon: <LockOpenOutlinedIcon />, path: '/dashboard/certificate-access-requests', roles: ['general_user'] },
   { text: 'Request Certificate',icon: <WorkspacePremiumOutlinedIcon />, path: '/dashboard/generate-certificate' },
   { text: 'Approve Requests',  icon: <ApprovalOutlinedIcon />,       path: '/dashboard/approve-requests' },
   { text: 'Doctor Consent',    icon: <HowToRegOutlinedIcon />,       path: '/dashboard/consent' },

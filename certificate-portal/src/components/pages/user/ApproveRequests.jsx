@@ -144,10 +144,20 @@ const ApproveRequests = () => {
     const request = requests.find(r => r.id === requestId);
     if (!request) return;
 
-    // In a full implementation, we would send a DELETE/Deny request to the backend.
-    // For now we just remove from local view.
-    setRequests(prev => prev.filter(r => r.id !== requestId));
-    alert(`❌ Access denied for Dr. ${request.doctorName}`);
+    try {
+      await apiFetch(`/api/patient/documents/${request.docId}/reject`, {
+        method: 'POST',
+        body: JSON.stringify({
+          doctorId: request.doctorId
+        })
+      });
+
+      alert(`❌ Access denied for Dr. ${request.doctorName}`);
+      fetchDocuments();
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Failed to deny access request.');
+    }
   };
 
   const handleViewDetails = (request) => {
